@@ -573,6 +573,7 @@ Steps 7 and 8 both depend only on step 6, so they can be built in either order o
 | D-22 | 2026-10-15 | AC-10 symmetry compares footprints: a w × h building anchored at `(x, y)` mirrors to the anchor `(48 − w − x, 48 − h − y)` (a 3 × 3 HQ: `(45 − x, 45 − y)`) | Compare anchors with `(47 − x, 47 − y)` | Anchors are top-left cells, so mirroring a multi-cell footprint shifts the anchor |
 | D-23 | 2026-10-15 | `retreat_fraction` stored as an integer percentage (40, 25, 50); the check is `army * 100 < pct * start_army` | Floating-point fraction | The AI is in `scripts/sim/`, which is integer-only |
 | D-24 | 2026-10-15 | A non-soldier given an `attack` order returns `invalid_target` (AC-47) | A new result code | Uses an existing code |
+| D-26 | 2026-10-15 | The public web build is **required** (AC-86 no longer optional): GitHub Pages from the public repo `mini-rts`, deployed by GitHub Actions on every push to `main` after the fast test suite passes; the course guide `.docx` stays out of the public repo | itch.io; private repo with a separate Pages repo | One shareable link that always matches `main`; no extra accounts; failing tests block the deploy |
 | D-25 | 2026-10-15 | Clarifications: AC-25's "15-cell path" means 15 steps; AC-10's "within 15 cells" means path length; placement must be explored by the *placing faction*; "none" in `units.json` is stored as 0 | — | Removes ambiguity before writing tests |
 
 ## 20. Open Questions
