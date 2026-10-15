@@ -57,14 +57,21 @@ func _draw() -> void:
 			else:
 				draw_rect(r, ROCK_EDGE)
 				draw_rect(r.grow(-1.0), ROCK)
-	for node: Dictionary in m.nodes:
-		var c: Vector2 = origin + (Vector2(node.cell) + Vector2(0.5, 0.5)) * cell
-		var col: Color = WOOD if node.type == "wood" else GOLD
-		draw_circle(c, cell * 0.42, col.darkened(0.45))
-		draw_circle(c, cell * 0.32, col)
-	for f: String in m.starts:
-		var a: Vector2i = m.starts[f]
-		var r: Rect2 = Rect2(origin + Vector2(a) * cell, Vector2(3, 3) * cell).grow(-cell * 0.12)
-		draw_rect(r.grow(cell * 0.12), Color(FACTION[f], 0.18))
-		draw_rect(r, FACTION[f])
-		draw_rect(r.grow(-cell * 0.35), FACTION[f].darkened(0.35))
+	for id: int in sim.entities:
+		var e: Entity = sim.entities[id]
+		if e.is_node():
+			var c: Vector2 = origin + (Vector2(e.cell) + Vector2(0.5, 0.5)) * cell
+			var col: Color = WOOD if e.kind == "wood" else GOLD
+			draw_circle(c, cell * 0.42, col.darkened(0.45))
+			draw_circle(c, cell * 0.32, col)
+		elif e.is_building():
+			var r: Rect2 = Rect2(origin + Vector2(e.cell) * cell, Vector2(e.size) * cell).grow(-cell * 0.12)
+			draw_rect(r.grow(cell * 0.12), Color(FACTION[e.faction], 0.18))
+			draw_rect(r, FACTION[e.faction])
+			draw_rect(r.grow(-cell * 0.35), FACTION[e.faction].darkened(0.35))
+		elif e.is_unit():
+			# Positions are milli-cells; convert to floats only for drawing.
+			var p: Vector2 = origin + Vector2(e.pos) / float(Consts.MILLI_PER_CELL) * cell
+			draw_circle(p + Vector2(0, cell * 0.08), cell * 0.3, Color(0, 0, 0, 0.35))
+			draw_circle(p, cell * 0.3, FACTION[e.faction].lightened(0.15))
+			draw_circle(p, cell * 0.16, FACTION[e.faction].darkened(0.3))
