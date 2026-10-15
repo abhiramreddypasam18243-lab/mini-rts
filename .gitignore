@@ -1,0 +1,11 @@
+# Godot cache and build output
+.godot/
+build/
+*.tmp
+
+# Experiment and replay outputs (regenerated)
+results*.csv
+*.replay.jsonl
+
+# Course guide: kept locally, not published (public repo)
+docs/*.docx

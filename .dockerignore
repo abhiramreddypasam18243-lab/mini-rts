@@ -1,0 +1,9 @@
+.git
+.godot
+build
+docs
+tests
+tools
+addons/gut
+*.replay.jsonl
+results.csv

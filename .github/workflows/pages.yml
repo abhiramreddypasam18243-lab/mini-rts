@@ -1,0 +1,81 @@
+# Public web build (SPEC D7, AC-86): on every push to main, run the fast test
+# suite, export the game with the pinned Godot, and publish it to GitHub Pages.
+# A failing test stops the deploy (AC-89).
+name: Test and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+  GODOT: /home/runner/godot/godot
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Godot and web templates
+        id: godot-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-web
+
+      - name: Install pinned Godot (SHA-512 verified)
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          R="${GODOT_VERSION}-stable"
+          B="https://github.com/godotengine/godot/releases/download/${R}"
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSLo godot.zip "$B/Godot_v${R}_linux.x86_64.zip"
+          curl -fsSLo templates.tpz "$B/Godot_v${R}_export_templates.tpz"
+          curl -fsSLo SUMS.txt "$B/SHA512-SUMS.txt"
+          grep -E " Godot_v${R}_(linux\.x86_64\.zip|export_templates\.tpz)$" SUMS.txt \
+            | sed -e "s/Godot_v${R}_linux.x86_64.zip/godot.zip/" \
+                  -e "s/Godot_v${R}_export_templates.tpz/templates.tpz/" \
+            | sha512sum -c -
+          unzip -q godot.zip && mv "Godot_v${R}_linux.x86_64" godot && chmod +x godot
+          T=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p "$T"
+          unzip -qj templates.tpz 'templates/web_nothreads_*' 'templates/version.txt' -d "$T"
+          rm -f godot.zip templates.tpz
+
+      - name: Run the fast test suite (headless)
+        run: tools/run_tests.sh
+
+      - name: Export the web build
+        run: |
+          mkdir -p build/web
+          "$GODOT" --headless --export-release "Web" build/web/index.html
+          test -f build/web/index.wasm && test -f build/web/index.pck
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
