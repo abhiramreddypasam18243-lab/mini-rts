@@ -6,12 +6,13 @@
 ## (validation order and result codes), orders, movement and re-planning,
 ## harvesting and drop-off, building placement and construction, production
 ## queues and spawning, combat and removal of the dead, the end of the match,
-## the state hash.
+## fog of war and each faction's observation, the state hash.
 ##
 ## One tick, in this order (decision D-30):
 ##   re-plan blocked paths -> auto-acquire -> combat (judged on the state at
 ##   the start of the tick) -> unit orders and movement -> construction and
-##   production -> remove the dead -> end-of-match check -> tick + 1.
+##   production -> remove the dead -> end-of-match check -> tick + 1
+##   -> fog recomputed when the new tick is a multiple of 5 (decision D-31).
 ## Every spend goes through ResourceManager.spend() (the one transaction).
 ## Determinism: `entities` is a Dictionary filled in increasing id order and
 ## GDScript dictionaries keep insertion order, so every loop over it runs in id
@@ -34,6 +35,8 @@ const TRAINS: Dictionary = {"hq": ["worker"], "barracks": ["melee", "ranged"]}
 ## A replacement node must be within 10 cells of the exhausted one
 ## (squared Euclidean distance in cells, decision D-28).
 const REPLACEMENT_RADIUS_SQ: int = 100
+## Fog of war is recomputed every this many ticks (SPEC 5.6: at least every 5).
+const FOG_INTERVAL: int = 5
 
 var map: MapGrid
 var seed_value: int
@@ -63,8 +66,10 @@ var initial_node_total: Dictionary = {"wood": 0, "gold": 0}
 var solid: PackedByteArray
 ## Building or node id covering each cell; 0 = none.
 var occupant: PackedInt32Array
-## Explored cells per faction (placement needs explored cells).
+## Fog of war and remembered buildings and nodes, per faction.
 var fog: Fog
+## Tick of the last full fog recompute.
+var fog_tick: int = 0
 var _solid_changed: bool = false
 
 
@@ -89,7 +94,6 @@ func _init(p_map: MapGrid, p_seed: int, p_config: Dictionary = {}) -> void:
 	occupant = PackedInt32Array()
 	occupant.resize(map.width * map.height)
 	fog = Fog.new(map.width, map.height, Consts.FACTIONS)
-	fog.reveal_all()  # until build step 6 adds vision (D-29)
 	for node: Dictionary in map.nodes:
 		_add_node(node.type, node.cell, node.amount)
 		initial_node_total[node.type] += int(node.amount)
@@ -99,6 +103,7 @@ func _init(p_map: MapGrid, p_seed: int, p_config: Dictionary = {}) -> void:
 		# Starting workers take the first free spawn cells, one per cell (D-27).
 		for c: Vector2i in spawn_cells(entity(hq), workers):
 			spawn_unit("worker", f, c)
+	update_fog()
 	_solid_changed = false
 	events.clear()
 
@@ -133,6 +138,8 @@ func step() -> void:
 	tick += 1
 	if match_result == "" and tick >= max_ticks:
 		_end_match("timeout")
+	if tick % FOG_INTERVAL == 0:
+		update_fog()
 
 
 ## AC-19: a unit whose remaining path crosses a newly solid cell re-plans; if
@@ -523,8 +530,11 @@ func _cmd_attack(ids: Array[int], raw_target: Variant) -> String:
 	for id: int in ids:
 		if not (entities[id] as Entity).is_soldier():
 			return "invalid_target"
-	if t.is_node() or t.faction == (entities[ids[0]] as Entity).faction:
+	var faction: String = (entities[ids[0]] as Entity).faction
+	if t.is_node() or t.faction == faction:
 		return "invalid_target"
+	if not fog.any_visible(faction, t.unit_cell() if t.is_unit() else t.cell, t.size):
+		return "target_not_visible"
 	for id: int in ids:
 		_start_attack(entities[id], t, false)
 	return "ok"
@@ -561,6 +571,66 @@ func _end_match(result: String) -> void:
 	match_result = result
 	results_raised += 1
 	events.append({"type": "match_ended", "tick": tick, "result": result})
+
+
+# --- fog of war and observations (SPEC 5.6, 7.2) ---------------------------
+
+## Recomputes both factions' fog and their memory of enemy buildings and nodes.
+func update_fog() -> void:
+	var vision: Dictionary = {}
+	for kind: String in stats:
+		vision[kind] = stats[kind].vision
+	for f: String in Consts.FACTIONS:
+		var viewers: Array[Entity] = []
+		var remembered: Array[Entity] = []
+		for id: int in entities:
+			var e: Entity = entities[id]
+			if e.faction == f:
+				viewers.append(e)
+			elif e.is_node() or e.is_building():
+				remembered.append(e)
+		fog.update(f, viewers, remembered, vision)
+	fog_tick = tick
+
+
+## What `faction` may know (SPEC 7.2): copies only, nothing hidden.
+func observation(faction: String) -> Observation:
+	var o: Observation = Observation.new()
+	o.tick = tick
+	o.faction = faction
+	o.resources = (resources[faction] as Dictionary).duplicate()
+	for id: int in entities:
+		var e: Entity = entities[id]
+		if e.faction == faction and e.is_unit():
+			o.own_units.append(_snapshot_unit(e))
+		elif e.faction == faction and e.is_building():
+			var s: Dictionary = Fog.snapshot(e)
+			s["progress"] = e.progress
+			s["queue"] = e.queue.duplicate(true)
+			o.own_buildings.append(s)
+		elif e.is_unit() and fog.is_visible(faction, e.unit_cell()):
+			o.enemy_units.append(_snapshot_unit(e))
+	for id: int in fog.memory[faction]:
+		var m: Dictionary = (fog.memory[faction][id] as Dictionary).duplicate()
+		if m.faction == "":
+			o.nodes.append(m)
+		else:
+			o.ghosts.append(m)
+	o.width = map.width
+	o.height = map.height
+	o.terrain = map.blocked.duplicate()
+	o.possible_starts = map.possible_starts.duplicate()
+	o.fog = fog.grid(faction)
+	o.stats = stats.duplicate(true)
+	return o
+
+
+func _snapshot_unit(e: Entity) -> Dictionary:
+	return {
+		"id": e.id, "kind": e.kind, "faction": e.faction, "cell": e.unit_cell(), "pos": e.pos,
+		"hp": e.hp, "order_type": e.order_type, "order_target": e.order_target,
+		"carry": e.carry, "carry_type": e.carry_type,
+	}
 
 
 # --- commands ---------------------------------------------------------------
@@ -760,6 +830,7 @@ func spawn_unit(kind: String, faction: String, cell: Vector2i) -> int:
 	var e: Entity = Entity.new(next_id, kind, faction)
 	e.pos = MapGrid.cell_center(cell)
 	e.hp = stats[kind].health
+	fog.reveal(faction, e, stats[kind].vision)
 	return _register(e)
 
 
@@ -775,6 +846,7 @@ func place_building_unchecked(kind: String, faction: String, anchor: Vector2i, i
 		solid[c.y * map.width + c.x] = 1
 		occupant[c.y * map.width + c.x] = e.id
 	_solid_changed = true
+	fog.reveal(faction, e, stats[kind].vision)
 	return _register(e)
 
 

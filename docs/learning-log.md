@@ -141,3 +141,35 @@ Letting an attacker that was killed earlier in the same tick skip its own attack
 1. Three melee soldiers attack a 40-health worker, all in range from tick 1. On which tick does it die, and how many hits land in total?
 2. Why must deaths be removed at the end of the tick rather than as soon as health reaches 0?
 3. Why does the state hash stop changing after the match ends, and which test checks it?
+
+---
+
+## Step 6: Fog of war and the observation (AC-54 to AC-58)
+
+*[LEARN] module: fog-of-war visibility. You chose "you write it", so Claude wrote `fog.gd` and `observation.gd`. Read both with this entry.*
+
+**What was built**
+- `Fog`: per faction, two bitmasks per map row: `visible` and `explored`. `state_of(cell)` reads them as UNEXPLORED / EXPLORED / VISIBLE.
+- `update(faction, ...)`, every 5 ticks: rebuild `visible` from scratch from every unit and building, then `explored |= visible`; refresh the memory of enemy buildings and nodes.
+- `reveal()`: a new unit or building adds its circle at once.
+- `Observation`: the only view the AI will get (step 8): copies of its own units and buildings, visible enemy units, ghosts, remembered nodes, terrain, start positions, its fog grid, the stats.
+- `attack` now returns `target_not_visible` for an enemy the faction cannot see now.
+
+**How the visibility test works (worked example, AC-54)**
+A cell is visible if `dx² + dy² ≤ vision²` (squared cells, integers only). Unit with vision 6 at (10, 10):
+- (10, 16): 0 + 36 = 36 ≤ 36 → visible. (14, 14): 16 + 16 = 32 → visible.
+- (10, 17): 49 > 36 → not. (16, 14): 36 + 16 = 52 → not.
+
+**Why it is designed this way**
+- *Bitmask rows.* On row offset `dy`, a circle covers one run of cells, `w` either side, where `w` is the largest integer with `w² + dy² ≤ r²` (for r = 6: w = 6, 5, 5, 5, 4, 3, 0 for dy = 0..6). Marking that run is a single OR with a mask of 1-bits from `x0` to `x1`. The first version wrote one byte per cell and took 4.1 ms for 80 units; the bitmask version takes 0.8 ms (AC-58 target 2 ms).
+- *Rebuild, then OR.* Rebuilding `visible` from scratch automatically turns cells nobody sees any more into "not visible"; `explored |= visible` means a cell, once seen, can never become UNEXPLORED again (AC-55).
+- *Ghosts.* An enemy building is stored as it looked when last seen. It disappears from memory only when its site is visible and the building is gone, so the player never learns about a hidden destruction (AC-56).
+- *Observation as copies.* The AI gets duplicates, so it cannot change the game through them, and anything not in the observation (hidden units) simply does not exist for it.
+
+**One thing that could go wrong**
+If `update()` started from the old `visible` rows instead of empty ones, cells would stay visible forever after a unit walked past. That leaks hidden enemies into the observation. We planted it: eight checks across AC-55 to AC-58 failed (e.g. "hidden enemy not observed", "last seen health, not the hidden truth").
+
+**Quiz questions**
+1. For vision 7, list the half-widths `w` for dy = 0 to 7.
+2. A barracks is destroyed while no enemy unit can see it. What does the enemy's observation show for it, and what must happen before the ghost disappears?
+3. Why is it acceptable for fog to be up to 5 ticks old, and what would break if it were 100 ticks old?

@@ -157,6 +157,8 @@ func test_ac_49_soldier_walks_to_a_distant_target() -> void:
 	var sim: Simulation = _sim()
 	var a: int = sim.spawn_unit("ranged", "player", Vector2i(3, 6))
 	var t: int = sim.spawn_unit("worker", "ai", Vector2i(20, 6))
+	# A friendly spotter makes the distant target visible (AC-57: no attacks on hidden enemies).
+	sim.spawn_unit("worker", "player", Vector2i(20, 8))
 	assert_eq(sim.submit(Commands.attack("player", [a], t)), "ok")
 	for _i: int in 400:
 		sim.step()
