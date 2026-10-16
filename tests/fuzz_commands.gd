@@ -29,8 +29,13 @@ static func valid(rng: SimRng, sim: Simulation) -> Dictionary:
 		elif e.faction == f and e.is_building():
 			buildings.append(id)
 	var roll: int = rng.range_int(10)
-	if roll < 5 and not workers.is_empty() and not nodes.is_empty():
+	if roll < 4 and not workers.is_empty() and not nodes.is_empty():
 		return Commands.harvest(f, _some(rng, workers), nodes[rng.range_int(nodes.size())])
+	if roll < 5 and not workers.is_empty():
+		# A barracks a few cells from a worker: often valid, sometimes not.
+		var w: int = workers[rng.range_int(workers.size())]
+		var near: Vector2i = sim.entity(w).unit_cell() + Vector2i(rng.between(-4, 3), rng.between(-4, 3))
+		return Commands.build(f, w, "barracks", near)
 	if roll < 7 and not buildings.is_empty():
 		var b: int = buildings[rng.range_int(buildings.size())]
 		var kind: String = "worker" if sim.entity(b).kind == "hq" else ["melee", "ranged"][rng.range_int(2)]

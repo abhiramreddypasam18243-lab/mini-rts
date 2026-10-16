@@ -91,3 +91,28 @@ Refunding without removing the queue item would let a player cancel the same ite
 1. Why must `spend()` check that *both* wood and gold are affordable before deducting *either*? Give a cost and stockpile where checking one at a time would go wrong.
 2. A node has 15 wood. Two workers gather from it at the same time. How much does each carry home, and which equation in the conservation check would break if the second worker also took 10?
 3. Why does the invariant checker recompute carried totals from the units, instead of trusting a counter kept by the simulation?
+
+---
+
+## Step 4: Building placement, construction, production queues, spawning (AC-36 to AC-42)
+
+**What was built**
+- `Simulation.placement_check(faction, kind, anchor)`: every footprint cell inside the map, walkable, free of buildings, nodes and units, and explored; then affordable. It changes nothing, so the UI's ghost preview (step 7) can call it every frame.
+- `build`: check placement → check the builder can reach the site → pay once through `ResourceManager.spend` → place the building (solid at once) → send the worker.
+- Construction: +1 progress per tick while a builder stands beside the building; complete at 300 for a barracks.
+- Production: each finished building counts down the first queue item; at 0 the unit spawns in the first free cell of rings 1, 2, 3 around the footprint, row by row.
+- `fog.gd`: only the explored grid for now (every cell explored until step 6).
+
+**Why it is designed this way (worked examples)**
+- AC-39: train at tick 0 with a 200-tick melee soldier. Each tick removes 1 from `remaining`; after the 200th tick it is 0 and the soldier spawns, so it is absent at tick 199 and present at tick 200. The second item only starts counting on the next tick, so it appears at 400.
+- AC-41: if every spawn cell is solid, the finished item stays at the front with status `spawn_blocked` (one message, not one per tick). Its `remaining` stays 0, so it spawns on the very first tick a cell frees. Ring 1 is scanned before ring 2 even if a ring-2 cell is in an earlier row.
+- AC-37: the footprint is solid from the placement tick, so moving units re-plan at once (the AC-19 rule from step 2).
+- AC-42: a destroyed building takes its queue with it. The money was already counted as `spent`, so the ledger still balances without a refund.
+
+**One thing that could go wrong**
+If construction progressed without a builder beside it, a player could place a barracks and walk away. We planted that bug: AC-38 failed (progress 180 instead of holding at 100).
+
+**Quiz questions**
+1. A barracks is placed at tick 50 and the builder is already beside it. At which tick does it complete, and at which tick can a melee soldier trained right then appear at the earliest?
+2. Why does `build` test the builder's path on a copy of the grid with the footprint already solid, before paying?
+3. Two cells free up in the same tick: one in ring 2 at row 3, one in ring 1 at row 4. Where does the waiting unit spawn, and why?

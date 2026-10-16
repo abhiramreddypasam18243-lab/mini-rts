@@ -4,7 +4,8 @@
 ##
 ## Rules owned here: entity creation and removal, the command interface
 ## (validation order and result codes), orders, movement and re-planning,
-## harvesting and drop-off, production queue accounting, the state hash.
+## harvesting and drop-off, building placement and construction, production
+## queues and spawning, the state hash.
 ## Every spend goes through ResourceManager.spend() (the one transaction).
 ## Determinism: `entities` is a Dictionary filled in increasing id order and
 ## GDScript dictionaries keep insertion order, so every loop over it runs in id
@@ -56,6 +57,8 @@ var initial_node_total: Dictionary = {"wood": 0, "gold": 0}
 var solid: PackedByteArray
 ## Building or node id covering each cell; 0 = none.
 var occupant: PackedInt32Array
+## Explored cells per faction (placement needs explored cells).
+var fog: Fog
 var _solid_changed: bool = false
 
 
@@ -79,6 +82,8 @@ func _init(p_map: MapGrid, p_seed: int, p_config: Dictionary = {}) -> void:
 	solid = map.blocked.duplicate()
 	occupant = PackedInt32Array()
 	occupant.resize(map.width * map.height)
+	fog = Fog.new(map.width, map.height, Consts.FACTIONS)
+	fog.reveal_all()  # until build step 6 adds vision (D-29)
 	for node: Dictionary in map.nodes:
 		_add_node(node.type, node.cell, node.amount)
 		initial_node_total[node.type] += int(node.amount)
@@ -110,6 +115,9 @@ func step() -> void:
 				e.set_idle()
 		elif e.order_type == "harvest":
 			_tick_harvest(e)
+		elif e.order_type == "build":
+			_tick_build(e)
+	_tick_buildings()
 	tick += 1
 
 
@@ -128,6 +136,8 @@ func _replan_blocked_paths() -> void:
 			_start_to_node(e)
 		elif e.order_type == "harvest" and e.phase == "to_dropoff":
 			_start_dropoff(e)
+		elif e.order_type == "build" and e.phase == "to_site":
+			_assign_builder(e, entity(e.order_target))
 
 
 # --- harvesting (SPEC 5.3) --------------------------------------------------
@@ -195,7 +205,7 @@ func _tick_harvest(e: Entity) -> void:
 ## Heads for a cell touching the harvested node. False (and idle) if unreachable.
 func _start_to_node(e: Entity) -> bool:
 	var node: Entity = entity(e.order_target)
-	var r: Dictionary = Pathfinder.find_path_to_any(map.width, map.height, solid, e.unit_cell(), _touching_mask([node]))
+	var r: Dictionary = Pathfinder.find_path_to_any(map.width, map.height, solid, e.unit_cell(), _touching_mask([node], solid))
 	if (r.path as Array).is_empty():
 		e.set_idle()
 		_message(e.faction, "no_path", e.id)
@@ -217,7 +227,7 @@ func _start_dropoff(e: Entity) -> bool:
 			hqs.append(b)
 	var r: Dictionary = {"path": []}
 	if not hqs.is_empty():
-		r = Pathfinder.find_path_to_any(map.width, map.height, solid, e.unit_cell(), _touching_mask(hqs))
+		r = Pathfinder.find_path_to_any(map.width, map.height, solid, e.unit_cell(), _touching_mask(hqs, solid))
 	if (r.path as Array).is_empty():
 		e.set_idle()
 		_message(e.faction, "no_dropoff" if hqs.is_empty() else "no_path", e.id)
@@ -251,16 +261,120 @@ func _find_replacement(e: Entity) -> bool:
 	return true
 
 
-## Mask of free cells touching (8-neighbour) any of the given footprints.
-func _touching_mask(targets: Array) -> PackedByteArray:
+## Mask of cells touching (8-neighbour) any of the given footprints that are
+## free in `grid`.
+func _touching_mask(targets: Array, grid: PackedByteArray) -> PackedByteArray:
 	var mask: PackedByteArray = PackedByteArray()
 	mask.resize(map.width * map.height)
 	for t: Entity in targets:
-		for y: int in range(t.cell.y - 1, t.cell.y + t.size.y + 1):
-			for x: int in range(t.cell.x - 1, t.cell.x + t.size.x + 1):
-				if not is_solid(Vector2i(x, y)):
-					mask[y * map.width + x] = 1
+		_mark_touching(mask, t.cell, t.size, grid)
 	return mask
+
+
+func _mark_touching(mask: PackedByteArray, anchor: Vector2i, size: Vector2i, grid: PackedByteArray) -> void:
+	for y: int in range(anchor.y - 1, anchor.y + size.y + 1):
+		for x: int in range(anchor.x - 1, anchor.x + size.x + 1):
+			if map.in_bounds(Vector2i(x, y)) and grid[y * map.width + x] == 0:
+				mask[y * map.width + x] = 1
+
+
+# --- construction and production (SPEC 5.4) -------------------------------
+
+## Whether `faction` may place a `kind` building at `anchor`, as a result code.
+## Every footprint cell must be inside the map, on walkable terrain, free of
+## buildings, nodes and units, and explored by the faction; then the cost must
+## be affordable. Changes nothing (the UI also uses it for the ghost preview).
+func placement_check(faction: String, kind: String, anchor: Vector2i) -> String:
+	var size: Vector2i = stats[kind].footprint
+	var cells: Array[Vector2i] = MapGenerator.footprint(anchor, size.x, size.y)
+	for c: Vector2i in cells:
+		if not map.in_bounds(c) or not map.is_walkable(c) or solid[c.y * map.width + c.x] == 1:
+			return "invalid_placement"
+	for id: int in entities:
+		var u: Entity = entities[id]
+		if u.is_unit() and cells.has(u.unit_cell()):
+			return "invalid_placement"
+	for c: Vector2i in cells:
+		if not fog.is_explored(faction, c):
+			return "not_explored"
+	return bank.check(faction, {"wood": stats[kind].wood, "gold": stats[kind].gold})
+
+
+## Sends a worker to build or resume `b`. False (and idle) if it cannot reach it.
+func _assign_builder(w: Entity, b: Entity) -> bool:
+	w.set_idle()
+	var r: Dictionary = Pathfinder.find_path_to_any(map.width, map.height, solid, w.unit_cell(), _touching_mask([b], solid))
+	if (r.path as Array).is_empty():
+		_message(w.faction, "no_path", w.id)
+		return false
+	w.order_type = "build"
+	w.order_target = b.id
+	w.phase = "to_site"
+	w.path = r.path
+	w.path_i = Movement.start_index(w)
+	return true
+
+
+## A builder walks to a cell touching its building, then stays "building".
+func _tick_build(e: Entity) -> void:
+	if e.phase != "to_site" or not Movement.advance(e, stats[e.kind].speed):
+		return
+	var b: Entity = entity(e.order_target)
+	if b.chebyshev_to(e.unit_cell()) != 1:
+		_assign_builder(e, b)
+		return
+	e.phase = "building"
+	e.path.clear()
+	e.path_i = 0
+
+
+## Runs after the units each tick, in id order:
+## - an unfinished building gains 1 progress if a builder is beside it, and
+##   completes at its build time (its builders are released);
+## - a finished building counts down the first item of its queue and spawns it
+##   at 0, in the first free spawn cell; with none free the item waits as
+##   `spawn_blocked` (one message) and spawns on the first tick a cell frees.
+func _tick_buildings() -> void:
+	for id: int in entities.keys():
+		var b: Entity = entities.get(id)
+		if b == null or not b.is_building():
+			continue
+		if not b.complete:
+			var builders: Array[Entity] = _builders_of(b)
+			if builders.is_empty():
+				continue
+			b.progress += 1
+			if b.progress >= stats[b.kind].build_time:
+				b.complete = true
+				for w: Entity in builders:
+					w.set_idle()
+				events.append({"type": "completed", "tick": tick, "entity_id": b.id, "faction": b.faction})
+			continue
+		if b.queue.is_empty():
+			continue
+		var item: Dictionary = b.queue[0]
+		if item.remaining > 0:
+			item.remaining -= 1
+		if item.remaining > 0:
+			continue
+		var cells: Array[Vector2i] = spawn_cells(b, 1)
+		if cells.is_empty():
+			if item.status != "spawn_blocked":
+				item.status = "spawn_blocked"
+				_message(b.faction, "spawn_blocked", b.id)
+			continue
+		b.queue.remove_at(0)
+		var u: int = spawn_unit(item.type, b.faction, cells[0])
+		events.append({"type": "trained", "tick": tick, "entity_id": u, "building_id": b.id, "faction": b.faction})
+
+
+func _builders_of(b: Entity) -> Array[Entity]:
+	var out: Array[Entity] = []
+	for id: int in entities:
+		var w: Entity = entities[id]
+		if w.order_type == "build" and w.order_target == b.id and w.phase == "building":
+			out.append(w)
+	return out
 
 
 # --- commands ---------------------------------------------------------------
@@ -306,11 +420,13 @@ func _apply(cmd: Dictionary) -> String:
 			return _cmd_move(ids, args.get("cell"))
 		"harvest":
 			return _cmd_harvest(ids, args.get("node_id"))
+		"build":
+			return _cmd_build(entities[ids[0]], str(args.get("building_type", "")), args.get("cell"))
 		"train":
 			return _cmd_train(entities[ids[0]], str(args.get("unit_type", "")))
 		"cancel_train":
 			return _cmd_cancel_train(entities[ids[0]], int(args.index))
-	# build and attack arrive in build steps 4 and 5.
+	# attack arrives in build step 5.
 	return "invalid_target"
 
 
@@ -373,6 +489,41 @@ func _cmd_harvest(ids: Array[int], raw_node: Variant) -> String:
 		var ok: bool = _start_dropoff(e) if e.carry > 0 else _start_to_node(e)
 		any_ok = any_ok or ok
 	return "ok" if any_ok else "no_path"
+
+
+## Build: place a building under construction and send the worker to it.
+## The cost is paid once, at placement, through the one transaction (D-06).
+## `build` on the anchor of one's own unfinished building of that type
+## resumes it at no cost (decision D-29).
+func _cmd_build(w: Entity, kind: String, raw_cell: Variant) -> String:
+	if w.kind != "worker" or kind != "barracks":
+		return "invalid_target"
+	var cell: Variant = JsonUtil.to_cell(raw_cell)
+	if cell == null:
+		return "invalid_target"
+	var existing: Entity = entity(occupant_at(cell))
+	if existing != null and existing.kind == kind and existing.faction == w.faction \
+			and existing.cell == cell and not existing.complete:
+		return "ok" if _assign_builder(w, existing) else "no_path"
+	var check: String = placement_check(w.faction, kind, cell)
+	if check != "ok":
+		return check
+	# The builder must be able to reach the site once its footprint is solid.
+	var size: Vector2i = stats[kind].footprint
+	var trial: PackedByteArray = solid.duplicate()
+	for c: Vector2i in MapGenerator.footprint(cell, size.x, size.y):
+		trial[c.y * map.width + c.x] = 1
+	var mask: PackedByteArray = PackedByteArray()
+	mask.resize(map.width * map.height)
+	_mark_touching(mask, cell, size, trial)
+	if (Pathfinder.find_path_to_any(map.width, map.height, trial, w.unit_cell(), mask).path as Array).is_empty():
+		return "no_path"
+	var paid: String = bank.spend(w.faction, {"wood": stats[kind].wood, "gold": stats[kind].gold})
+	if paid != "ok":
+		return paid
+	var b: int = place_building_unchecked(kind, w.faction, cell, false)
+	_assign_builder(w, entity(b))
+	return "ok"
 
 
 ## Training: the cost is paid at enqueue through the one transaction (D-06).
@@ -533,6 +684,11 @@ func hq_of(faction: String) -> int:
 	return 0
 
 
+## The building or node covering a cell, or 0.
+func occupant_at(cell: Vector2i) -> int:
+	return occupant[cell.y * map.width + cell.x] if map.in_bounds(cell) else 0
+
+
 ## The resource node on a cell, or 0.
 func node_at(cell: Vector2i) -> int:
 	if not map.in_bounds(cell):
@@ -589,6 +745,7 @@ func state_hash() -> int:
 	bank.add_to_hash(h)
 	map.add_to_hash(h)
 	h.add_bytes(solid)
+	fog.add_to_hash(h)
 	for id: int in entities:
 		(entities[id] as Entity).add_to_hash(h)
 	return h.h
