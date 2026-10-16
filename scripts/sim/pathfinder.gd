@@ -130,5 +130,45 @@ static func find_path(w: int, h: int, solid: PackedByteArray, start: Vector2i, g
 	return {"path": path, "expanded": expanded}
 
 
+## Shortest path to the nearest of several goal cells (goal_mask[i] == 1),
+## e.g. any cell next to any friendly HQ (SPEC 5.3: nearest HQ by path length).
+## With many goals a breadth-first search is simpler than A* and still exact,
+## because every step costs 1. Same fixed neighbour order, so it is
+## deterministic. Returns {"path": Array[Vector2i] (empty = none), "expanded": int}.
+static func find_path_to_any(w: int, h: int, solid: PackedByteArray, start: Vector2i, goal_mask: PackedByteArray) -> Dictionary:
+	var path: Array[Vector2i] = []
+	if not _open_cell(w, h, solid, start):
+		return {"path": path, "expanded": 0}
+	var si: int = start.y * w + start.x
+	var came: PackedInt32Array = PackedInt32Array()
+	came.resize(w * h)
+	came.fill(-2)
+	came[si] = -1
+	var queue: PackedInt32Array = PackedInt32Array([si])
+	var head: int = 0
+	while head < queue.size():
+		var ci: int = queue[head]
+		head += 1
+		if goal_mask[ci] == 1:
+			var c: int = ci
+			while c != -1:
+				path.append(Vector2i(c % w, c / w))
+				c = came[c]
+			path.reverse()
+			return {"path": path, "expanded": head}
+		var cx: int = ci % w
+		var cy: int = ci / w
+		for k: int in 4:
+			var nx: int = cx + DX[k]
+			var ny: int = cy + DY[k]
+			if nx < 0 or ny < 0 or nx >= w or ny >= h:
+				continue
+			var ni: int = ny * w + nx
+			if solid[ni] == 0 and came[ni] == -2:
+				came[ni] = ci
+				queue.append(ni)
+	return {"path": path, "expanded": head}
+
+
 static func _open_cell(w: int, h: int, solid: PackedByteArray, c: Vector2i) -> bool:
 	return c.x >= 0 and c.y >= 0 and c.x < w and c.y < h and solid[c.y * w + c.x] == 0

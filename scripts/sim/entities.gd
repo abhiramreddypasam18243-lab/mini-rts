@@ -36,6 +36,21 @@ var path: Array[Vector2i] = []
 ## Index in `path` of the next cell centre to walk to.
 var path_i: int = 0
 
+# --- harvesting (workers; SPEC 5.3) ----------------------------------------
+## Harvest sub-phase: "to_node", "gathering" or "to_dropoff" ("" otherwise).
+var phase: String = ""
+## Ticks spent gathering in the current trip.
+var timer: int = 0
+## What the worker carries. Kept when the order changes (AC-34).
+var carry: int = 0
+var carry_type: String = ""
+## HQ the worker is walking to; 0 = none.
+var dropoff_id: int = 0
+## Type and cell of the node being harvested, used to find a replacement
+## when it runs out.
+var harvest_type: String = ""
+var harvest_cell: Vector2i
+
 # --- buildings ------------------------------------------------------------
 var complete: bool = true
 var progress: int = 0
@@ -72,12 +87,24 @@ func footprint() -> Array[Vector2i]:
 	return out
 
 
+## Clears the order. A carried load is kept (SPEC 5.3).
 func set_idle() -> void:
 	order_type = "idle"
 	order_target = 0
 	order_cell = Vector2i.ZERO
 	path.clear()
 	path_i = 0
+	phase = ""
+	timer = 0
+	dropoff_id = 0
+
+
+## The smallest Chebyshev distance from `c` to this entity's footprint:
+## 1 means touching it, diagonals included.
+func chebyshev_to(c: Vector2i) -> int:
+	var dx: int = maxi(maxi(cell.x - c.x, c.x - (cell.x + size.x - 1)), 0)
+	var dy: int = maxi(maxi(cell.y - c.y, c.y - (cell.y + size.y - 1)), 0)
+	return maxi(dx, dy)
 
 
 func add_to_hash(h: StateHasher) -> void:
@@ -99,6 +126,18 @@ func add_to_hash(h: StateHasher) -> void:
 	for c: Vector2i in path:
 		h.add_int(c.x)
 		h.add_int(c.y)
+	h.add_string(phase)
+	h.add_int(timer)
+	h.add_int(carry)
+	h.add_string(carry_type)
+	h.add_int(dropoff_id)
+	h.add_string(harvest_type)
+	h.add_int(harvest_cell.x)
+	h.add_int(harvest_cell.y)
 	h.add_int(1 if complete else 0)
 	h.add_int(progress)
 	h.add_int(queue.size())
+	for item: Dictionary in queue:
+		h.add_int(KIND_CODE[item.type])
+		h.add_int(item.remaining)
+		h.add_string(item.status)

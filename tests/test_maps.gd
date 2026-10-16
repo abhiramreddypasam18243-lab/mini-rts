@@ -4,11 +4,12 @@ class_name TestMaps
 extends RefCounted
 
 
-static func open(w: int, h: int, walls: Array[Vector2i] = []) -> MapGrid:
+static func open(w: int, h: int, walls: Array[Vector2i] = [], nodes: Array[Dictionary] = []) -> MapGrid:
 	var m: MapGrid = MapGrid.new(w, h)
 	m.map_name = "test"
 	for c: Vector2i in walls:
 		m.set_blocked(c, true)
+	m.nodes = nodes.duplicate()
 	m.starts = {"player": Vector2i(0, 0), "ai": Vector2i(w - 3, h - 3)}
 	m.possible_starts = [Vector2i(0, 0), Vector2i(w - 3, h - 3)]
 	return m

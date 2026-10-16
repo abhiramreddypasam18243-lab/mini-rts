@@ -1,33 +1,6 @@
-## AC-06: the invariant checker under random valid and invalid commands.
+## AC-06 (and AC-07, which Invariants.check also covers): the invariant
+## checker under random valid and invalid commands.
 extends GutTest
-
-const COMMANDS: Array[String] = ["move", "harvest", "build", "attack", "train", "cancel_train"]
-
-
-## A random command: real or fake ids, own or enemy units, cells inside or
-## outside the map, negative indexes. Built from a seeded test generator.
-func _random_command(rng: SimRng, sim: Simulation) -> Dictionary:
-	var ids: Array = sim.entities.keys()
-	var f: String = Consts.FACTIONS[rng.range_int(2)]
-	var pick: Callable = func() -> int:
-		return 9999 if rng.range_int(10) == 0 else ids[rng.range_int(ids.size())]
-	var some: Array = []
-	for i: int in rng.between(0, 4):
-		some.append(pick.call())
-	var cell: Vector2i = Vector2i(rng.between(-2, sim.map.width + 1), rng.between(-2, sim.map.height + 1))
-	match COMMANDS[rng.range_int(COMMANDS.size())]:
-		"move":
-			return Commands.move(f, some, cell)
-		"harvest":
-			return Commands.harvest(f, some, pick.call())
-		"build":
-			return Commands.build(f, pick.call(), "barracks", cell)
-		"attack":
-			return Commands.attack(f, some, pick.call())
-		"train":
-			return Commands.train(f, pick.call(), ["worker", "melee", "ranged", "hq"][rng.range_int(4)])
-		_:
-			return Commands.cancel_train(f, pick.call(), rng.between(-2, 6))
 
 
 func test_ac_06_invariants_hold_under_random_commands() -> void:
@@ -40,7 +13,7 @@ func test_ac_06_invariants_hold_under_random_commands() -> void:
 		var sim: Simulation = Simulation.new(m, s, {})
 		for t: int in ticks:
 			if rng.range_int(8) == 0:
-				sim.submit(_random_command(rng, sim))
+				sim.submit(FuzzCommands.any(rng, sim))
 			sim.step()
 			var problems: PackedStringArray = Invariants.check(sim)
 			if not problems.is_empty():

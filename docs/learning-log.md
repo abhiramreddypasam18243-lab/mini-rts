@@ -63,3 +63,31 @@ An inadmissible heuristic (one that overestimates, e.g. `3 × Manhattan`) makes 
 1. In the AC-13 grid, what is `f` of the start cell, and what is `f` of the gap cell (5, 9) when it is first reached by the shortest route?
 2. Why can a heap contain two entries for the same cell, and why is it safe to skip the second one when it is popped?
 3. A worker is halfway between two cells when you give it a new order. Which cell does the new path start from, and why does it never step through a blocked cell?
+
+---
+
+## Step 3: Resource manager, harvesting, depletion, drop-off (AC-07, AC-29 to AC-35)
+
+*[LEARN] module: the resource transaction and the production queue accounting. You chose "you write it", so Claude wrote `resource_manager.gd` and the train/cancel accounting in `simulation.gd`. Read both with this entry.*
+
+**What was built**
+- `ResourceManager.spend(faction, cost)`: the one transaction. (1) every amount a whole number ≥ 0 naming wood or gold, else `invalid_amount`; (2) every resource affordable, else `insufficient_resources`; (3) deduct all at once. A failed check returns before anything changes.
+- A ledger per faction: `deposited`, `spent`, `refunded`, `removed` (taken out of nodes).
+- Harvesting as three phases on the worker: `to_node` → `gathering` (40 ticks) → `to_dropoff` → deposit → back to `to_node`.
+- `train` pays at enqueue; `cancel_train` removes the item and refunds its full cost.
+- `destroy_entity()`: removes an entity and clears every reference to it (used now for exhausted nodes and in tests for a destroyed HQ; combat uses it in step 5).
+- `Invariants.check()` now also checks conservation every tick.
+
+**Why it is designed this way (worked examples)**
+- AC-32: 100 wood, 100 gold. Melee costs 60 wood + 20 gold → check passes → 40 wood, 80 gold. A second melee needs 60 wood but there are only 40 → `insufficient_resources` and *nothing* is deducted (not even the 20 gold, which would be affordable). That is why both resources are checked before either is deducted.
+- AC-33: two workers from 200 wood → 100. Cancel item 1 → item removed, +50 → 150. Cancel item 1 again → there is no item 1 any more → rejected, still 150. The refund can only happen once because the item it belongs to is deleted in the same step.
+- AC-07 conservation, per faction and resource: `removed = carried + deposited`, and `stockpile = start + deposited + refunded − spent`. Also, what the nodes lost equals what both factions' workers removed. If any rule in the economy duplicated or lost even 1 unit, one of these equations would break on that tick.
+- The worker carries its load through order changes (AC-34): a move order keeps `carry`; the next harvest order first walks to an HQ and deposits.
+
+**One thing that could go wrong**
+Refunding without removing the queue item would let a player cancel the same item many times and print money. We planted exactly that bug: AC-33 failed (200 wood instead of 150).
+
+**Quiz questions**
+1. Why must `spend()` check that *both* wood and gold are affordable before deducting *either*? Give a cost and stockpile where checking one at a time would go wrong.
+2. A node has 15 wood. Two workers gather from it at the same time. How much does each carry home, and which equation in the conservation check would break if the second worker also took 10?
+3. Why does the invariant checker recompute carried totals from the units, instead of trusting a counter kept by the simulation?
