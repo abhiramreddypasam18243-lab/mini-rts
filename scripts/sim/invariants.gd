@@ -58,7 +58,7 @@ static func check(sim: Simulation) -> PackedStringArray:
 				problems.append("%s %s is negative (%d)" % [f, r, sim.resources[f][r]])
 
 	# Conservation (AC-07), for each faction and resource:
-	#   removed from nodes == carried + deposited
+	#   removed from nodes == carried + deposited + lost (died carrying)
 	#   stockpile == start + deposited + refunded - spent
 	# and overall: resource missing from nodes == removed by both factions.
 	var carried: Dictionary = {"player": {"wood": 0, "gold": 0}, "ai": {"wood": 0, "gold": 0}}
@@ -74,8 +74,8 @@ static func check(sim: Simulation) -> PackedStringArray:
 		var removed_total: int = 0
 		for f: String in Consts.FACTIONS:
 			removed_total += b.removed[f][r]
-			if b.removed[f][r] != carried[f][r] + b.deposited[f][r]:
-				problems.append("%s %s: removed %d != carried %d + deposited %d" % [f, r, b.removed[f][r], carried[f][r], b.deposited[f][r]])
+			if b.removed[f][r] != carried[f][r] + b.deposited[f][r] + b.lost[f][r]:
+				problems.append("%s %s: removed %d != carried %d + deposited %d + lost %d" % [f, r, b.removed[f][r], carried[f][r], b.deposited[f][r], b.lost[f][r]])
 		if sim.initial_node_total[r] - in_nodes[r] != removed_total:
 			problems.append("%s: nodes lost %d but workers removed %d" % [r, sim.initial_node_total[r] - in_nodes[r], removed_total])
 	for f: String in Consts.FACTIONS:

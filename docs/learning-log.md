@@ -116,3 +116,28 @@ If construction progressed without a builder beside it, a player could place a b
 1. A barracks is placed at tick 50 and the builder is already beside it. At which tick does it complete, and at which tick can a melee soldier trained right then appear at the earliest?
 2. Why does `build` test the builder's path on a copy of the grid with the footprint already solid, before paying?
 3. Two cells free up in the same tick: one in ring 2 at row 3, one in ring 1 at row 4. Where does the waiting unit spawn, and why?
+
+---
+
+## Step 5: Combat, auto-acquire, end of match (AC-43 to AC-53)
+
+**What was built**
+- `attack(unit_ids, target_id)`: soldiers only, enemy units or buildings only. A soldier walks towards its target and stops as soon as it is in range.
+- Combat in two passes each tick: (1) pick every soldier whose cooldown has run out and whose target is in range *at the start of the tick*; (2) apply the damage in id order.
+- Removal of the dead at the end of the tick, through `destroy_entity`, which clears every order that pointed at them.
+- Auto-acquire: an idle soldier attacks the nearest enemy within its vision and gives up when the target leaves it.
+- End of match: no HQ left → defeat; both in the same tick → `draw`; tick limit → `timeout`. After that, every command returns `match_over` and `step()` does nothing.
+
+**Why it is designed this way (worked examples)**
+- Range uses squared integers: melee range 1,500 milli-cells, so 1.0 cell (1,000² = 1,000,000 ≤ 2,250,000) hits and 2.0 cells (4,000,000) does not (AC-43). Ranged 5,000: 5.0 cells hits, 5.1 cells (26,010,000 > 25,000,000) does not (AC-44).
+- Cooldown 20: a hit on tick 1 sets it to 20; it counts down once per tick and the next hit lands on tick 21, exactly 20 ticks later. So 300-health barracks ÷ 10 damage = 30 hits, on ticks 1, 21, …, 581 (AC-49).
+- Two-pass combat: if A and B (10 health each) both hit each other on the same tick, both were alive at the start of the tick, so both attacks count and both die (AC-46). If they were resolved one by one, the lower id would always win, which is unfair and order-dependent.
+- Restart is simply a new `Simulation` from the same map and seed. Because the simulation never modifies the map and keeps no global state, the new one has exactly the hash of a fresh process (AC-53).
+
+**One thing that could go wrong**
+Letting an attacker that was killed earlier in the same tick skip its own attack makes the result depend on entity ids. We planted that bug: AC-46 failed ("a died" was false).
+
+**Quiz questions**
+1. Three melee soldiers attack a 40-health worker, all in range from tick 1. On which tick does it die, and how many hits land in total?
+2. Why must deaths be removed at the end of the tick rather than as soon as health reaches 0?
+3. Why does the state hash stop changing after the match ends, and which test checks it?

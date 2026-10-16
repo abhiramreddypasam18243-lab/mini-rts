@@ -51,6 +51,13 @@ var dropoff_id: int = 0
 var harvest_type: String = ""
 var harvest_cell: Vector2i
 
+# --- combat (soldiers; SPEC 5.5) -------------------------------------------
+## Ticks until the soldier may attack again; 0 = ready (starts ready).
+var cooldown: int = 0
+## True if the attack order was auto-acquired (dropped when the target
+## leaves the soldier's vision), false if the player or AI ordered it.
+var auto: bool = false
+
 # --- buildings ------------------------------------------------------------
 var complete: bool = true
 var progress: int = 0
@@ -75,6 +82,10 @@ func is_node() -> bool:
 	return kind in NODE_KINDS
 
 
+func is_soldier() -> bool:
+	return kind == "melee" or kind == "ranged"
+
+
 func unit_cell() -> Vector2i:
 	return MapGrid.milli_to_cell(pos)
 
@@ -97,6 +108,7 @@ func set_idle() -> void:
 	phase = ""
 	timer = 0
 	dropoff_id = 0
+	auto = false
 
 
 ## The smallest Chebyshev distance from `c` to this entity's footprint:
@@ -134,6 +146,8 @@ func add_to_hash(h: StateHasher) -> void:
 	h.add_string(harvest_type)
 	h.add_int(harvest_cell.x)
 	h.add_int(harvest_cell.y)
+	h.add_int(cooldown)
+	h.add_int(1 if auto else 0)
 	h.add_int(1 if complete else 0)
 	h.add_int(progress)
 	h.add_int(queue.size())

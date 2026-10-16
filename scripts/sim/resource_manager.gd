@@ -10,7 +10,8 @@
 ## own rules first and acts only after spend() returns "ok", so a purchase is
 ## never half-done.
 ##
-## The ledger (deposited, spent, refunded, removed from nodes) lets the tests
+## The ledger (deposited, spent, refunded, removed from nodes, lost when a
+## carrying worker dies) lets the tests
 ## check conservation: stock == start + deposited + refunded - spent.
 class_name ResourceManager
 extends RefCounted
@@ -25,6 +26,8 @@ var spent: Dictionary = {}
 var refunded: Dictionary = {}
 ## Taken out of resource nodes by this faction's workers.
 var removed: Dictionary = {}
+## Carried by workers that died before depositing.
+var lost: Dictionary = {}
 
 
 func _init(p_start: Dictionary) -> void:
@@ -35,6 +38,7 @@ func _init(p_start: Dictionary) -> void:
 		spent[f] = _zero()
 		refunded[f] = _zero()
 		removed[f] = _zero()
+		lost[f] = _zero()
 
 
 static func _zero() -> Dictionary:
@@ -80,6 +84,10 @@ func record_removed(faction: String, type: String, amount: int) -> void:
 	removed[faction][type] += amount
 
 
+func record_lost(faction: String, type: String, amount: int) -> void:
+	lost[faction][type] += amount
+
+
 ## stock == start + deposited + refunded - spent, for both resources.
 func balanced(faction: String) -> bool:
 	for r: String in TYPES:
@@ -96,3 +104,4 @@ func add_to_hash(h: StateHasher) -> void:
 			h.add_int(spent[f][r])
 			h.add_int(refunded[f][r])
 			h.add_int(removed[f][r])
+			h.add_int(lost[f][r])

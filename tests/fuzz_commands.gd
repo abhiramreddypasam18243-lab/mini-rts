@@ -18,8 +18,14 @@ static func valid(rng: SimRng, sim: Simulation) -> Dictionary:
 	var units: Array = []
 	var nodes: Array = []
 	var buildings: Array = []
+	var soldiers: Array = []
+	var enemies: Array = []
 	for id: int in sim.entities:
 		var e: Entity = sim.entities[id]
+		if e.faction != f and not e.is_node():
+			enemies.append(id)
+		if e.is_soldier() and e.faction == f:
+			soldiers.append(id)
 		if e.is_node():
 			nodes.append(id)
 		elif e.faction == f and e.is_unit():
@@ -28,7 +34,9 @@ static func valid(rng: SimRng, sim: Simulation) -> Dictionary:
 				workers.append(id)
 		elif e.faction == f and e.is_building():
 			buildings.append(id)
-	var roll: int = rng.range_int(10)
+	var roll: int = rng.range_int(11)
+	if roll == 10 and not soldiers.is_empty() and not enemies.is_empty():
+		return Commands.attack(f, _some(rng, soldiers), enemies[rng.range_int(enemies.size())])
 	if roll < 4 and not workers.is_empty() and not nodes.is_empty():
 		return Commands.harvest(f, _some(rng, workers), nodes[rng.range_int(nodes.size())])
 	if roll < 5 and not workers.is_empty():

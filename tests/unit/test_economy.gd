@@ -188,5 +188,7 @@ func test_ac_07_conservation_under_heavy_harvesting() -> void:
 			if not problems.is_empty():
 				assert_eq(problems, PackedStringArray(), "map %d tick %d" % [s, sim.tick])
 				return
-		var gathered: int = sim.bank.deposited.player.wood + sim.bank.deposited.ai.wood
-		assert_gt(gathered, 0, "map %d: the economy actually ran" % s)
+		var gathered: int = 0
+		for f: String in Consts.FACTIONS:
+			gathered += sim.bank.deposited[f].wood + sim.bank.deposited[f].gold
+		assert_gt(gathered, 0, "map %d: the economy actually ran (wood or gold deposited)" % s)

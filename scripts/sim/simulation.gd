@@ -5,7 +5,13 @@
 ## Rules owned here: entity creation and removal, the command interface
 ## (validation order and result codes), orders, movement and re-planning,
 ## harvesting and drop-off, building placement and construction, production
-## queues and spawning, the state hash.
+## queues and spawning, combat and removal of the dead, the end of the match,
+## the state hash.
+##
+## One tick, in this order (decision D-30):
+##   re-plan blocked paths -> auto-acquire -> combat (judged on the state at
+##   the start of the tick) -> unit orders and movement -> construction and
+##   production -> remove the dead -> end-of-match check -> tick + 1.
 ## Every spend goes through ResourceManager.spend() (the one transaction).
 ## Determinism: `entities` is a Dictionary filled in increasing id order and
 ## GDScript dictionaries keep insertion order, so every loop over it runs in id
@@ -106,6 +112,8 @@ func step() -> void:
 	if _solid_changed:
 		_replan_blocked_paths()
 		_solid_changed = false
+	_auto_acquire()
+	_resolve_combat()
 	for id: int in entities.keys():
 		var e: Entity = entities.get(id)
 		if e == null or not e.is_unit():
@@ -117,8 +125,14 @@ func step() -> void:
 			_tick_harvest(e)
 		elif e.order_type == "build":
 			_tick_build(e)
+		elif e.order_type == "attack":
+			_tick_attack(e)
 	_tick_buildings()
+	_remove_dead()
+	_check_match_end()
 	tick += 1
+	if match_result == "" and tick >= max_ticks:
+		_end_match("timeout")
 
 
 ## AC-19: a unit whose remaining path crosses a newly solid cell re-plans; if
@@ -138,6 +152,9 @@ func _replan_blocked_paths() -> void:
 			_start_dropoff(e)
 		elif e.order_type == "build" and e.phase == "to_site":
 			_assign_builder(e, entity(e.order_target))
+		elif e.order_type == "attack":
+			e.path.clear()  # re-planned on its next move
+			e.path_i = 0
 
 
 # --- harvesting (SPEC 5.3) --------------------------------------------------
@@ -377,6 +394,175 @@ func _builders_of(b: Entity) -> Array[Entity]:
 	return out
 
 
+# --- combat (SPEC 5.5) ------------------------------------------------------
+
+## Idle soldiers attack the nearest enemy unit or building within their own
+## vision (ties: lowest id). An auto-acquired attack ends when the target
+## leaves that vision (or dies: destroy_entity clears the order).
+func _auto_acquire() -> void:
+	for id: int in entities:
+		var e: Entity = entities[id]
+		if not e.is_soldier():
+			continue
+		if e.order_type == "attack" and e.auto and not _in_vision(e, entity(e.order_target)):
+			e.set_idle()
+		if e.order_type != "idle":
+			continue
+		var best: Entity = null
+		var best_d: int = 0
+		for tid: int in entities:
+			var t: Entity = entities[tid]
+			if t.faction == e.faction or t.is_node() or not _in_vision(e, t):
+				continue
+			var d: int = _cell_dist_sq(e.unit_cell(), t)
+			if best == null or d < best_d:
+				best = t
+				best_d = d
+		if best != null:
+			_start_attack(e, best, true)
+
+
+## Squared distance in cells from `c` to the nearest cell of t's footprint.
+func _cell_dist_sq(c: Vector2i, t: Entity) -> int:
+	var near: Vector2i = t.unit_cell() if t.is_unit() else Vector2i(
+		clampi(c.x, t.cell.x, t.cell.x + t.size.x - 1), clampi(c.y, t.cell.y, t.cell.y + t.size.y - 1))
+	var d: Vector2i = near - c
+	return d.x * d.x + d.y * d.y
+
+
+func _in_vision(e: Entity, t: Entity) -> bool:
+	var v: int = stats[e.kind].vision
+	return t != null and _cell_dist_sq(e.unit_cell(), t) <= v * v
+
+
+## In attack range: distance from the attacker's position to the nearest cell
+## centre of the target's footprint, compared as squared integers.
+func _in_range(a: Entity, t: Entity) -> bool:
+	var r: int = stats[a.kind].range
+	var cells: Array[Vector2i] = t.footprint()
+	if t.is_unit():
+		cells = [t.unit_cell()]
+	for c: Vector2i in cells:
+		var d: Vector2i = MapGrid.cell_center(c) - a.pos
+		if d.x * d.x + d.y * d.y <= r * r:
+			return true
+	return false
+
+
+func _start_attack(e: Entity, t: Entity, is_auto: bool) -> void:
+	e.set_idle()
+	e.order_type = "attack"
+	e.order_target = t.id
+	e.auto = is_auto
+
+
+## Every soldier whose cooldown has run out and whose target is in range at
+## the start of the tick attacks, in id order. Damage is applied after all
+## attackers are chosen, so two soldiers can kill each other (AC-46). A target
+## already at 0 health this tick takes no more hits, and a hit that does not
+## land does not use up the attacker's cooldown (AC-45).
+func _resolve_combat() -> void:
+	var hits: Array[Array] = []
+	for id: int in entities:
+		var e: Entity = entities[id]
+		if not e.is_soldier():
+			continue
+		if e.cooldown > 0:
+			e.cooldown -= 1
+		if e.order_type != "attack" or e.cooldown > 0:
+			continue
+		var t: Entity = entity(e.order_target)
+		if t != null and _in_range(e, t):
+			hits.append([e, t])
+	for h: Array in hits:
+		var a: Entity = h[0]
+		var t: Entity = h[1]
+		if t.hp <= 0:
+			continue
+		t.hp -= stats[a.kind].damage
+		a.cooldown = stats[a.kind].cooldown
+		events.append({"type": "attack", "tick": tick, "attacker": a.id, "target": t.id, "damage": stats[a.kind].damage})
+
+
+## Movement for an attack order: stand still while in range, otherwise walk
+## towards the target, re-planning when a unit target changes cell.
+func _tick_attack(e: Entity) -> void:
+	var t: Entity = entity(e.order_target)
+	if t == null:
+		e.set_idle()
+		return
+	if _in_range(e, t):
+		e.path.clear()
+		e.path_i = 0
+		return
+	var goal: Vector2i = t.unit_cell() if t.is_unit() else t.cell
+	if e.path.is_empty() or e.path_i >= e.path.size() or e.order_cell != goal:
+		var ok: bool
+		if t.is_unit():
+			ok = _set_path(e, goal)
+		else:
+			var r: Dictionary = Pathfinder.find_path_to_any(map.width, map.height, solid, e.unit_cell(), _touching_mask([t], solid))
+			ok = not (r.path as Array).is_empty()
+			if ok:
+				e.path = r.path
+				e.path_i = Movement.start_index(e)
+		if not ok:
+			e.set_idle()
+			_message(e.faction, "no_path", e.id)
+			return
+		e.order_cell = goal
+	Movement.advance(e, stats[e.kind].speed)
+
+
+func _cmd_attack(ids: Array[int], raw_target: Variant) -> String:
+	if not JsonUtil.is_whole(raw_target):
+		return "invalid_target"
+	var t: Entity = entity(int(raw_target))
+	if t == null:
+		return "unknown_entity"
+	for id: int in ids:
+		if not (entities[id] as Entity).is_soldier():
+			return "invalid_target"
+	if t.is_node() or t.faction == (entities[ids[0]] as Entity).faction:
+		return "invalid_target"
+	for id: int in ids:
+		_start_attack(entities[id], t, false)
+	return "ok"
+
+
+## Deaths are removed at the end of the tick, in id order.
+func _remove_dead() -> void:
+	var dead: Array[int] = []
+	for id: int in entities:
+		var e: Entity = entities[id]
+		if (e.is_unit() or e.is_building()) and e.hp <= 0:
+			dead.append(id)
+	for id: int in dead:
+		destroy_entity(id)
+
+
+## A faction is defeated when it has no HQ left; both at once is a draw (SPEC 5.7).
+func _check_match_end() -> void:
+	var has_hq: Dictionary = {"player": false, "ai": false}
+	for id: int in entities:
+		var e: Entity = entities[id]
+		if e.kind == "hq":
+			has_hq[e.faction] = true
+	if not has_hq.player and not has_hq.ai:
+		_end_match("draw")
+	elif not has_hq.player:
+		_end_match("victory_ai")
+	elif not has_hq.ai:
+		_end_match("victory_player")
+
+
+## Raised exactly once: step() does nothing after a result exists.
+func _end_match(result: String) -> void:
+	match_result = result
+	results_raised += 1
+	events.append({"type": "match_ended", "tick": tick, "result": result})
+
+
 # --- commands ---------------------------------------------------------------
 
 ## Validates and applies a command; returns a result code (SPEC 6.2).
@@ -420,13 +606,14 @@ func _apply(cmd: Dictionary) -> String:
 			return _cmd_move(ids, args.get("cell"))
 		"harvest":
 			return _cmd_harvest(ids, args.get("node_id"))
+		"attack":
+			return _cmd_attack(ids, args.get("target_id"))
 		"build":
 			return _cmd_build(entities[ids[0]], str(args.get("building_type", "")), args.get("cell"))
 		"train":
 			return _cmd_train(entities[ids[0]], str(args.get("unit_type", "")))
 		"cancel_train":
 			return _cmd_cancel_train(entities[ids[0]], int(args.index))
-	# attack arrives in build step 5.
 	return "invalid_target"
 
 
@@ -620,6 +807,8 @@ func destroy_entity(id: int) -> void:
 			var i: int = c.y * map.width + c.x
 			occupant[i] = 0
 			solid[i] = map.blocked[i]
+	if dead.is_unit() and dead.carry > 0:
+		bank.record_lost(dead.faction, dead.carry_type, dead.carry)
 	events.append({"type": "destroyed", "tick": tick, "entity_id": id, "kind": dead.kind, "faction": dead.faction})
 	for oid: int in entities:
 		var e: Entity = entities[oid]
