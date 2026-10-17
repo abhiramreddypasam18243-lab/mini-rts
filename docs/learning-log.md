@@ -271,3 +271,20 @@ Mixing up which side won: the simulation reports "victory_player" or "victory_ai
 
 **One thing that could go wrong**
 Playing back a replay while the viewer can still issue commands would change the match and break the replay. In demo mode `Game.issue()` refuses every command, and a test checks it.
+
+---
+
+## Step 11 (stretch): the minimap (decision D-43)
+
+**What was built**
+- `scripts/ui/minimap.gd`: a small picture of the whole map in the HUD's bottom-right corner. Terrain is drawn once into a tiny image (one pixel per cell, scaled up); the fog is a second tiny image recoloured only when the simulation's fog changes; units, buildings and nodes are small squares drawn every frame; a white frame shows what the camera sees; red rings ping fights.
+- Left click or drag moves the camera; right click sends the selected units there with the same context order as a right click on the map.
+
+**Why it is designed this way**
+- *The minimap obeys the fog exactly like the main view.* `markers()` uses the same rules: nodes and enemy buildings as the player remembers them, enemy units only in cells visible now. A minimap that showed everything would let the player cheat in a way the AI cannot (the AI's observation firewall, AC-59 to AC-61); a test checks that no hidden enemy unit appears.
+- *Orders reuse the existing path.* A right click on the minimap converts the minimap position to a world position and calls the same function as a right click on the map, so move, harvest and attack keep their rules, and the simulation needs no new command.
+- *Cheap to draw.* The two images are the size of the map in cells (48 × 48 pixels), so updating them costs almost nothing; only the markers change every frame.
+
+**One thing that could go wrong**
+The camera frame and the click mapping depend on the zoom. If the zoom changes (as it did from 1.35 to 1.6 in D-42) and only one of them is updated, clicks land beside where the frame says. Both use `Game.view_rect()` / `to_world()` from the same numbers, and a test clicks the minimap's centre and checks the camera ends up at the map's centre.
+

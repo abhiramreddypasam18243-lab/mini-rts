@@ -111,6 +111,7 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | `WASD` or the screen edges | Pan the camera (`W` trains a melee soldier while a building is selected) |
 | `F3` | Frames per second, unit count and the AI's current state |
 | `M` (or the Sound button) | Sound and music on / off (remembered) |
+| Minimap (bottom right) | Left click or drag: move the camera there · right click: order the selected units there |
 
 Disabled buttons show the reason on hover (for example *Need 60 wood · 20 gold*). Messages fade after 3 seconds.
 
@@ -223,7 +224,7 @@ Policies are the same machine with different numbers:
 
 Test names follow the acceptance criteria (for example `test_ac_13_wall_with_gap`). [`docs/test-plan.md`](docs/test-plan.md) lists every acceptance criterion with its test or manual check; [`docs/measurements.md`](docs/measurements.md) has the measured performance numbers.
 
-**Frame rate (AC-77).** A built-in benchmark puts 80 units on the map (40 per side), lets them march and fight with every effect on, and measures 15 seconds: run `MiniRTS.exe -- --bench`, or add `?bench` to the web address. On a laptop with an RTX 4050 the desktop build averaged **207 FPS** (target 60) and the web build in Edge **66 to 67 FPS** (target 30); details in [`docs/playtest.md`](docs/playtest.md).
+**Frame rate (AC-77).** A built-in benchmark puts 80 units on the map (40 per side), lets them march and fight with every effect on, and measures 15 seconds: run `MiniRTS.exe -- --bench`, or add `?bench` to the web address. On a laptop with an RTX 4050 the desktop build averaged **82 to 85 FPS** (target 60) and the web build in Edge **66 to 72 FPS** (target 30); details in [`docs/playtest.md`](docs/playtest.md).
 
 ## Deployment
 

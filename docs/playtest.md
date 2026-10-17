@@ -18,10 +18,10 @@ Measured with the built-in benchmark (decision D-40): the seed-42 map with exact
 
 | Build | Target | Average | 1 % low | Machine | Date |
 | --- | --- | --- | --- | --- | --- |
-| Desktop (`MiniRTS.exe`, Windows 11) | ≥ 60 FPS | **207 FPS** | 73 FPS | Laptop, NVIDIA GeForce RTX 4050 Laptop GPU, OpenGL 3.3 | 2026-10-17 |
-| Web (Microsoft Edge, WebGL 2) | ≥ 30 FPS | **66 to 67 FPS** (two runs) | 27 to 31 FPS | Same laptop | 2026-10-17 |
+| Desktop (`MiniRTS.exe`, Windows 11, on mains power) | ≥ 60 FPS | **82 to 85 FPS** (two runs) | 39 to 50 FPS | Laptop, NVIDIA GeForce RTX 4050 Laptop GPU, OpenGL 3.3 | 2026-10-17 |
+| Web (Microsoft Edge, WebGL 2) | ≥ 30 FPS | **66 to 72 FPS** (two runs) | 23 to 30 FPS | Same laptop | 2026-10-17 |
 
-These are the results with the animated LPC units, sound and music (D-41), the spacing rules (D-42) and the closer camera (zoom 1.6, so fewer cells and units are on screen at once). With D-41 at zoom 1.35 the same benchmark gave 85 FPS desktop and 70 to 73 FPS web. Before D-41 the same benchmark gave 109 FPS desktop and 80 FPS web: the animated units, the on-screen separation and the sound cost about 2 to 6 ms a frame.
+These are the results of the current build: animated LPC units, sound and music (D-41), spacing (D-42), zoom 1.6 and the minimap (D-43). Results vary from run to run: one earlier desktop run gave 207 FPS that later runs did not repeat, so the table gives the repeatable range. Most of a frame (3 to 7 ms) is drawing the units and buildings in GDScript. Before D-41 the same benchmark gave 109 FPS desktop and 80 FPS web: the animated units, the on-screen separation and the sound cost about 2 to 6 ms a frame.
 
 Before the drawing fix of D-40 the desktop build measured 72 FPS average (29 FPS 1 % low); world drawing then took 5 to 12 ms a frame and now takes 1 to 4 ms. The 1 % low (the average of the slowest 1 % of frames) shows occasional slower frames below 60 on the desktop; the average meets the target.
 

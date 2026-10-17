@@ -351,6 +351,11 @@ func _draw_rocks(ci: CanvasItem) -> void:
 				ci.draw_texture_rect(Art.tex(name), Rect2(r.get_center() - Vector2(s, s) * 0.5 - Vector2(0, 3), Vector2(s, s)), false)
 
 
+## True on roads and base clearings (the minimap draws them as dirt).
+func is_worn(c: Vector2i) -> bool:
+	return _worn.has(c)
+
+
 ## Forest: a blocked cell in a forest group, or any cell of the outer border.
 func is_forest(c: Vector2i) -> bool:
 	if not map.in_bounds(c):

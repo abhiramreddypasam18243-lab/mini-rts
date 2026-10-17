@@ -42,6 +42,8 @@ var _fps: Label
 
 
 var _overlay_panel: PanelContainer
+var minimap: Minimap
+var _minimap_frame: PanelContainer
 
 func _ready() -> void:
 	layer = 10
@@ -52,6 +54,7 @@ func _ready() -> void:
 	add_child(root)
 	_build_top_bar()
 	_build_bottom_panel()
+	_build_minimap()
 	_build_messages()
 	_build_overlay()
 	_fps = UiTheme.label("", 13, "semibold", Palette.MUTED)
@@ -190,6 +193,27 @@ func _build_bottom_panel() -> void:
 	_hint = UiTheme.label("", 15, "regular", Palette.MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_actions_box.add_child(_hint)
+
+
+## The minimap in a wooden frame, bottom right (build step 11, D-43).
+func _build_minimap() -> void:
+	_minimap_frame = PanelContainer.new()
+	_minimap_frame.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(8, 8)))
+	_minimap_frame.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_minimap_frame.offset_right = -12
+	_minimap_frame.offset_bottom = -14
+	_minimap_frame.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_minimap_frame.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	root.add_child(_minimap_frame)
+	minimap = Minimap.new()
+	_minimap_frame.add_child(minimap)
+	minimap.setup(game)
+	_slide_in.call_deferred(_minimap_frame, 220.0, 0.3)
+
+
+## The minimap's area on screen (mouse over it does not edge-pan).
+func minimap_rect() -> Rect2:
+	return _minimap_frame.get_global_rect() if _minimap_frame != null else Rect2()
 
 
 func _build_messages() -> void:

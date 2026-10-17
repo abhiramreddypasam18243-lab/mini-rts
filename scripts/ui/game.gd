@@ -267,6 +267,8 @@ func _consume(events: Array[Dictionary]) -> void:
 				var ap: Vector2 = draw_pos(a) + _world._off.get(a.id, Vector2.ZERO)
 				_action_pos = tp if time - _action_time > 2.0 else _action_pos.lerp(tp, 0.2)
 				_action_time = time
+				if hud != null and hud.minimap != null:
+					hud.minimap.ping(tp)
 				attack_info[a.id] = {"t": time, "dir": (tp - ap).normalized()}
 				if a.kind == "ranged":
 					# The arrow leaves the bow at the shot's release frame; the
@@ -499,6 +501,30 @@ func _unhandled_input(event: InputEvent) -> void:
 					selection.clear()
 
 
+## The terrain layer (the minimap draws its forests, rocks and roads).
+func terrain() -> TerrainLayer:
+	return _terrain
+
+
+## The part of the world the camera shows (world pixels).
+func view_rect() -> Rect2:
+	var size: Vector2 = get_viewport_rect().size / ZOOM
+	return Rect2(camera.position - size / 2.0, size)
+
+
+## Centres the camera on a world position (minimap click), within the map.
+func look_at_world(world: Vector2) -> void:
+	camera.position = world
+	_clamp_camera()
+	_last_manual_pan = time
+
+
+## The context order of a right click at a world position (minimap).
+func order_at(world: Vector2) -> void:
+	if not demo:
+		_right_click(world)
+
+
 func _right_click(mouse: Vector2) -> void:
 	var cmds: Array[Dictionary] = selection.context_commands(sim, faction, _to_milli(mouse))
 	for cmd: Dictionary in cmds:
@@ -529,7 +555,8 @@ func _pan(delta: float) -> void:
 		dir.y -= 1
 	var vp: Viewport = get_viewport()
 	var mouse: Vector2 = vp.get_mouse_position()
-	if not _pressed and vp.get_visible_rect().has_point(mouse) and DisplayServer.window_is_focused():
+	var over_hud: bool = hud != null and hud.minimap_rect().has_point(mouse)
+	if not _pressed and not over_hud and vp.get_visible_rect().has_point(mouse) and DisplayServer.window_is_focused():
 		dir += CameraMath.edge_direction(mouse, vp.get_visible_rect().size)
 	if dir != Vector2.ZERO:
 		camera.position += dir.normalized() * CameraMath.SPEED * delta
