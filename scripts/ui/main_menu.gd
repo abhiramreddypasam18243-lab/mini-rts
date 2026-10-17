@@ -54,7 +54,9 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 2)
 	center.add_child(col)
 
-	var title: Label = UiTheme.label("MINI RTS", 92, "title", Palette.ACCENT)
+	# Phones (D-45): a smaller title and tighter spacing fit short screens.
+	var compact: bool = TouchInput.enabled()
+	var title: Label = UiTheme.label("MINI RTS", 60 if compact else 92, "title", Palette.ACCENT)
 	title.add_theme_font_override("font", UiTheme.spaced("title", 8))
 	title.add_theme_constant_override("outline_size", 16)
 	title.add_theme_color_override("font_outline_color", Color(0.22, 0.12, 0.05))
@@ -67,14 +69,14 @@ func _ready() -> void:
 	shine_mat.shader = shine
 	title.material = shine_mat
 	col.add_child(title)
-	var tag: Label = UiTheme.label("GATHER  ·  BUILD  ·  CONQUER", 20, "title", Palette.TEXT)
+	var tag: Label = UiTheme.label("GATHER  ·  BUILD  ·  CONQUER", 15 if compact else 20, "title", Palette.TEXT)
 	tag.add_theme_font_override("font", UiTheme.spaced("title", 4))
 	tag.add_theme_constant_override("outline_size", 8)
 	tag.add_theme_color_override("font_outline_color", Color(0.15, 0.09, 0.04, 0.9))
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(tag)
 	var gap: Control = Control.new()
-	gap.custom_minimum_size = Vector2(0, 22)
+	gap.custom_minimum_size = Vector2(0, 8 if compact else 22)
 	col.add_child(gap)
 
 	var panel: PanelContainer = PanelContainer.new()
@@ -163,7 +165,7 @@ func _row_label(text: String) -> Label:
 func _button(text: String, colour: String) -> Button:
 	var b: Button = Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(0, 50)
+	b.custom_minimum_size = Vector2(0, 44 if TouchInput.enabled() else 50)
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	UiTheme.style_button(b, colour, 19)
@@ -178,7 +180,21 @@ func _build_help() -> PanelContainer:
 	grid.add_theme_constant_override("h_separation", 22)
 	grid.add_theme_constant_override("v_separation", 4)
 	p.add_child(grid)
-	var rows: Array = [
+	var rows: Array = []
+	if TouchInput.enabled():
+		rows = [
+			["Tap a unit", "Select it (Box select or All soldiers for groups)"],
+			["Tap ground / tree / gold / enemy", "Move · gather · attack with the selection"],
+			["Drag", "Move the map (or the minimap)"],
+			["Attack-move, then tap", "Walk there, fighting on the way"],
+			["Queue: on", "Orders line up instead of replacing"],
+			["Cancel", "Stop placing or aiming, or clear the selection"],
+		]
+		for r: Array in rows:
+			grid.add_child(UiTheme.label(r[0], 16, "bold", Palette.INK))
+			grid.add_child(UiTheme.label(r[1], 16, "regular", Palette.INK))
+		return p
+	rows = [
 		["Left click", "Select a unit or building"],
 		["Left drag", "Box-select your units (up to 24)"],
 		["Right click", "Move · gather (workers on wood/gold) · attack (soldiers)"],

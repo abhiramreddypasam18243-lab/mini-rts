@@ -20,7 +20,7 @@ func _draw() -> void:
 		_aim_cursor()
 
 	if game.dragging:
-		var r: Rect2 = Rect2(game.drag_from, Vector2.ZERO).expand(get_global_mouse_position())
+		var r: Rect2 = Rect2(game.drag_from, Vector2.ZERO).expand(game.drag_end())
 		draw_rect(r, Color(Palette.ACCENT, 0.10))
 		draw_rect(r, Color(Palette.ACCENT, 0.85), false, 1.5, true)
 

@@ -10,6 +10,7 @@ var _menu_layer: CanvasLayer
 var _settings: Dictionary = {}
 ## A dark sheet that fades out after each screen change (drawing only).
 var _fade: ColorRect
+var _rotate: Control
 
 
 func _ready() -> void:
@@ -25,10 +26,37 @@ func _ready() -> void:
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_fade)
 	add_child(Sound.new())
+	# Phones and tablets (D-45): a larger interface, and a notice in portrait.
+	TouchInput.apply_layout(get_tree())
+	_rotate = _build_rotate_notice()
+	layer.add_child(_rotate)
+	get_viewport().size_changed.connect(_check_orientation)
+	_check_orientation()
 	if Benchmark.requested():
 		start_match({"map": "generated", "seed": 42, "mode": "bench"})
 	else:
 		show_menu()
+
+
+## "Turn your phone sideways", shown over everything in portrait on touch
+## screens: the game and its HUD are laid out for landscape.
+func _build_rotate_notice() -> Control:
+	var sheet: ColorRect = ColorRect.new()
+	sheet.color = Color(0.1, 0.07, 0.04, 0.96)
+	sheet.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center: CenterContainer = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sheet.add_child(center)
+	var l: Label = UiTheme.label("Turn your phone sideways\nto play Mini RTS", 40, "title", Palette.ACCENT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(l)
+	sheet.visible = false
+	return sheet
+
+
+func _check_orientation() -> void:
+	var s: Vector2 = get_viewport().get_visible_rect().size
+	_rotate.visible = TouchInput.enabled() and s.y > s.x
 
 
 ## Fades in from dark, so screen changes are not hard cuts.

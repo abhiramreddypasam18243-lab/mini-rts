@@ -34,6 +34,15 @@ var hover_id: int = 0
 var placing: bool = false
 ## True after F: the next left click is an attack-move destination (D-44).
 var aiming: bool = false
+## Touch mode (phones and tablets, D-45): drag pans, tap selects or orders.
+var touch: bool = false
+## Touch toolbar toggles: the next drag draws a selection box; orders queue.
+var box_mode: bool = false
+var touch_queue: bool = false
+var _touch_moved: bool = false
+## Where a touch drag box ends (world), and where the placement ghost is.
+var drag_to: Vector2 = Vector2.ZERO
+var _touch_at: Vector2 = Vector2.ZERO
 var dragging: bool = false
 var drag_from: Vector2 = Vector2.ZERO
 var hud: Hud
@@ -91,6 +100,7 @@ static func load_map(p_settings: Dictionary) -> MapGrid:
 
 
 func _ready() -> void:
+	touch = TouchInput.enabled()
 	if settings.get("mode", "") == "demo":
 		var r: Dictionary = Replay.parse(FileAccess.get_file_as_string(DEMO_PATH))
 		demo = true
@@ -420,6 +430,22 @@ func start_placing() -> void:
 		messages.add("Select a worker first", time, "warn")
 		return
 	placing = true
+	if touch:
+		# The preview starts in the middle of the screen; tap to move it,
+		# tap it again to build there.
+		_touch_at = camera.position
+
+
+## Touch toolbar "Cancel": ends placing, aiming or box mode, else clears the
+## selection (the Esc key of touch mode).
+func touch_cancel() -> void:
+	if placing or aiming or box_mode:
+		placing = false
+		aiming = false
+		box_mode = false
+		_touch_at = Vector2.ZERO
+	else:
+		selection.clear()
 
 
 func select_only(id: int) -> void:
@@ -427,11 +453,28 @@ func select_only(id: int) -> void:
 	selection.inspected = id
 
 
-## Top-left cell of the barracks footprint, centred on the mouse.
+## Top-left cell of the barracks footprint, centred on the mouse (or, in
+## touch mode, on the last spot touched).
 func placement_anchor() -> Vector2i:
 	var size: Vector2 = Vector2(sim.stats["barracks"].footprint)
-	var m: Vector2 = get_global_mouse_position() / C - size / 2.0 + Vector2(0.5, 0.5)
+	var at: Vector2 = _touch_at if touch else get_global_mouse_position()
+	var m: Vector2 = at / C - size / 2.0 + Vector2(0.5, 0.5)
 	return Vector2i(floori(m.x), floori(m.y))
+
+
+## Where the drag box ends: the mouse, or the finger in touch mode.
+func drag_end() -> Vector2:
+	return drag_to if touch else get_global_mouse_position()
+
+
+## Touch placement (D-45): the first tap shows the barracks there; tapping
+## the same spot again places it (another spot moves the preview).
+func _place_at(world: Vector2) -> void:
+	var before: Vector2i = placement_anchor()
+	var first: bool = _touch_at == Vector2.ZERO
+	_touch_at = world
+	if not first and placement_anchor() == before:
+		_try_place()
 
 
 func _try_place() -> void:
@@ -439,6 +482,7 @@ func _try_place() -> void:
 	var workers: Array[int] = selection.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker")
 	if workers.is_empty():
 		placing = false
+		_touch_at = Vector2.ZERO
 		return
 	# The selected worker nearest to the site builds it.
 	var target: Vector2i = MapGrid.cell_center(anchor)
@@ -448,6 +492,7 @@ func _try_place() -> void:
 		return da.length_squared() < db.length_squared() or (da.length_squared() == db.length_squared() and a < b))
 	if issue(Commands.build(faction, workers[0], "barracks", anchor)) == "ok":
 		placing = false
+		_touch_at = Vector2.ZERO
 		_add_fx({"type": "marker", "a": (Vector2(anchor) + Vector2.ONE) * C, "color": Palette.ACCENT, "life": 0.7, "order": "build"})
 		effects.dust((Vector2(anchor) + Vector2.ONE) * C, 8, 22.0, 18.0)
 
@@ -456,6 +501,14 @@ func _try_place() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if sim == null or sim.match_result != "":
+		return
+	if event is InputEventScreenTouch and not touch:
+		# A real touch: switch to touch controls (a touchscreen laptop).
+		TouchInput.saw_touch()
+		touch = true
+		hud.set_touch(true)
+	if touch:
+		_touch_input(event)
 		return
 	var mouse: Vector2 = get_global_mouse_position()
 	if event is InputEventMouseButton:
@@ -537,9 +590,104 @@ func order_at(world: Vector2) -> void:
 			_right_click(world)
 
 
-## True while Shift is held: orders are queued instead of replacing (D-44).
+## True while Shift is held, or the touch Queue toggle is on: orders are
+## queued instead of replacing (D-44, D-45).
 func queueing() -> bool:
-	return Input.is_key_pressed(KEY_SHIFT)
+	return Input.is_key_pressed(KEY_SHIFT) or touch_queue
+
+
+# --- touch controls (D-45) -----------------------------------------------------
+
+## Touch arrives as emulated mouse events (Godot's default), so HUD buttons
+## work as they are; touches on the map end up here. Positions are screen
+## (viewport) positions.
+func _touch_input(event: InputEvent) -> void:
+	var mb: InputEventMouseButton = event as InputEventMouseButton
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
+		if mb.pressed:
+			touch_press(mb.position)
+		else:
+			touch_release(mb.position)
+		return
+	var mm: InputEventMouseMotion = event as InputEventMouseMotion
+	if mm != null and _pressed:
+		touch_move(mm.position, mm.relative)
+
+
+## Screen position -> world position.
+func screen_to_world(p: Vector2) -> Vector2:
+	return get_global_transform_with_canvas().affine_inverse() * p
+
+
+func touch_press(screen: Vector2) -> void:
+	var world: Vector2 = screen_to_world(screen)
+	if placing:
+		_place_at(world)
+		return
+	if aiming:
+		attack_move_to(world)
+		return
+	_pressed = true
+	_touch_moved = false
+	dragging = false
+	_press_screen = screen
+	drag_from = world
+
+
+func touch_move(screen: Vector2, relative: Vector2) -> void:
+	if not _pressed:
+		return
+	if not _touch_moved and screen.distance_to(_press_screen) <= DRAG_THRESHOLD * 2.0:
+		return
+	_touch_moved = true
+	if box_mode:
+		dragging = true
+		drag_to = screen_to_world(screen)
+	else:
+		# Drag the map: the ground follows the finger.
+		camera.position -= relative / ZOOM
+		_clamp_camera()
+		_last_manual_pan = time
+
+
+func touch_release(screen: Vector2) -> void:
+	if not _pressed:
+		return
+	_pressed = false
+	var world: Vector2 = screen_to_world(screen)
+	if box_mode and _touch_moved:
+		selection.box(sim, faction, _to_milli(drag_from), _to_milli(world))
+		box_mode = false
+	elif not _touch_moved:
+		tap(world)
+	dragging = false
+
+
+## A tap: your own unit or building is selected; anything else (ground, a
+## resource, an enemy) is an order for the selected units, the same as a
+## right click; with nothing selected it shows what was tapped.
+func tap(world: Vector2) -> void:
+	var p: Vector2i = _to_milli(world)
+	var id: int = Selection.pick(sim, faction, p)
+	var e: Entity = sim.entity(id)
+	if (e != null and e.faction == faction) or selected_units().is_empty():
+		selection.click(sim, faction, p)
+	else:
+		_right_click(world)
+
+
+## Toolbar: every own soldier (up to the selection limit).
+func select_army() -> void:
+	var ids: Array[int] = []
+	for id: int in sim.unit_ids():
+		var e: Entity = sim.entity(id)
+		if e.faction == faction and e.is_soldier() and ids.size() < Consts.MAX_SELECTION:
+			ids.append(id)
+	if ids.is_empty():
+		messages.add("No soldiers yet", time, "warn")
+		return
+	selection.selected = ids
+	selection.inspected = ids[0]
 
 
 ## The selected own units (soldiers and workers).
@@ -612,7 +760,8 @@ func _pan(delta: float) -> void:
 		dir.y -= 1
 	var vp: Viewport = get_viewport()
 	var mouse: Vector2 = vp.get_mouse_position()
-	var over_hud: bool = hud != null and hud.minimap_rect().has_point(mouse)
+	# No edge panning in touch mode: the finger's last spot would pan forever.
+	var over_hud: bool = touch or (hud != null and hud.minimap_rect().has_point(mouse))
 	if not _pressed and not over_hud and vp.get_visible_rect().has_point(mouse) and DisplayServer.window_is_focused():
 		dir += CameraMath.edge_direction(mouse, vp.get_visible_rect().size)
 	if dir != Vector2.ZERO:

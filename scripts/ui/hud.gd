@@ -44,6 +44,11 @@ var _fps: Label
 var _overlay_panel: PanelContainer
 var minimap: Minimap
 var _minimap_frame: PanelContainer
+var _bottom: PanelContainer
+## The touch toolbar (D-45) and its toggle buttons.
+var _touch_bar: VBoxContainer
+var _box_button: Button
+var _queue_button: Button
 
 func _ready() -> void:
 	layer = 10
@@ -56,6 +61,8 @@ func _ready() -> void:
 	_build_bottom_panel()
 	_build_minimap()
 	_build_messages()
+	_build_touch_bar()
+	set_touch(game.touch)
 	_build_overlay()
 	_fps = UiTheme.label("", 13, "semibold", Palette.MUTED)
 	_fps.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
@@ -160,6 +167,7 @@ func _small_button(text: String, action: Callable) -> Button:
 
 func _build_bottom_panel() -> void:
 	var panel: PanelContainer = PanelContainer.new()
+	_bottom = panel
 	_slide_in.call_deferred(panel, 220.0, 0.2)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	panel.custom_minimum_size = Vector2(860, 150)
@@ -214,6 +222,60 @@ func _build_minimap() -> void:
 ## The minimap's area on screen (mouse over it does not edge-pan).
 func minimap_rect() -> Rect2:
 	return _minimap_frame.get_global_rect() if _minimap_frame != null else Rect2()
+
+
+## Buttons that replace the keyboard and the right mouse button on phones
+## and tablets (D-45), down the right side above the minimap.
+func _build_touch_bar() -> void:
+	_touch_bar = VBoxContainer.new()
+	_touch_bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_touch_bar.offset_top = 66
+	_touch_bar.offset_right = -12
+	_touch_bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_touch_bar.add_theme_constant_override("separation", 6)
+	root.add_child(_touch_bar)
+	_box_button = _touch_button("Box select", func() -> void:
+		game.box_mode = not game.box_mode
+		game.aiming = false)
+	_touch_button("All soldiers", func() -> void: game.select_army())
+	_touch_button("Attack-move", func() -> void: game.start_aiming())
+	_queue_button = _touch_button("Queue: off", func() -> void: game.touch_queue = not game.touch_queue)
+	_touch_button("Cancel", func() -> void: game.touch_cancel())
+
+
+func _touch_button(text: String, action: Callable) -> Button:
+	var b: Button = Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	UiTheme.style_button(b, "beige", 17)
+	b.custom_minimum_size = Vector2(150, 50)
+	b.pressed.connect(action)
+	_touch_bar.add_child(b)
+	return b
+
+
+## Switches the HUD between mouse and touch layouts: the toolbar shows, and
+## the bottom panel sits at the left so it never covers the minimap on
+## narrow screens.
+func set_touch(on: bool) -> void:
+	if _touch_bar == null:
+		return
+	_touch_bar.visible = on and not game.demo
+	if on:
+		_bottom.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_KEEP_SIZE)
+		_bottom.offset_left = 10
+		_bottom.offset_bottom = -14
+		_bottom.grow_horizontal = Control.GROW_DIRECTION_END
+		_bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
+
+
+func _update_touch_bar() -> void:
+	if _touch_bar == null or not _touch_bar.visible:
+		return
+	var tint: Color = Color(1.0, 0.82, 0.38)
+	_box_button.self_modulate = tint if game.box_mode else Color.WHITE
+	_queue_button.text = "Queue: on" if game.touch_queue else "Queue: off"
+	_queue_button.self_modulate = tint if game.touch_queue else Color.WHITE
 
 
 func _build_messages() -> void:
@@ -294,6 +356,9 @@ func refresh() -> void:
 	_clock.text = HudModel.clock_text(sim.tick)
 	_refresh_card(sim, f)
 	_refresh_messages()
+	if game.touch and not game.demo:
+		_update_touch_bar()
+		_hint.text = _touch_hint(game.selection.building(sim), game.selection.units(sim))
 	if _fps.visible:
 		if game.bench != null:
 			_fps.text = "%d FPS · %d units · %s" % [Engine.get_frames_per_second(), sim.unit_ids().size(), game.bench.text()]
@@ -390,7 +455,7 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 		info.add_child(_status)
 	else:
 		_card.add_child(UiTheme.label("Nothing selected", 20, "bold", Palette.INK))
-		var tip: Label = UiTheme.label("Click a unit or building, or drag a box around your units.", 15, "regular", Palette.INK_MUTED)
+		var tip: Label = UiTheme.label("Tap a unit or building, or use Box select for a group." if game.touch else "Click a unit or building, or drag a box around your units.", 15, "regular", Palette.INK_MUTED)
 		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tip.custom_minimum_size = Vector2(320, 0)
 		_card.add_child(tip)
@@ -421,6 +486,21 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 		_hint.text = "Right-click: move, or attack a visible enemy. F, then click: attack-move (fight on the way). Hold Shift to queue orders."
 	else:
 		_hint.text = "Drag to box-select · right-click to command · WASD or screen edges to pan · Esc clears."
+	if game.touch and not game.demo:
+		_hint.text = _touch_hint(b, units)
+
+
+## The hint line in touch mode (taps instead of clicks and keys).
+func _touch_hint(b: Entity, units: Array) -> String:
+	if game.placing:
+		return "Tap to move the barracks preview, tap it again to build. Cancel to stop."
+	if game.aiming:
+		return "Tap where the soldiers should attack-move to."
+	if b != null:
+		return "Tap a queued unit to cancel it (full refund)." if b.complete else "Soldiers can be trained once construction finishes."
+	if not units.is_empty():
+		return "Tap the ground to move · a tree or gold to gather · an enemy to attack. Drag to move the map."
+	return "Tap a unit to select it · drag to move the map · Box select for groups."
 
 
 func _add_button(kind: String, title: String, hotkey: String, action: Callable) -> void:

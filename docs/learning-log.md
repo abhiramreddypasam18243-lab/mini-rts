@@ -306,3 +306,21 @@ The camera frame and the click mapping depend on the zoom. If the zoom changes (
 **One thing that could go wrong**
 An attack-move soldier that loses sight of its target and goes idle could also be picked up by the "step aside" spacing rule (D-42) or by a queued order. Order matters: at the start of a tick an interrupted attack-move is resumed *before* the queue is read, and spacing only moves units that are still idle later in the tick, so the soldier always carries on with its attack-move first.
 
+---
+
+## Step 11 (stretch): phone and tablet controls (decision D-45)
+
+**What was built**
+- `scripts/ui/touch_input.gd` decides when touch mode is on (Android or iOS browser, a mobile build, `?touch` in the address, or the first real touch) and scales the interface for small screens.
+- In `game.gd`: one finger dragging pans the map; a tap selects your own unit or building, and a tap anywhere else orders the selected units there with the same context order as a right click. A toolbar (Box select, All soldiers, Attack-move, Queue, Cancel) replaces the keys and the right mouse button. Building takes two taps: the first places the preview, the second on the same spot builds.
+- The menu is compacted on phones, the bottom panel moves to the left, and a notice asks to turn the phone sideways in portrait.
+
+**Why it is designed this way**
+- *Touch arrives as mouse events.* Godot turns each touch into left-button mouse events by default, so every HUD button, the minimap and the menu work unchanged; only taps and drags on the map needed new rules.
+- *Tap = select own, order elsewhere.* A phone has no right button, so "tap my unit" and "tap where it should go" must both be single taps. The rule is simple to explain: your own things are selected, everything else is a destination or a target.
+- *Two taps to build.* A finger covers the spot it touches, so the first tap shows the barracks (green or red, with the reason) where it would go, and only a second tap on the same spot spends the resources.
+- *No new simulation commands.* Touch only changes how commands are made, so the rules, the AI and every acceptance test stay the same.
+
+**One thing that could go wrong**
+Edge panning reads the mouse position. On a phone the "mouse" stays where the finger last touched, so a tap near the screen edge would pan the map forever. Edge panning is switched off in touch mode.
+
