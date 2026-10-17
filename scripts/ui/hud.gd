@@ -1,0 +1,468 @@
+## The in-game HUD (SPEC 9; AC-73, AC-74). Presentation layer: it reads the
+## simulation through HudModel and sends commands through the Game.
+##   top bar:      wood, gold, population, match clock; Restart and Menu
+##   bottom panel: details card of the selection, command buttons with
+##                 costs and disabled reasons, the production queue
+##   left:         status messages that fade after 3 seconds
+##   overlay:      victory / defeat / draw / time's up, with Restart
+class_name Hud
+extends CanvasLayer
+
+var game: Game
+var root: Control
+var _wood: Label
+var _gold: Label
+var _pop: Label
+var _clock: Label
+var _card: VBoxContainer
+var _actions: HBoxContainer
+var _actions_box: VBoxContainer
+var _queue: HBoxContainer
+var _hint: Label
+var _messages: VBoxContainer
+var _overlay: Control
+var _overlay_title: Label
+var _overlay_sub: Label
+var _overlay_stats: Label
+
+# Card widgets, rebuilt only when the selection changes.
+var _key: String = ""
+var _portrait: HudWidgets.Portrait
+var _name: Label
+var _sub: Label
+var _hp: HudWidgets.HealthBar
+var _hp_text: Label
+var _status: Label
+var _buttons: Dictionary = {}
+var _tiles: Array[HudWidgets.UnitTile] = []
+var _slots: Array[HudWidgets.QueueSlot] = []
+var _last_res: Dictionary = {}
+## Frames-per-second readout, toggled with F3 (for measuring AC-77).
+var _fps: Label
+
+
+func _ready() -> void:
+	layer = 10
+	root = Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.theme = UiTheme.get_theme()
+	add_child(root)
+	_build_top_bar()
+	_build_bottom_panel()
+	_build_messages()
+	_build_overlay()
+	_fps = UiTheme.label("", 13, "semibold", Palette.MUTED)
+	_fps.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_fps.offset_left = 16
+	_fps.offset_top = 18
+	_fps.visible = false
+	root.add_child(_fps)
+
+
+# --- building the layout ------------------------------------------------------
+
+func _build_top_bar() -> void:
+	var bar: PanelContainer = PanelContainer.new()
+	bar.add_theme_stylebox_override("panel", UiTheme.box(Palette.PANEL, 12, Palette.PANEL_BORDER, 1, Vector2(18, 8), 14))
+	bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	bar.offset_top = 12
+	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	root.add_child(bar)
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	bar.add_child(row)
+	_wood = _stat(row, "wood")
+	_divider(row)
+	_gold = _stat(row, "gold")
+	_divider(row)
+	_pop = _stat(row, "pop")
+	_divider(row)
+	_clock = _stat(row, "clock")
+
+	var right: HBoxContainer = HBoxContainer.new()
+	right.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	right.offset_top = 14
+	right.offset_right = -16
+	right.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	right.add_theme_constant_override("separation", 8)
+	root.add_child(right)
+	right.add_child(_small_button("Restart", func() -> void: game.restart_requested.emit()))
+	right.add_child(_small_button("Menu", func() -> void: game.menu_requested.emit()))
+
+
+func _stat(row: HBoxContainer, kind: String) -> Label:
+	row.add_child(HudWidgets.Icon.new(kind))
+	var l: Label = UiTheme.label("0", 18, "bold")
+	l.custom_minimum_size = Vector2(54, 0)
+	row.add_child(l)
+	return l
+
+
+func _divider(row: HBoxContainer) -> void:
+	var d: ColorRect = ColorRect.new()
+	d.color = Palette.PANEL_BORDER
+	d.custom_minimum_size = Vector2(1, 22)
+	d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(d)
+
+
+func _small_button(text: String, action: Callable) -> Button:
+	var b: Button = Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_stylebox_override("normal", UiTheme.box(Palette.PANEL, 9, Palette.PANEL_BORDER, 1, Vector2(12, 6)))
+	b.pressed.connect(action)
+	return b
+
+
+func _build_bottom_panel() -> void:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	panel.custom_minimum_size = Vector2(860, 150)
+	panel.offset_bottom = -14
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	root.add_child(panel)
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 18)
+	panel.add_child(row)
+	_card = VBoxContainer.new()
+	_card.custom_minimum_size = Vector2(330, 0)
+	row.add_child(_card)
+	var sep: ColorRect = ColorRect.new()
+	sep.color = Palette.PANEL_BORDER
+	sep.custom_minimum_size = Vector2(1, 0)
+	row.add_child(sep)
+	_actions_box = VBoxContainer.new()
+	_actions_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_actions_box.add_theme_constant_override("separation", 8)
+	row.add_child(_actions_box)
+	_actions = HBoxContainer.new()
+	_actions.add_theme_constant_override("separation", 10)
+	_actions_box.add_child(_actions)
+	_queue = HBoxContainer.new()
+	_queue.add_theme_constant_override("separation", 6)
+	_actions_box.add_child(_queue)
+	_hint = UiTheme.label("", 13, "regular", Palette.FAINT)
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_actions_box.add_child(_hint)
+
+
+func _build_messages() -> void:
+	_messages = VBoxContainer.new()
+	_messages.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_messages.custom_minimum_size = Vector2(420, 150)
+	_messages.offset_left = 20
+	_messages.offset_bottom = -184
+	_messages.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_messages.alignment = BoxContainer.ALIGNMENT_END
+	_messages.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_messages.add_theme_constant_override("separation", 4)
+	root.add_child(_messages)
+
+
+func _build_overlay() -> void:
+	_overlay = Control.new()
+	_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_overlay.visible = false
+	root.add_child(_overlay)
+	var dim: ColorRect = ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.02, 0.03, 0.05, 0.62)
+	_overlay.add_child(dim)
+	var center: CenterContainer = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var panel: PanelContainer = PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UiTheme.box(Palette.PANEL, 18, Palette.PANEL_BORDER, 1, Vector2(44, 34), 30))
+	center.add_child(panel)
+	var col: VBoxContainer = VBoxContainer.new()
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 10)
+	col.custom_minimum_size = Vector2(420, 0)
+	panel.add_child(col)
+	_overlay_title = UiTheme.label("Victory", 54, "bold")
+	_overlay_title.add_theme_font_override("font", UiTheme.spaced("bold", 6))
+	_overlay_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(_overlay_title)
+	_overlay_sub = UiTheme.label("", 16, "regular", Palette.MUTED)
+	_overlay_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(_overlay_sub)
+	_overlay_stats = UiTheme.label("", 15, "semibold", Palette.TEXT)
+	_overlay_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(_overlay_stats)
+	var gap: Control = Control.new()
+	gap.custom_minimum_size = Vector2(0, 10)
+	col.add_child(gap)
+	var buttons: HBoxContainer = HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 12)
+	col.add_child(buttons)
+	var again: Button = Button.new()
+	again.text = "Play again"
+	again.custom_minimum_size = Vector2(160, 46)
+	again.add_theme_stylebox_override("normal", UiTheme.box(Color(Palette.ACCENT, 0.85), 10))
+	again.add_theme_stylebox_override("hover", UiTheme.box(Palette.ACCENT.lightened(0.15), 10))
+	again.add_theme_color_override("font_color", Palette.BG)
+	again.add_theme_color_override("font_hover_color", Palette.BG)
+	again.pressed.connect(func() -> void: game.restart_requested.emit())
+	buttons.add_child(again)
+	var menu: Button = Button.new()
+	menu.text = "Main menu"
+	menu.custom_minimum_size = Vector2(160, 46)
+	menu.pressed.connect(func() -> void: game.menu_requested.emit())
+	buttons.add_child(menu)
+
+
+# --- per-frame refresh ----------------------------------------------------------
+
+func refresh() -> void:
+	var sim: Simulation = game.sim
+	var f: String = game.faction
+	var res: Dictionary = HudModel.resources(sim, f)
+	_set_counter(_wood, res.wood, _last_res.get("wood", res.wood))
+	_set_counter(_gold, res.gold, _last_res.get("gold", res.gold))
+	_last_res = res
+	_pop.text = HudModel.population(sim, f)
+	_clock.text = HudModel.clock_text(sim.tick)
+	_refresh_card(sim, f)
+	_refresh_messages()
+	if _fps.visible:
+		_fps.text = "%d FPS · %d units" % [Engine.get_frames_per_second(), sim.unit_ids().size()]
+
+
+func toggle_fps() -> void:
+	_fps.visible = not _fps.visible
+
+
+## Counters flash green when they rise and red when they fall.
+func _set_counter(l: Label, value: int, before: int) -> void:
+	l.text = str(value)
+	if value != before:
+		var col: Color = Palette.GOOD if value > before else Palette.BAD
+		l.add_theme_color_override("font_color", col)
+		var tw: Tween = l.create_tween()
+		tw.tween_method(func(c: Color) -> void: l.add_theme_color_override("font_color", c), col, Palette.TEXT, 0.6)
+
+
+func _selection_key(sim: Simulation) -> String:
+	var s: Selection = game.selection
+	var parts: PackedStringArray = [str(s.selected), str(s.inspected), str(game.placing)]
+	var b: Entity = s.building(sim)
+	if b != null:
+		parts.append("%s %s %d" % [b.kind, b.complete, b.queue.size()])
+	return "|".join(parts)
+
+
+func _clear(node: Node) -> void:
+	for c: Node in node.get_children():
+		node.remove_child(c)
+		c.queue_free()
+
+
+func _refresh_card(sim: Simulation, f: String) -> void:
+	var key: String = _selection_key(sim)
+	if key != _key:
+		_key = key
+		_rebuild_card(sim, f)
+	_update_card(sim, f)
+
+
+func _rebuild_card(sim: Simulation, f: String) -> void:
+	_clear(_card)
+	_clear(_actions)
+	_clear(_queue)
+	_buttons.clear()
+	_tiles.clear()
+	_slots.clear()
+	_portrait = null
+	var sel: Selection = game.selection
+	var units: Array[int] = sel.units(sim)
+	if units.size() > 1:
+		var title: Label = UiTheme.label("%d units selected" % units.size(), 17, "bold")
+		_card.add_child(title)
+		var grid: GridContainer = GridContainer.new()
+		grid.columns = 8
+		grid.add_theme_constant_override("h_separation", 3)
+		grid.add_theme_constant_override("v_separation", 3)
+		_card.add_child(grid)
+		for id: int in units:
+			var tile: HudWidgets.UnitTile = HudWidgets.UnitTile.new()
+			var e: Entity = sim.entity(id)
+			tile.kind = e.kind
+			tile.faction = e.faction
+			tile.tooltip_text = HudModel.KIND_NAMES[e.kind]
+			tile.pressed.connect(func() -> void: game.select_only(id))
+			grid.add_child(tile)
+			_tiles.append(tile)
+	elif sel.inspected != 0 and not HudModel.details(sim, f, sel.inspected).is_empty():
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		_card.add_child(row)
+		_portrait = HudWidgets.Portrait.new()
+		row.add_child(_portrait)
+		var info: VBoxContainer = VBoxContainer.new()
+		info.add_theme_constant_override("separation", 2)
+		row.add_child(info)
+		_name = UiTheme.label("", 20, "bold")
+		info.add_child(_name)
+		_sub = UiTheme.label("", 13, "regular", Palette.MUTED)
+		info.add_child(_sub)
+		var hp_row: HBoxContainer = HBoxContainer.new()
+		hp_row.add_theme_constant_override("separation", 8)
+		info.add_child(hp_row)
+		_hp = HudWidgets.HealthBar.new()
+		_hp.custom_minimum_size = Vector2(150, 16)
+		hp_row.add_child(_hp)
+		_hp_text = UiTheme.label("", 13, "semibold", Palette.MUTED)
+		hp_row.add_child(_hp_text)
+		_status = UiTheme.label("", 14, "regular", Palette.TEXT)
+		info.add_child(_status)
+	else:
+		_card.add_child(UiTheme.label("Nothing selected", 17, "bold", Palette.MUTED))
+		var tip: Label = UiTheme.label("Click a unit or building, or drag a box around your units.", 13, "regular", Palette.FAINT)
+		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tip.custom_minimum_size = Vector2(320, 0)
+		_card.add_child(tip)
+
+	# Actions for the selection.
+	var b: Entity = sel.building(sim)
+	if b != null and b.faction == f:
+		for kind: String in Simulation.TRAINS[b.kind]:
+			var hotkey: String = {"worker": "Q", "melee": "W", "ranged": "E"}[kind]
+			_add_button(kind, "Train " + HudModel.KIND_NAMES[kind].to_lower().replace(" soldier", ""), hotkey,
+				func() -> void: game.train(kind))
+		for i: int in Consts.QUEUE_CAPACITY:
+			var slot: HudWidgets.QueueSlot = HudWidgets.QueueSlot.new()
+			slot.faction = f
+			slot.pressed.connect(func() -> void: game.cancel_train(i))
+			_queue.add_child(slot)
+			_slots.append(slot)
+		_hint.text = "Click a queued unit to cancel it (full refund)." if b.complete else "Soldiers can be trained once construction finishes."
+	elif not sel.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker").is_empty():
+		_add_button("barracks", "Build barracks", "B", func() -> void: game.start_placing())
+		_hint.text = "Right-click: move · gather from wood or gold. B, then click: place a barracks." \
+			if not game.placing else "Click to place the barracks · right-click or Esc to cancel."
+	elif not units.is_empty():
+		_hint.text = "Right-click the ground to move, or a visible enemy to attack."
+	else:
+		_hint.text = "Drag to box-select · right-click to command · WASD or screen edges to pan · Esc clears."
+
+
+func _add_button(kind: String, title: String, hotkey: String, action: Callable) -> void:
+	var b: HudWidgets.CommandButton = HudWidgets.CommandButton.new()
+	b.kind = kind
+	b.title = title
+	b.hotkey = hotkey
+	b.faction = game.faction
+	b.cost = HudModel.cost_of(game.sim, kind)
+	b.pressed.connect(action)
+	_actions.add_child(b)
+	_buttons[kind] = b
+
+
+func _update_card(sim: Simulation, f: String) -> void:
+	var sel: Selection = game.selection
+	var res: Dictionary = HudModel.resources(sim, f)
+	if _portrait != null:
+		var d: Dictionary = HudModel.details(sim, f, sel.inspected)
+		if not d.is_empty():
+			_portrait.kind = d.kind
+			_portrait.faction = d.faction
+			_portrait.ghost = d.ghost
+			_portrait.t = game.time
+			_portrait.queue_redraw()
+			_name.text = d.name
+			var owner: String = {"player": "Your", "ai": "Enemy", "": "Resource"}[d.faction]
+			_sub.text = owner + (" · last seen" if d.ghost else "")
+			_sub.add_theme_color_override("font_color", Palette.TEAM[d.faction] if d.faction != "" else Palette.resource(d.kind))
+			var is_node: bool = d.faction == ""
+			_hp.visible = not is_node
+			_hp_text.visible = not is_node
+			_hp.hp = d.hp
+			_hp.max_hp = d.max_hp
+			_hp.queue_redraw()
+			_hp_text.text = "%d / %d" % [d.hp, d.max_hp]
+			_status.text = d.status
+	for i: int in _tiles.size():
+		var id: int = sel.units(sim)[i] if i < sel.units(sim).size() else 0
+		var e: Entity = sim.entity(id)
+		if e != null:
+			_tiles[i].hp_ratio = float(e.hp) / sim.stats[e.kind].health
+			_tiles[i].queue_redraw()
+	var b: Entity = sel.building(sim)
+	for kind: String in _buttons:
+		var state: Dictionary
+		if kind == "barracks":
+			state = HudModel.build_button(sim, f, sel.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker"))
+		elif b != null:
+			state = HudModel.train_button(sim, b.id, kind)
+		else:
+			continue
+		(_buttons[kind] as HudWidgets.CommandButton).set_state(state.enabled, state.reason, res)
+	if b != null:
+		for i: int in _slots.size():
+			var slot: HudWidgets.QueueSlot = _slots[i]
+			if i < b.queue.size():
+				var item: Dictionary = b.queue[i]
+				slot.kind = item.type
+				slot.active = i == 0
+				slot.progress = 1.0 - float(item.remaining) / sim.stats[item.type].build_time
+				slot.tooltip_text = "%s · click to cancel (refund %s)" % [HudModel.KIND_NAMES[item.type], HudModel.cost_text(item.cost)]
+				if item.status == "spawn_blocked":
+					slot.tooltip_text = "Waiting: spawn area blocked"
+			else:
+				slot.kind = ""
+				slot.tooltip_text = ""
+			slot.queue_redraw()
+
+
+func _refresh_messages() -> void:
+	var entries: Array[Dictionary] = game.messages.entries(game.time)
+	while _messages.get_child_count() < entries.size():
+		var l: Label = UiTheme.label("", 15, "semibold")
+		l.add_theme_constant_override("outline_size", 6)
+		l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+		_messages.add_child(l)
+	while _messages.get_child_count() > entries.size():
+		var c: Node = _messages.get_child(0)
+		_messages.remove_child(c)
+		c.queue_free()
+	for i: int in entries.size():
+		var l: Label = _messages.get_child(i)
+		var m: Dictionary = entries[i]
+		l.text = m.text
+		var col: Color = {"warn": Palette.WARN, "good": Palette.GOOD, "bad": Palette.BAD}.get(m.kind, Palette.TEXT)
+		l.add_theme_color_override("font_color", col)
+		l.modulate.a = m.alpha
+
+
+# --- end of match ---------------------------------------------------------------
+
+func show_result(result: String, stats: Dictionary) -> void:
+	var titles: Dictionary = {
+		"victory_player": ["Victory", Palette.GOOD, "The enemy headquarters has fallen."],
+		"victory_ai": ["Defeat", Palette.BAD, "Your headquarters was destroyed."],
+		"draw": ["Draw", Palette.WARN, "Both headquarters fell in the same moment."],
+		"timeout": ["Time's up", Palette.WARN, "The match reached its time limit."],
+	}
+	var t: Array = titles.get(result, ["Match over", Palette.TEXT, ""])
+	_overlay_title.text = t[0]
+	_overlay_title.add_theme_color_override("font_color", t[1])
+	_overlay_sub.text = t[2]
+	_overlay_stats.text = "Time %s   ·   Wood %d   ·   Gold %d   ·   Units trained %d   ·   Units lost %d" % [
+		HudModel.clock_text(stats.tick), stats.wood, stats.gold, stats.trained, stats.lost]
+	_overlay.visible = true
+	_overlay.modulate.a = 0.0
+	var tw: Tween = _overlay.create_tween()
+	tw.tween_property(_overlay, "modulate:a", 1.0, 0.35)
+
+
+func is_overlay_showing() -> bool:
+	return _overlay.visible
+
+
+func overlay_title() -> String:
+	return _overlay_title.text

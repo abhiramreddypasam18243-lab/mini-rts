@@ -7,7 +7,10 @@ Game graphics are shapes drawn in code (decision D-21) and need no outside file.
 
 | File | Source | Licence | Notes |
 | --- | --- | --- | --- |
-| *(none yet)* | | | |
+| `assets/fonts/ChakraPetch-Regular.ttf` | Chakra Petch by Cadson Demak, from https://github.com/google/fonts/tree/main/ofl/chakrapetch (downloaded 2026-10-16) | SIL Open Font License 1.1 (`assets/fonts/OFL.txt`) | UI text |
+| `assets/fonts/ChakraPetch-SemiBold.ttf` | same source | SIL Open Font License 1.1 | Buttons, labels |
+| `assets/fonts/ChakraPetch-Bold.ttf` | same source | SIL Open Font License 1.1 | Titles, numbers |
+| `assets/fonts/OFL.txt` | same source | (the licence text itself) | Shipped with the fonts, as the OFL requires |
 
 ## Third-party code and tools
 

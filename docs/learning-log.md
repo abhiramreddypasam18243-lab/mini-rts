@@ -173,3 +173,28 @@ If `update()` started from the old `visible` rows instead of empty ones, cells w
 1. For vision 7, list the half-widths `w` for dy = 0 to 7.
 2. A barracks is destroyed while no enemy unit can see it. What does the enemy's observation show for it, and what must happen before the ghost disappears?
 3. Why is it acceptable for fog to be up to 5 ticks old, and what would break if it were 100 ticks old?
+
+---
+
+## Step 7: The presentation layer (AC-21 to AC-24, AC-73 to AC-78)
+
+**What was built**
+- `Main` → `MainMenu` → `Game`. Restart throws the old `Game` away and builds a new one from the same settings, so nothing can leak between matches.
+- `Game` runs the simulation from real time with `TickClock`, turns input into commands with `Selection`, and draws through four layers: `TerrainLayer` (drawn once), `WorldLayer` (units, buildings, nodes, effects), `FogLayer` (soft fog), `OverlayLayer` (drag box, placement ghost, order markers). `Hud` shows counters, the details card, command buttons, the queue, messages and the end screen.
+- Pure logic, tested headless: `Selection` (click, box, context orders), `HudModel` (button states and reasons, texts), `MessageLog` (3-second fade), `CameraMath` (clamping, edge panning).
+- `Art`: every unit, building, node and icon drawn with shapes in code, shared by the map, the HUD and the menu.
+
+**Why it is designed this way**
+- *The UI never changes the game.* It reads the simulation and calls `sim.submit()`. Selection, the camera and effects live only in the UI, so the simulation stays testable and replays stay exact.
+- *What you see is what your faction knows.* The world layer draws enemy units only on visible cells and enemy buildings in fog as ghosts from memory (AC-56), and the details card shows a ghost's last-seen health, not the real one.
+- *Smooth at any frame rate.* The simulation moves in 20 Hz steps; units are drawn between their last two positions using `TickClock.fraction()`, so movement looks smooth at 60 FPS without changing the simulation.
+- *Soft fog for almost nothing.* One texture pixel per cell, stretched with linear filtering and a small blur shader. The GPU does the smoothing.
+- *Disabled buttons explain themselves.* `HudModel.train_button()` asks the simulation's own `train_check()` (the same check `train` runs), so the reason shown is exactly the reason the command would be rejected.
+
+**One thing that could go wrong**
+In Godot, `set_anchors_preset()` keeps a new control's current size (zero), so "fill the screen" produced nothing; the fix was `set_anchors_and_offsets_preset()`. It was only found by looking at a real screenshot: all headless tests passed, which is why the UI is also checked by eye.
+
+**Quiz questions**
+1. Why does a right click on an enemy you cannot see send a move order instead of an attack order?
+2. The simulation runs at 20 ticks per second but the screen at 60 frames per second. How are units drawn smoothly, and why does this not affect the state hash?
+3. Why is restarting done by building a new `Game` and `Simulation` instead of resetting the old ones?

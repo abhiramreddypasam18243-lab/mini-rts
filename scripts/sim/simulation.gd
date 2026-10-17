@@ -783,8 +783,11 @@ func _cmd_build(w: Entity, kind: String, raw_cell: Variant) -> String:
 	return "ok"
 
 
-## Training: the cost is paid at enqueue through the one transaction (D-06).
-func _cmd_train(b: Entity, unit_type: String) -> String:
+## Whether `b` could train `unit_type` now, as a result code. Changes nothing
+## (the HUD uses it to disable buttons and show the reason).
+func train_check(b: Entity, unit_type: String) -> String:
+	if match_result != "":
+		return "match_over"
 	if not b.is_building():
 		return "invalid_target"
 	if not unit_type in TRAINS[b.kind]:
@@ -795,6 +798,14 @@ func _cmd_train(b: Entity, unit_type: String) -> String:
 		return "queue_full"
 	if population(b.faction) >= Consts.POPULATION_CAP:
 		return "population_cap"
+	return bank.check(b.faction, {"wood": stats[unit_type].wood, "gold": stats[unit_type].gold})
+
+
+## Training: the cost is paid at enqueue through the one transaction (D-06).
+func _cmd_train(b: Entity, unit_type: String) -> String:
+	var allowed: String = train_check(b, unit_type)
+	if allowed != "ok":
+		return allowed
 	var cost: Dictionary = {"wood": stats[unit_type].wood, "gold": stats[unit_type].gold}
 	var paid: String = bank.spend(b.faction, cost)
 	if paid != "ok":
@@ -881,7 +892,8 @@ func destroy_entity(id: int) -> void:
 			solid[i] = map.blocked[i]
 	if dead.is_unit() and dead.carry > 0:
 		bank.record_lost(dead.faction, dead.carry_type, dead.carry)
-	events.append({"type": "destroyed", "tick": tick, "entity_id": id, "kind": dead.kind, "faction": dead.faction})
+	events.append({"type": "destroyed", "tick": tick, "entity_id": id, "kind": dead.kind, "faction": dead.faction,
+		"pos": dead.pos, "cell": dead.cell, "size": dead.size})
 	for oid: int in entities:
 		var e: Entity = entities[oid]
 		if not e.is_unit():

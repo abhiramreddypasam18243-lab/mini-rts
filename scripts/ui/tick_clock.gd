@@ -18,6 +18,11 @@ func advance_usec(usec: int) -> int:
 	return n
 
 
+## How far the clock is towards the next tick, 0..1 (for smooth drawing).
+func fraction() -> float:
+	return float(_acc) / USEC_PER_TICK
+
+
 ## Frame helper for _process(delta): converts seconds once, then clamps.
 func advance(delta: float) -> int:
 	var n: int = advance_usec(roundi(delta * 1_000_000.0))
