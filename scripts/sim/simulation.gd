@@ -49,6 +49,8 @@ var max_ticks: int
 var match_result: String = ""
 ## How many match results have been raised (the invariant allows at most one).
 var results_raised: int = 0
+## AI commands rejected for naming an entity outside their observation (SPEC 7.2).
+var firewall_violations: int = 0
 ## Events for the UI, appended during a tick; drained with take_events().
 var events: Array[Dictionary] = []
 ## Every submitted command with its result, for replays (SPEC 8).
@@ -649,6 +651,36 @@ func submit(cmd: Dictionary) -> String:
 	return result
 
 
+## The observation firewall (SPEC 7.2): an AI command may only name entities
+## that were in the observation it was decided from (`known`: id -> true).
+## A command naming anything else is rejected and counted as a violation;
+## it is logged with "unknown_entity" and nothing changes. Returns "firewall"
+## for a violation, else the normal result code.
+func submit_observed(cmd: Dictionary, known: Dictionary) -> String:
+	for id: int in referenced_ids(cmd):
+		if not known.has(id):
+			firewall_violations += 1
+			command_log.append({"tick": tick, "faction": cmd.get("faction", ""), "command": cmd.get("command", ""),
+				"args": cmd.get("args", {}), "result": "unknown_entity"})
+			return "firewall"
+	return submit(cmd)
+
+
+## Every entity id a command names: the acting units or building, and its
+## target node, enemy or building.
+static func referenced_ids(cmd: Dictionary) -> Array[int]:
+	var out: Array[int] = []
+	var args: Dictionary = cmd.get("args", {})
+	for key: String in ["unit_ids", "worker_id", "building_id", "node_id", "target_id"]:
+		if not args.has(key):
+			continue
+		var v: Variant = args[key]
+		for x: Variant in (v if typeof(v) == TYPE_ARRAY else [v]):
+			if JsonUtil.is_whole(x):
+				out.append(int(x))
+	return out
+
+
 ## Checks run in a fixed order, and nothing changes until all have passed:
 ## match_over, unknown command, unknown_entity, not_owner, invalid_amount,
 ## then the command's own rules (decision D-27).
@@ -1014,6 +1046,7 @@ func state_hash() -> int:
 	h.add_int(rng.state)
 	h.add_string(match_result)
 	h.add_int(results_raised)
+	h.add_int(firewall_violations)
 	h.add_int(next_id)
 	bank.add_to_hash(h)
 	map.add_to_hash(h)

@@ -8,8 +8,8 @@ Run these by hand and record the date and result. The automated tests cannot jud
 | --- | --- | --- | --- | --- |
 | 1 | A new player can select and command a unit | Start a random map; click a worker, right-click the ground | pending | |
 | 2 | A player can collect enough to produce a soldier | Gather wood and gold, build a barracks (B), train a melee soldier (W) | pending | |
-| 3 | The AI makes progress without getting stuck | Needs build step 8 (the AI); watch for 5 minutes | pending (step 8) | |
-| 4 | The player can win and lose | Destroy the AI HQ; in another match let the AI destroy yours | pending (step 8) | |
+| 3 | The AI makes progress without getting stuck | Start a match, press F3 to see the AI state; watch it move through ECONOMY → BUILD → ATTACK over about 3 minutes | pending | |
+| 4 | The player can win and lose | Destroy the AI HQ; in another match do nothing (the Balanced AI attacked a passive player at about 2:06 in testing) | pending | |
 | 5 | A restart leaves nothing from the previous match | Play a while, press Restart: resources 200/100, 3 workers, clock 00:00, nothing selected | pending | |
 
 ## AC-77 Frame rate

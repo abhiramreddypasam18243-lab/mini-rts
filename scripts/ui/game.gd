@@ -34,6 +34,8 @@ var dragging: bool = false
 var drag_from: Vector2 = Vector2.ZERO
 var hud: Hud
 var camera: Camera2D
+## The opponent: the enemy AI, driven through its firewall (build step 8).
+var opponent: AIController
 
 var _terrain: TerrainLayer
 var _world: WorldLayer
@@ -60,6 +62,7 @@ static func load_map(p_settings: Dictionary) -> MapGrid:
 
 func _ready() -> void:
 	sim = Simulation.new(load_map(settings), int(settings.get("seed", 1)), {})
+	opponent = AIController.new("ai", AIConfig.preset(str(settings.get("ai_policy", "balanced"))))
 	_terrain = TerrainLayer.new()
 	add_child(_terrain)
 	_terrain.setup(sim.map)
@@ -105,6 +108,7 @@ func advance_ticks(n: int) -> void:
 		if sim.match_result != "":
 			break
 		_snapshot_positions()
+		opponent.before_step(sim)
 		sim.step()
 		_consume(sim.take_events())
 	if sim.match_result != "" and not _result_shown:

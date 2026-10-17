@@ -9,6 +9,8 @@ signal start_requested(settings: Dictionary)
 
 var _t: float = 0.0
 var _seed_edit: LineEdit
+var _policy: OptionButton
+const POLICIES: Array[Array] = [["balanced", "Balanced"], ["aggressive", "Aggressive"], ["economy_first", "Economy-first"]]
 var _help: PanelContainer
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -53,16 +55,17 @@ func _ready() -> void:
 	panel.add_child(box)
 
 	var play: Button = _button("Play  ·  random map", true)
-	play.pressed.connect(func() -> void: start_requested.emit({"map": "generated", "seed": _seed()}))
+	play.pressed.connect(func() -> void: start_requested.emit(_settings("generated")))
 	box.add_child(play)
 	var tutorial: Button = _button("Play  ·  tutorial map", false)
-	tutorial.pressed.connect(func() -> void: start_requested.emit({"map": "tutorial", "seed": _seed()}))
+	tutorial.pressed.connect(func() -> void: start_requested.emit(_settings("tutorial")))
 	box.add_child(tutorial)
 
 	var seed_row: HBoxContainer = HBoxContainer.new()
 	seed_row.add_theme_constant_override("separation", 8)
 	box.add_child(seed_row)
 	var seed_label: Label = UiTheme.label("Map seed", 14, "semibold", Palette.MUTED)
+	seed_label.custom_minimum_size = Vector2(66, 0)
 	seed_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	seed_row.add_child(seed_label)
 	_seed_edit = LineEdit.new()
@@ -75,6 +78,20 @@ func _ready() -> void:
 	shuffle.focus_mode = Control.FOCUS_NONE
 	shuffle.pressed.connect(func() -> void: _seed_edit.text = str(_rng.randi_range(1, 99999)))
 	seed_row.add_child(shuffle)
+
+	var policy_row: HBoxContainer = HBoxContainer.new()
+	policy_row.add_theme_constant_override("separation", 8)
+	box.add_child(policy_row)
+	var policy_label: Label = UiTheme.label("Opponent", 14, "semibold", Palette.MUTED)
+	policy_label.custom_minimum_size = Vector2(66, 0)
+	policy_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	policy_row.add_child(policy_label)
+	_policy = OptionButton.new()
+	_policy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_policy.focus_mode = Control.FOCUS_NONE
+	for p: Array in POLICIES:
+		_policy.add_item(p[1])
+	policy_row.add_child(_policy)
 
 	var help_button: Button = _button("How to play", false)
 	box.add_child(help_button)
@@ -130,6 +147,10 @@ func _build_help() -> PanelContainer:
 		grid.add_child(UiTheme.label(r[0], 14, "semibold", Palette.ACCENT))
 		grid.add_child(UiTheme.label(r[1], 14, "regular", Palette.TEXT))
 	return p
+
+
+func _settings(map: String) -> Dictionary:
+	return {"map": map, "seed": _seed(), "ai_policy": POLICIES[_policy.selected][0]}
 
 
 func _seed() -> int:

@@ -68,6 +68,15 @@ static func get_theme() -> Theme:
 	t.set_color("font_pressed_color", "Button", Color.WHITE)
 	t.set_color("font_disabled_color", "Button", Palette.FAINT)
 	t.set_font("font", "Button", font("semibold"))
+	for k: String in ["normal", "hover", "pressed", "disabled", "focus"]:
+		t.set_stylebox(k, "OptionButton", t.get_stylebox(k, "Button"))
+	t.set_color("font_color", "OptionButton", Palette.TEXT)
+	t.set_font("font", "OptionButton", font("semibold"))
+	t.set_stylebox("panel", "PopupMenu", box(Color("101722"), 10, Color(1, 1, 1, 0.12), 1, Vector2(6, 6), 12))
+	t.set_stylebox("hover", "PopupMenu", box(Color(Palette.ACCENT, 0.25), 6, Color(0, 0, 0, 0), 0, Vector2(8, 4)))
+	t.set_color("font_color", "PopupMenu", Palette.TEXT)
+	t.set_color("font_hover_color", "PopupMenu", Color.WHITE)
+	t.set_font("font", "PopupMenu", font("regular"))
 	# Panels and labels
 	t.set_stylebox("panel", "PanelContainer", panel_box())
 	t.set_stylebox("panel", "Panel", panel_box())

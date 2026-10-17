@@ -198,3 +198,39 @@ In Godot, `set_anchors_preset()` keeps a new control's current size (zero), so "
 1. Why does a right click on an enemy you cannot see send a move order instead of an attack order?
 2. The simulation runs at 20 ticks per second but the screen at 60 frames per second. How are units drawn smoothly, and why does this not affect the state hash?
 3. Why is restarting done by building a new `Game` and `Simulation` instead of resetting the old ones?
+
+---
+
+## Step 8: The enemy AI and its tests (AC-59 to AC-67)
+
+*[LEARN] module: the AI's transition function and the observation firewall. You chose "you write it", so Claude wrote `scripts/sim/ai/enemy_ai.gd`, `ai_config.gd`, `scripts/sim/ai_controller.gd` and `Simulation.submit_observed()`. Read them with this entry.*
+
+**What was built**
+- `EnemyAI.decide(observation) -> commands`: picks a state by the priority list, then acts. `next_state()` is the transition function on its own, so each row can be tested with a hand-made observation.
+- `AIConfig`: the three policies as numbers (Balanced, Aggressive, EconomyFirst).
+- `AIController`: every 10 ticks builds the observation, asks the AI, and submits through `Simulation.submit_observed()`, the firewall.
+- `MatchRunner`: a whole match headless, for the tests and (in step 9) the experiment.
+- The game now has a real opponent, chosen on the main menu; F3 also shows its current state.
+
+**How the transition function works (worked example, AC-62)**
+Rows are checked top to bottom; the first that matches wins.
+- A visible enemy *soldier* within 8 cells of the HQ → `DEFEND` (row 1; workers are not threats, D-34).
+- In `ATTACK` with 6 soldiers at the start (Balanced, retreat 40 %): with 2 left, `2 × 100 = 200 < 40 × 6 = 240` → `RECOVER`; with 3 left, `300 ≥ 240` → keep attacking. Integers only: no 0.4 anywhere.
+- 6 soldiers and a known enemy building, in `ECONOMY` → `ATTACK`; 5 workers with 120 wood and 60 gold and no barracks → `BUILD`.
+
+**Why it is designed this way**
+- *The firewall has two walls.* (1) The AI's files never mention the simulation; a test reads the source and fails if they do (AC-59). (2) The simulation checks every AI command: any id not in that decision's observation is rejected and counted (AC-61: zero in every match).
+- *One command per unit.* Every command is recorded against the units it names, and later behaviours skip those units, so DEFEND and ECONOMY can never give one soldier two orders (AC-63).
+- *Sticky states.* Read literally, "otherwise ECONOMY" would cancel an attack 10 ticks after it starts, so ATTACK and RECOVER continue until a row that ends them applies (D-33).
+- *Production underneath.* Gathering and training run in every state, so a defending AI still grows its economy; BUILD reserves the barracks money first so training cannot spend it.
+
+**One thing that could go wrong**
+If `observation()` leaked hidden enemy units, the AI would be cheating. We planted that leak: the hidden-enemy test (AC-56) and the observation-contents test failed. The metamorphic test (AC-60) did *not* catch it, because this AI happens not to react to far-away enemies: a metamorphic test only catches leaks that change behaviour, which is why the firewall needs several kinds of tests.
+
+**Spec conflict found and resolved (D-34)**
+On the tutorial map the two HQs are only 4 cells apart, so with "any visible enemy unit" the player's idle workers kept the AI in DEFEND forever and AC-65 could never pass. Only soldiers count as threats now.
+
+**Quiz questions**
+1. The AI is in ATTACK with Aggressive settings (retreat 25 %), started with 4 soldiers, and has 1 left. Does it retreat? Show the integer comparison.
+2. Why must `decide()` take only an `Observation` and not the `Simulation`, and how do the tests prove it does?
+3. Why did the metamorphic test not catch the planted observation leak, and which test did?

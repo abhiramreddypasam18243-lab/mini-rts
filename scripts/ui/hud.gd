@@ -230,7 +230,7 @@ func refresh() -> void:
 	_refresh_card(sim, f)
 	_refresh_messages()
 	if _fps.visible:
-		_fps.text = "%d FPS · %d units" % [Engine.get_frames_per_second(), sim.unit_ids().size()]
+		_fps.text = "%d FPS · %d units · enemy AI: %s" % [Engine.get_frames_per_second(), sim.unit_ids().size(), game.opponent.ai.state]
 
 
 func toggle_fps() -> void:
