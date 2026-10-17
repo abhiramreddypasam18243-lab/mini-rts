@@ -24,6 +24,8 @@ var _fx_holder: Node2D
 var _cam: Vector2 = Vector2.ZERO
 var _next_clash: float = 0.0
 var _units: Array[Dictionary] = []
+var _credits: Control
+const LPC_CREDITS: String = "res://assets/lpc/CREDITS.md"
 ## A bright band that sweeps across the gold title now and then.
 const SHINE_SHADER: String = """
 shader_type canvas_item;
@@ -122,14 +124,22 @@ func _ready() -> void:
 	var demo: Button = _button("Watch demo", "beige")
 	demo.pressed.connect(func() -> void: start_requested.emit({"mode": "demo"}))
 	box.add_child(demo)
+	var info_row: HBoxContainer = HBoxContainer.new()
+	info_row.add_theme_constant_override("separation", 10)
+	box.add_child(info_row)
 	var help_button: Button = _button("How to play", "brown")
-	box.add_child(help_button)
+	help_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_row.add_child(help_button)
+	var credits_button: Button = _button("Credits", "brown")
+	credits_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_row.add_child(credits_button)
 	_help = _build_help()
 	_help.visible = false
 	col.add_child(_help)
 	help_button.pressed.connect(func() -> void: _help.visible = not _help.visible)
+	credits_button.pressed.connect(show_credits)
 
-	var footer: Label = UiTheme.label("Godot 4.7.2  ·  art by Kenney (CC0)  ·  A* · fog of war · state-machine AI", 14, "semibold", Palette.TEXT)
+	var footer: Label = UiTheme.label("Godot 4.7.2  ·  art by Kenney (CC0) and LPC artists (CC-BY-SA 3.0, see Credits)", 14, "semibold", Palette.TEXT)
 	footer.add_theme_constant_override("outline_size", 6)
 	footer.add_theme_color_override("font_outline_color", Color(0.12, 0.07, 0.03, 0.9))
 	footer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -138,6 +148,9 @@ func _ready() -> void:
 	footer.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	footer.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	add_child(footer)
+	_credits = _build_credits()
+	_credits.visible = false
+	add_child(_credits)
 
 
 func _row_label(text: String) -> Label:
@@ -170,14 +183,95 @@ func _build_help() -> PanelContainer:
 		["Left drag", "Box-select your units (up to 24)"],
 		["Right click", "Move · gather (workers on wood/gold) · attack (soldiers)"],
 		["B, then click", "Place a barracks (a worker must be selected)"],
-		["Q / W / E", "Train worker / knight / mage at the selected building"],
+		["Q / W / E", "Train worker / knight / archer at the selected building"],
 		["Esc", "Cancel placement or clear the selection"],
 		["WASD, screen edges", "Pan the camera"],
+		["M", "Sound and music on / off"],
 	]
 	for r: Array in rows:
 		grid.add_child(UiTheme.label(r[0], 16, "bold", Palette.INK))
 		grid.add_child(UiTheme.label(r[1], 16, "regular", Palette.INK))
 	return p
+
+
+## Opens the credits (the LPC licence asks for every artist to be named).
+func show_credits() -> void:
+	_credits.visible = true
+
+
+func is_credits_showing() -> bool:
+	return _credits.visible
+
+
+## Every LPC artist, read from assets/lpc/CREDITS.md (one name each).
+static func lpc_artists() -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray()
+	for line: String in FileAccess.get_file_as_string(LPC_CREDITS).split("\n"):
+		if not line.begins_with("| `"):
+			continue
+		for n: String in line.split("|")[2].split(","):
+			var name: String = n.strip_edges()
+			if name != "" and not names.has(name):
+				names.append(name)
+	names.sort()
+	return names
+
+
+func _build_credits() -> Control:
+	var layer: ColorRect = ColorRect.new()
+	layer.color = Color(0.05, 0.03, 0.01, 0.75)
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center: CenterContainer = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var panel: PanelContainer = PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(26, 22)))
+	center.add_child(panel)
+	var col: VBoxContainer = VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	panel.add_child(col)
+	var title: Label = UiTheme.label("Credits", 40, "title", Palette.ACCENT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(title)
+	var page: PanelContainer = PanelContainer.new()
+	page.add_theme_stylebox_override("panel", UiTheme.parchment(Vector2(18, 14)))
+	col.add_child(page)
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(720, 380)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	page.add_child(scroll)
+	var text: RichTextLabel = RichTextLabel.new()
+	text.bbcode_enabled = true
+	text.fit_content = true
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_font_override("normal_font", UiTheme.font("regular"))
+	text.add_theme_font_override("bold_font", UiTheme.font("bold"))
+	text.add_theme_font_size_override("normal_font_size", 16)
+	text.add_theme_font_size_override("bold_font_size", 17)
+	text.add_theme_color_override("default_color", Palette.INK)
+	text.text = credits_text()
+	scroll.add_child(text)
+	var close: Button = _button("Close", "gold")
+	close.pressed.connect(func() -> void: layer.visible = false)
+	col.add_child(close)
+	return layer
+
+
+## The credits, as BBCode.
+static func credits_text() -> String:
+	var t: String = "[b]Units (animated characters)[/b]\n"
+	t += "Liberated Pixel Cup (LPC) art, assembled with the Universal LPC Spritesheet Character Generator; "
+	t += "licensed CC-BY-SA 3.0 (parts also GPL 3.0 / OGA-BY 3.0 / CC-BY 4.0). Recoloured for the two teams. Artists: "
+	t += ", ".join(lpc_artists()) + ". Full list with sources: assets/lpc/CREDITS.md.\n\n"
+	t += "[b]Buildings, scenery, interface and effects[/b]\n"
+	t += "Kenney (kenney.nl): Medieval RTS, UI Pack: RPG Expansion, Particle Pack. CC0.\n\n"
+	t += "[b]Sound and music[/b]\n"
+	t += "Sound effects: Kenney (kenney.nl): Impact Sounds, RPG Audio, Interface Sounds. CC0. "
+	t += "Music: \"Town Theme RPG\" and \"Battle Theme A\" by cynicmusic (opengameart.org). CC0.\n\n"
+	t += "[b]Fonts[/b]\nCinzel by Natanael Gama; Alegreya Sans by Huerta Tipográfica. SIL Open Font License 1.1.\n\n"
+	t += "[b]Engine[/b]\nGodot Engine 4.7.2 (MIT licence), godotengine.org.\n\n"
+	t += "Every asset file, its source and licence: ASSETS.md in the project repository."
+	return t
 
 
 func _settings(map: String) -> Dictionary:
@@ -263,7 +357,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-## Once the armies meet, soldiers trade blows: sword hits and magic bolts.
+## Once the armies meet, soldiers trade blows: sword swings and arrows.
 func _clash() -> void:
 	if _t < 7.5 or _t < _next_clash:
 		return
@@ -279,11 +373,12 @@ func _clash() -> void:
 	u.atk = _t
 	u.dir = (to - u.pos).normalized()
 	if u.unit == "ranged":
-		_fx.bolt(u.pos + Vector2(12.0 * signf(u.dir.x), -20), to, u.faction, 0, 8)
-		target.hit = _t + 0.2
+		_fx.arrow(u.pos + Vector2(0, -18) + u.dir * 10.0, to, u.faction, 0, 8, 0.17)
+		target.hit = _t + 0.45
 	else:
-		_fx.hit(to, u.pos)
-		target.hit = _t
+		var from: Vector2 = u.pos
+		_fx.later(0.2, func() -> void: _fx.hit(to, from))
+		target.hit = _t + 0.2
 
 
 ## Leaves drifting on the wind and golden motes floating up.
@@ -328,7 +423,8 @@ func _draw() -> void:
 				Art.banner(self, p + Vector2(sz * 0.32, -sz * 0.62), Palette.TEAM[o.faction], _t)
 			"unit":
 				var flash: float = clampf(1.0 - (_t - o.hit) / 0.15, 0.0, 1.0) if _t >= o.hit else 0.0
-				Art.unit(self, p, o.unit, o.faction, 1.45, 1.0, flash, _pose(o))
+				var a: Dictionary = _pose(o)
+				Art.unit(self, p, o.unit, o.faction, a.anim, a.dir, a.frame, 1.0, flash, 1.0)
 			_:
 				var sz2: float = o.size
 				draw_set_transform(p + Vector2(3, sz2 * 0.3), 0.0, Vector2(1.0, 0.4))
@@ -343,27 +439,20 @@ func _draw() -> void:
 				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## Marching hop, idle breathing, and a lunge or cast when attacking.
+## The animation frame for a backdrop soldier: walking in, then standing
+## ready, a sword swing or a bow shot when it attacks.
 func _pose(u: Dictionary) -> Dictionary:
-	var marching: bool = _t > u.delay and _t < u.delay + 7.0
-	var pose: Dictionary = {"flip": u.faction == "ai"}
-	if marching:
-		var ph: float = _t * 9.0 + u.phase
-		var step: float = absf(sin(ph))
-		pose.lift = step * 4.5
-		pose.tilt = sin(ph) * 0.07
-	else:
-		pose.sy = 1.0 + 0.025 * sin(_t * 2.3 + u.phase)
+	var facing: int = UnitSprites.RIGHT if u.faction == "player" else UnitSprites.LEFT
 	var since: float = _t - u.atk
-	if since < 0.32:
-		var a: float = sin(since / 0.32 * PI)
-		if u.unit == "melee":
-			pose.tilt = 0.35 * a * (-1.0 if pose.flip else 1.0)
-			pose.lift = 2.0 * a
-		else:
-			pose.lift = 4.0 * a
-			pose.sy = 1.0 + 0.1 * a
-	return pose
+	if u.unit == "melee" and since < 0.42:
+		return {"anim": "slash", "dir": UnitSprites.dir_of(u.dir, facing), "frame": int(since / 0.42 * 6.0)}
+	if u.unit == "ranged" and since < 0.42:
+		return {"anim": "shoot", "dir": UnitSprites.dir_of(u.dir, facing), "frame": 4 + int(since / 0.42 * 9.0)}
+	if _t > u.delay and _t < u.delay + 7.0:
+		return {"anim": "walk", "dir": facing, "frame": 1 + int(_t * 9.0 + u.phase) % 8}
+	if u.unit == "ranged" and _t > 7.5:
+		return {"anim": "shoot", "dir": facing, "frame": 4}
+	return {"anim": "walk", "dir": facing, "frame": 0}
 
 
 ## Draws the backdrop's particles, offset with the drifting view.

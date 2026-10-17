@@ -2,19 +2,31 @@
 ## (presentation layer; reads the simulation, never changes it):
 ## remembered resource nodes, own and visible buildings, ghosts of enemy
 ## buildings in fog, own and visible units (sorted by height so lower ones
-## overlap upper ones). Units are animated from what they are doing: a
-## hop while walking, chopping while gathering, hammering while building, a
-## lunge or cast when they attack, and slow breathing when idle. Rubble and
-## fallen units from Effects are drawn under everything.
+## overlap upper ones). Units play LPC animations (D-41) chosen from what
+## they are doing: walking, chopping wood, mining gold, hammering at a
+## building site, a sword swing or a bow shot when they attack, standing
+## ready when idle. Units close together are pushed apart a little on
+## screen (drawing only; the simulation still lets them share cells, D-04),
+## so a fight reads as two lines, not a blob. Rubble and fallen units from
+## Effects are drawn under everything.
 class_name WorldLayer
 extends Node2D
 
 const C: float = Consts.PIXELS_PER_CELL
 
 var game: Game
-## Per unit: walk-cycle phase and last drawn feet position (animation only).
+## Per unit: walk-cycle phase, last drawn feet position and on-screen
+## separation offset (animation only).
 var _walk: Dictionary = {}
 var _last: Dictionary = {}
+var _off: Dictionary = {}
+var _last_time: float = 0.0
+## Seconds an attack animation lasts.
+const SLASH_TIME: float = 0.42
+const SHOOT_TIME: float = 0.42
+## Units closer than this (world px) push apart on screen, at most MAX_OFF.
+const PERSONAL: float = 17.0
+const MAX_OFF: float = 11.0
 
 
 func _draw() -> void:
@@ -82,96 +94,120 @@ func _draw_world() -> void:
 		var e: Entity = sim.entities[id]
 		if e.is_unit() and (e.faction == f or game.spectate or sim.fog.is_visible(f, e.unit_cell())):
 			shown.append(e)
-	shown.sort_custom(func(a: Entity, b: Entity) -> bool: return a.pos.y < b.pos.y or (a.pos.y == b.pos.y and a.id < b.id))
-	var spread: Dictionary = _spread(shown)
+	_separate(shown)
+	shown.sort_custom(func(a: Entity, b: Entity) -> bool: return _feet(a).y < _feet(b).y or (_feet(a).y == _feet(b).y and a.id < b.id))
 	for e: Entity in shown:
-		_draw_unit(e, sim, spread.get(e.id, Vector2.ZERO))
+		_draw_unit(e, sim)
 
 
-## Units may share a cell (D-04). Tokens standing on exactly the same spot
-## are fanned out a little so each one can be seen (drawing only).
-func _spread(units: Array[Entity]) -> Dictionary:
-	var groups: Dictionary = {}
+## Where a unit's feet are drawn: its position (the cell centre) a little
+## lower, plus its separation offset.
+func _feet(e: Entity) -> Vector2:
+	return game.draw_pos(e) + _off.get(e.id, Vector2.ZERO) + Vector2(0, 8)
+
+
+## Units may share a cell (D-04). On screen, units closer than PERSONAL push
+## each other apart (eased, capped at MAX_OFF), so groups spread into
+## readable lines. Neighbours are found through a grid of cell buckets.
+func _separate(units: Array[Entity]) -> void:
+	var dt: float = clampf(game.time - _last_time, 0.0, 0.1)
+	_last_time = game.time
+	var base: Dictionary = {}
+	var buckets: Dictionary = {}
 	for e: Entity in units:
-		if not groups.has(e.pos):
-			groups[e.pos] = []
-		groups[e.pos].append(e.id)
-	var out: Dictionary = {}
-	for pos: Vector2i in groups:
-		var ids: Array = groups[pos]
-		if ids.size() < 2:
-			continue
-		ids.sort()
-		for k: int in ids.size():
-			out[ids[k]] = Vector2.from_angle(TAU * k / ids.size() - PI / 2.0) * 7.0
-	return out
+		var p: Vector2 = game.draw_pos(e)
+		base[e.id] = p
+		var key: Vector2i = Vector2i(floori(p.x / PERSONAL), floori(p.y / PERSONAL))
+		if not buckets.has(key):
+			buckets[key] = []
+		buckets[key].append(e.id)
+	for e: Entity in units:
+		var p: Vector2 = base[e.id]
+		var push: Vector2 = Vector2.ZERO
+		var key: Vector2i = Vector2i(floori(p.x / PERSONAL), floori(p.y / PERSONAL))
+		for dy: int in range(-1, 2):
+			for dx: int in range(-1, 2):
+				for other: int in buckets.get(key + Vector2i(dx, dy), []):
+					if other == e.id:
+						continue
+					var d: Vector2 = p - base[other]
+					var len: float = d.length()
+					if len >= PERSONAL:
+						continue
+					if len < 0.01:
+						d = Vector2.from_angle(float(e.id) * 2.39996)
+						len = 0.01
+					push += d / len * (PERSONAL - len) * 0.5
+		var target: Vector2 = push.limit_length(MAX_OFF)
+		_off[e.id] = (_off.get(e.id, Vector2.ZERO) as Vector2).lerp(target, minf(dt * 6.0, 1.0))
 
 
-func _draw_unit(e: Entity, sim: Simulation, offset: Vector2 = Vector2.ZERO) -> void:
-	# The unit's position is its cell centre; its feet are drawn a little below.
-	var feet: Vector2 = game.draw_pos(e) + offset + Vector2(0, 8)
-	var pose: Dictionary = _pose(e, feet)
-	var body: Vector2 = feet + pose.get("shift", Vector2.ZERO)
+func _draw_unit(e: Entity, sim: Simulation) -> void:
+	var feet: Vector2 = _feet(e)
+	var a: Dictionary = _anim(e, feet)
 	var r: float = Art.unit_radius(e.kind)
 	var selected: bool = game.selection.selected.has(e.id)
 	var inspected: bool = game.selection.inspected == e.id
 	if selected or inspected or e.id == game.hover_id:
-		_selection_ring(feet, r + 6.0, selected)
-	Art.unit(self, body, e.kind, e.faction, 1.0, 1.0, game.flash(e.id), pose)
-	var head: float = feet.y - 32.0
+		_selection_ring(feet, r + 5.0, selected)
+	Art.unit(self, feet, e.kind, e.faction, a.anim, a.dir, a.frame, 1.0, game.flash(e.id))
+	var head: float = feet.y - 40.0
 	if e.carry > 0:
-		var cp: Vector2 = Vector2(body.x + (-10.0 if pose.flip else 10.0), head + 8 - pose.get("lift", 0.0))
-		Art.icon(self, cp, e.carry_type, 0.36)
+		Art.icon(self, Vector2(feet.x + 10.0, head + 8.0), e.carry_type, 0.36)
 	var max_hp: int = sim.stats[e.kind].health
 	if e.hp < max_hp or selected:
 		var ratio: float = float(e.hp) / max_hp
-		Art.bar(self, Rect2(feet.x - 12, head - 6, 24, 4), ratio, Palette.health(ratio))
+		Art.bar(self, Rect2(feet.x - 12, head - 5, 24, 4), ratio, Palette.health(ratio))
 
 
-## How to draw a unit this frame, from what it is doing.
-func _pose(e: Entity, feet: Vector2) -> Dictionary:
+## Which animation, direction and frame to draw, from what the unit does:
+## an attack plays once (sword swing or bow shot towards the target), else
+## walking cycles with distance moved, gathering and building loop their
+## tool animation facing the work, and an idle unit stands facing its last
+## direction.
+func _anim(e: Entity, feet: Vector2) -> Dictionary:
 	var t: float = game.time
 	var last: Vector2 = _last.get(e.id, feet)
 	_last[e.id] = feet
 	var moved: Vector2 = feet - last
-	var flip: bool = game.facing.get(e.id, e.faction == "ai")
-	if absf(moved.x) > 0.05:
-		flip = moved.x < 0.0
+	var dir: int = game.facing.get(e.id, UnitSprites.RIGHT if e.faction == "player" else UnitSprites.LEFT)
+	var out: Dictionary = {"anim": "walk", "dir": dir, "frame": 0}
 	var info: Dictionary = game.attack_info.get(e.id, {})
 	var since: float = t - info.t if not info.is_empty() else 99.0
-	if since < 0.6 and absf(info.dir.x) > 0.1:
-		flip = info.dir.x < 0.0
-	game.facing[e.id] = flip
-	var sgn: float = -1.0 if flip else 1.0
-	var pose: Dictionary = {"flip": flip}
-	if moved.length() > 0.02:
-		var ph: float = _walk.get(e.id, float(e.id)) + moved.length() * 0.3
+	if e.kind == "melee" and since < SLASH_TIME:
+		out.anim = "slash"
+		out.dir = UnitSprites.dir_of(info.dir, dir)
+		out.frame = int(since / SLASH_TIME * 6.0)
+	elif e.kind == "ranged" and since < SHOOT_TIME:
+		# Frames 4 to 12: draw, release (frame 8), recover.
+		out.anim = "shoot"
+		out.dir = UnitSprites.dir_of(info.dir, dir)
+		out.frame = 4 + int(since / SHOOT_TIME * 9.0)
+	elif moved.length() > 0.03:
+		var ph: float = _walk.get(e.id, 0.0) + moved.length() / 4.5
 		_walk[e.id] = ph
-		var step: float = absf(sin(ph))
-		pose.lift = step * 3.5
-		pose.tilt = sin(ph) * 0.07
-		pose.sy = 0.96 + 0.08 * step
-		pose.sx = 1.04 - 0.06 * step
-	elif e.phase == "gathering" or e.phase == "building":
-		# Chop or hammer: wind up, then strike.
-		var k: float = fmod(t * (2.2 if e.phase == "gathering" else 3.0) + e.id * 0.37, 1.0)
-		var swing: float = sin(k * TAU) if k < 0.5 else sin(k * TAU) * 0.4
-		pose.tilt = -0.22 * swing * sgn
-		pose.sy = 1.0 - 0.04 * maxf(-swing, 0.0)
-	else:
-		var b: float = sin(t * 2.3 + e.id * 1.7)
-		pose.sy = 1.0 + 0.022 * b
-		pose.sx = 1.0 - 0.012 * b
-	if since < 0.32:
-		var a: float = sin(since / 0.32 * PI)
-		if e.kind == "melee":
-			pose.shift = info.dir * 7.0 * a
-			pose.tilt = 0.32 * a * sgn
-		else:
-			pose.lift = 3.0 * a
-			pose.sy = 1.0 + 0.08 * a
-			pose.shift = -info.dir * 2.0 * a
-	return pose
+		out.dir = UnitSprites.dir_of(moved, dir)
+		out.frame = 1 + int(ph) % 8
+	elif e.phase == "gathering":
+		out.anim = "chop" if e.harvest_type == "wood" else "mine"
+		var node_p: Vector2 = (Vector2(e.harvest_cell) + Vector2(0.5, 0.5)) * C
+		out.dir = UnitSprites.dir_of(node_p - game.draw_pos(e), dir)
+		out.frame = int(t * 7.0 + e.id * 1.3) % 6
+	elif e.phase == "building":
+		var b: Entity = game.sim.entity(e.order_target)
+		out.anim = "hammer"
+		if b != null:
+			out.dir = UnitSprites.dir_of((Vector2(b.cell) + Vector2(b.size) / 2.0) * C - game.draw_pos(e), dir)
+		out.frame = int(t * 8.0 + e.id * 1.3) % 6
+	elif since < 2.0 and e.kind == "ranged":
+		# Between shots an archer keeps the bow raised towards the target.
+		out.anim = "shoot"
+		out.dir = UnitSprites.dir_of(info.dir, dir)
+		out.frame = 4
+	elif since < 2.0:
+		out.dir = UnitSprites.dir_of(info.dir, dir)
+	game.facing[e.id] = out.dir
+	return out
 
 
 ## A gold (selected) or white (hovered) dashed ring that slowly turns.

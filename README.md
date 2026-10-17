@@ -18,7 +18,7 @@ A small, complete real-time strategy game in **Godot 4.7.2**. Gather wood and go
 | ![Your base](docs/images/base.png) | ![Placing a barracks](docs/images/placement.png) |
 | ![A battle (demo replay)](docs/images/battle.png) | ![End of the demo](docs/images/demo-end.png) |
 
-Art: Kenney's CC0 *Medieval RTS*, *UI Pack: RPG Expansion* and *Particle Pack*, with the Cinzel and Alegreya Sans fonts (SIL OFL); every file and its licence is listed in [`ASSETS.md`](ASSETS.md). You play **blue**; the AI is **red**.
+Art and sound: animated units are Liberated Pixel Cup characters (**CC-BY-SA 3.0**; every artist is named in [`assets/lpc/CREDITS.md`](assets/lpc/CREDITS.md) and on the in-game Credits screen), assembled by `tools/make_units.gd`: workers chop, mine and hammer, knights swing swords behind team shields, archers shoot arrows. Buildings, scenery, interface and effects are Kenney's CC0 *Medieval RTS*, *UI Pack: RPG Expansion* and *Particle Pack*; sounds are Kenney's CC0 audio packs; music is cynicmusic's CC0 *Town Theme RPG* and *Battle Theme A* (the battle theme fades in while fighting is on screen); fonts are Cinzel and Alegreya Sans (SIL OFL). Every file and its licence is listed in [`ASSETS.md`](ASSETS.md). You play **blue**; the AI is **red**.
 
 The game is built on one idea: **all the rules live in a deterministic simulation that knows nothing about graphics.** The Godot scenes only draw what the simulation says and turn clicks into commands. So every rule can be tested without a window, matches can run headless about 200 times faster than real time, a match can be replayed exactly from its command log, and two AI strategies can be compared over hundreds of matches. The full specification is [`SPEC.md`](SPEC.md).
 
@@ -110,6 +110,7 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | Click a queued unit | Cancel it (full refund, once) |
 | `WASD` or the screen edges | Pan the camera (`W` trains a melee soldier while a building is selected) |
 | `F3` | Frames per second, unit count and the AI's current state |
+| `M` (or the Sound button) | Sound and music on / off (remembered) |
 
 Disabled buttons show the reason on hover (for example *Need 60 wood · 20 gold*). Messages fade after 3 seconds.
 
@@ -222,7 +223,7 @@ Policies are the same machine with different numbers:
 
 Test names follow the acceptance criteria (for example `test_ac_13_wall_with_gap`). [`docs/test-plan.md`](docs/test-plan.md) lists every acceptance criterion with its test or manual check; [`docs/measurements.md`](docs/measurements.md) has the measured performance numbers.
 
-**Frame rate (AC-77).** A built-in benchmark puts 80 units on the map (40 per side), lets them march and fight with every effect on, and measures 15 seconds: run `MiniRTS.exe -- --bench`, or add `?bench` to the web address. On a laptop with an RTX 4050 the desktop build averaged **109 FPS** (target 60) and the web build in Edge **80 FPS** (target 30); details in [`docs/playtest.md`](docs/playtest.md).
+**Frame rate (AC-77).** A built-in benchmark puts 80 units on the map (40 per side), lets them march and fight with every effect on, and measures 15 seconds: run `MiniRTS.exe -- --bench`, or add `?bench` to the web address. On a laptop with an RTX 4050 the desktop build averaged **85 FPS** (target 60) and the web build in Edge **70 to 73 FPS** (target 30); details in [`docs/playtest.md`](docs/playtest.md).
 
 ## Deployment
 

@@ -1,5 +1,5 @@
 ## Visual effects (presentation layer only): a small CPU particle system
-## using Kenney's CC0 Particle Pack (decision D-39), magic bolts that fly to
+## using Kenney's CC0 Particle Pack (decision D-39), arrows that fly in an arc to
 ## their target, floating numbers, rubble left where buildings fell, and
 ## fallen units. It reads nothing from the simulation; Game feeds it events.
 ## Its random numbers come from its own generator, so the simulation's
@@ -15,12 +15,14 @@ const MAX_PARTICLES: int = 1600
 var parts: Array[Dictionary] = []
 ## Ground marks under everything (rubble, scorch): p, size, rot, t0, life.
 var decals: Array[Dictionary] = []
-## Fallen units: p, kind, faction, flip, t0.
+## Fallen units (they play the LPC fall animation, then fade): p, kind, faction, t0.
 var corpses: Array[Dictionary] = []
-## Magic bolts in flight: a, b, t0, life, col, target, damage, faction.
-var bolts: Array[Dictionary] = []
-## Bolts that reached their target this frame (Game flashes the target).
+## Arrows in flight: a, b, t0, life, target, damage, faction.
+var arrows: Array[Dictionary] = []
+## Arrows that reached their target this frame (Game flashes the target).
 var landed: Array[Dictionary] = []
+## Effects waiting for their moment (timed to an animation): at, call.
+var pending: Array[Dictionary] = []
 ## Floating texts: p, text, col, t0, life, size, icon.
 var texts: Array[Dictionary] = []
 var time: float = 0.0
@@ -53,26 +55,38 @@ func update(dt: float) -> void:
 	parts = keep
 	landed.clear()
 	var flying: Array[Dictionary] = []
-	for b: Dictionary in bolts:
+	for b: Dictionary in arrows:
+		if time < b.t0:
+			flying.append(b)  # not released yet
+			continue
 		var k: float = (time - b.t0) / b.life
 		if k >= 1.0:
 			landed.append(b)
-			impact(b.b, b.col)
+			impact(b.b)
 			continue
-		var p: Vector2 = bolt_pos(b, k)
-		emit("magic_02", p + _jitter(2.0), _jitter(14.0), 0.32, 13.0, 2.0, Color(b.col, 0.7), true)
-		if rng.randf() < 0.5:
-			emit("spark_01", p, _jitter(30.0), 0.25, 7.0, 1.0, Color(1, 1, 1, 0.8), true)
 		flying.append(b)
-	bolts = flying
+	arrows = flying
+	var waiting: Array[Dictionary] = []
+	for w: Dictionary in pending:
+		if time >= w.at:
+			(w.call as Callable).call()
+		else:
+			waiting.append(w)
+	pending = waiting
 	decals = decals.filter(func(d: Dictionary) -> bool: return time - d.t0 < d.life)
 	corpses = corpses.filter(func(c: Dictionary) -> bool: return time - c.t0 < 2.2)
 	texts = texts.filter(func(t: Dictionary) -> bool: return time - t.t0 < t.life)
 
 
-static func bolt_pos(b: Dictionary, k: float) -> Vector2:
-	var arc: float = 4.0 * k * (1.0 - k) * minf(b.a.distance_to(b.b) * 0.18, 26.0)
+## An arrow's position along its arc, k from 0 (bow) to 1 (target).
+static func arrow_pos(b: Dictionary, k: float) -> Vector2:
+	var arc: float = 4.0 * k * (1.0 - k) * minf(b.a.distance_to(b.b) * 0.22, 34.0)
 	return b.a.lerp(b.b, k) - Vector2(0, arc)
+
+
+## Runs `call` after `delay` seconds (to time an effect to an animation).
+func later(delay: float, call: Callable) -> void:
+	pending.append({"at": time + delay, "call": call})
 
 
 func emit(t: String, p: Vector2, v: Vector2, life: float, s0: float, s1: float, col: Color,
@@ -93,29 +107,28 @@ func _dir(speed_lo: float, speed_hi: float, up_bias: float = 0.0) -> Vector2:
 
 # --- effect recipes --------------------------------------------------------------
 
-## A melee hit: a white slash and a spray of sparks.
+## A melee hit: a spray of sparks off the armour and a little dust (the
+## sword swing itself is in the unit's animation).
 func hit(p: Vector2, from: Vector2) -> void:
 	var d: Vector2 = (p - from).normalized() if p != from else Vector2.RIGHT
-	emit("slash_02", p, Vector2.ZERO, 0.18, 30.0, 34.0, Color(1, 1, 0.92, 0.95), true, 0.0, 0.0, 0.0)
-	parts[-1].rot = d.angle() if not parts.is_empty() else 0.0
-	for i: int in 7:
-		emit("spark_04", p, d.rotated(rng.randf_range(-0.9, 0.9)) * rng.randf_range(60, 150), 0.3, 6.0, 1.0,
-			Color(1.0, 0.85, 0.5), true, 260.0, 3.0)
+	emit("light_01", p, Vector2.ZERO, 0.12, 10.0, 26.0, Color(1, 0.9, 0.7, 0.55), true)
+	for i: int in 9:
+		emit("spark_04", p, d.rotated(rng.randf_range(-1.0, 1.0)) * rng.randf_range(70, 170), 0.28, 5.0, 1.0,
+			Color(1.0, 0.85, 0.5), true, 300.0, 3.0)
+	dust(p + Vector2(0, 10), 2, 5.0, 9.0)
 
 
-## A magic bolt from `a` to `b`; it lands after its flight time.
-func bolt(a: Vector2, b: Vector2, faction: String, target: int, damage: int) -> void:
-	var col: Color = Color("7fd4ff") if faction == "player" else Color("ff8a5c")
-	bolts.append({"a": a, "b": b, "t0": time, "life": clampf(a.distance_to(b) / 520.0, 0.12, 0.32),
-		"col": col, "target": target, "damage": damage, "faction": faction})
-	emit("light_01", a, Vector2.ZERO, 0.18, 26.0, 8.0, Color(col, 0.8), true)
+## An arrow from `a` to `b`, released after `delay` (the bow's release
+## frame); it lands after its flight time.
+func arrow(a: Vector2, b: Vector2, faction: String, target: int, damage: int, delay: float = 0.0) -> void:
+	arrows.append({"a": a, "b": b, "t0": time + delay, "life": clampf(a.distance_to(b) / 430.0, 0.14, 0.4),
+		"target": target, "damage": damage, "faction": faction})
 
 
-func impact(p: Vector2, col: Color) -> void:
-	emit("light_01", p, Vector2.ZERO, 0.25, 18.0, 46.0, Color(col, 0.7), true)
-	emit("magic_04", p, Vector2.ZERO, 0.3, 14.0, 34.0, Color(col, 0.9), true, 0.0, 0.0, 4.0)
-	for i: int in 8:
-		emit("spark_01", p, _dir(50, 140), 0.35, 7.0, 1.0, Color(col.lightened(0.4), 1.0), true, 120.0, 2.5)
+func impact(p: Vector2) -> void:
+	for i: int in 6:
+		emit("spark_01", p, _dir(40, 110), 0.28, 5.0, 1.0, Color(1, 0.92, 0.7), true, 200.0, 2.5)
+	dust(p + Vector2(0, 8), 1, 3.0, 8.0)
 
 
 ## A floating number or label.
@@ -163,8 +176,8 @@ func fire(p: Vector2, scale: float = 1.0) -> void:
 
 
 ## A unit falls: its sprite tips over and fades; a little dust and a team flash.
-func unit_died(p: Vector2, kind: String, faction: String, flip: bool) -> void:
-	corpses.append({"p": p, "kind": kind, "faction": faction, "flip": flip, "t0": time})
+func unit_died(p: Vector2, kind: String, faction: String) -> void:
+	corpses.append({"p": p, "kind": kind, "faction": faction, "t0": time})
 	dust(p, 4, 8.0, 12.0)
 	for i: int in 6:
 		emit("spark_01", p + Vector2(0, -14), _dir(40, 110, 40), 0.45, 6.0, 1.0, Palette.TEAM_LIGHT[faction], true, 200.0, 2.0)
@@ -205,9 +218,8 @@ func draw_ground(ci: CanvasItem) -> void:
 				ci.draw_texture_rect(Art.tex("rock_pair" if i % 2 == 0 else "pebble"), Rect2(d.p + off - Vector2(rs, rs) / 2.0, Vector2(rs, rs)), false, Color(0.75, 0.7, 0.65, a))
 	for c: Dictionary in corpses:
 		var age: float = time - c.t0
-		var fall: float = clampf(age / 0.3, 0.0, 1.0)
-		var a2: float = clampf((2.2 - age) / 1.2, 0.0, 1.0)
-		Art.unit(ci, c.p, c.kind, c.faction, 1.0, a2, 0.0, {"flip": c.flip, "tilt": (PI / 2.0) * fall * (-1.0 if c.flip else 1.0) * ease(fall, 0.5), "ring": false})
+		var a2: float = clampf((2.2 - age) / 0.9, 0.0, 1.0)
+		Art.unit(ci, c.p, c.kind, c.faction, "hurt", 0, int(age / 0.08), a2, 0.0, UnitSprites.SCALE, false)
 
 
 ## Particle layer: `additive` picks the glowing particles (drawn by a node
@@ -228,12 +240,18 @@ func draw_particles(ci: CanvasItem, additive: bool) -> void:
 		else:
 			ci.draw_texture_rect(tex(q.tex), Rect2(-s / 2.0, -s / 2.0, s, s), false, col)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	if additive:
-		for b: Dictionary in bolts:
-			var k2: float = (time - b.t0) / b.life
-			var p: Vector2 = bolt_pos(b, k2)
-			ci.draw_texture_rect(tex("light_01"), Rect2(p - Vector2(16, 16), Vector2(32, 32)), false, Color(b.col, 0.9))
-			ci.draw_texture_rect(tex("star_04"), Rect2(p - Vector2(7, 7), Vector2(14, 14)), false, Color(1, 1, 1, 1))
+	if not additive:
+		for b: Dictionary in arrows:
+			if time < b.t0:
+				continue
+			var k3: float = (time - b.t0) / b.life
+			var head: Vector2 = arrow_pos(b, k3)
+			var tail: Vector2 = arrow_pos(b, maxf(k3 - 0.06, 0.0))
+			var dirv: Vector2 = (head - tail).normalized() if head != tail else (b.b - b.a).normalized()
+			ci.draw_line(head - dirv * 22.0, head - dirv * 12.0, Color(1, 1, 1, 0.25), 2.0, true)
+			ci.draw_line(head - dirv * 13.0, head, Color("5a3d24"), 1.6, true)
+			ci.draw_line(head - dirv * 13.0, head - dirv * 10.0, Color("f3efe2"), 2.6, true)
+			ci.draw_colored_polygon(PackedVector2Array([head + dirv * 3.5, head + dirv.orthogonal() * 2.2, head - dirv.orthogonal() * 2.2]), Color("c9ced6"))
 
 
 ## Floating numbers, popping in then drifting up.

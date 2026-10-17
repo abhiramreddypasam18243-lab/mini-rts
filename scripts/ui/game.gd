@@ -60,15 +60,17 @@ var _fog: FogLayer
 var _overlay: OverlayLayer
 var _prev_pos: Dictionary = {}
 var _hit_time: Dictionary = {}
-## Particles, bolts, rubble and floating numbers (drawing only, D-39).
+## Particles, arrows, rubble and floating numbers (drawing only, D-39, D-41).
 var effects: Effects = Effects.new()
 ## Per unit: when it last attacked and towards where (for its lunge).
 var attack_info: Dictionary = {}
 ## Screen shake strength, 0 to 1, decaying.
 var _trauma: float = 0.0
 var _fx_nodes: Array[FxDraw] = []
-## A unit's last facing (true = left), kept by the world layer.
+## A unit's last facing (a UnitSprites direction), kept by the world layer.
 var facing: Dictionary = {}
+## When each building last showed a damage number.
+var _number_time: Dictionary = {}
 var _pressed: bool = false
 var _press_screen: Vector2 = Vector2.ZERO
 var _trained: int = 0
@@ -100,6 +102,7 @@ func _ready() -> void:
 			spectate = true
 		else:
 			opponent = AIController.new("ai", AIConfig.preset(str(settings.get("ai_policy", "balanced"))))
+	UnitSprites.preload_all()
 	_terrain = TerrainLayer.new()
 	add_child(_terrain)
 	_terrain.setup(sim.map)
@@ -167,7 +170,9 @@ func _process(delta: float) -> void:
 	Benchmark.mark("fxupd", t0)
 	for b: Dictionary in effects.landed:
 		_hit_time[b.target] = time
-		effects.float_text(b.b + Vector2(0, -26), "-%d" % b.damage, Color("ff6b5a"), 14)
+		Sound.play_at("arrow_hit", b.b, camera.position, -6.0)
+	# Battle music while fighting is on screen, calm music a while after.
+	Sound.music("battle" if time - _action_time < 8.0 and sim.match_result == "" else "calm")
 	t0 = Time.get_ticks_usec()
 	_ambient_effects(delta)
 	Benchmark.mark("ambient", t0)
@@ -252,33 +257,46 @@ func _consume(events: Array[Dictionary]) -> void:
 					var w: Entity = sim.entity(ev.entity_id)
 					if w != null:
 						effects.float_text(draw_pos(w) + Vector2(0, -22), "+%d" % ev.amount, Palette.resource(ev.resource).lightened(0.25), 16, ev.resource)
+						Sound.play_at("coins", draw_pos(w), camera.position, -14.0)
 			"attack":
 				var a: Entity = sim.entity(ev.attacker)
 				var t: Entity = sim.entity(ev.target)
 				if a == null or t == null or not (_seen(a) or _seen(t)):
 					continue
-				var tp: Vector2 = draw_pos(t) + Vector2(0, -6) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
-				var ap: Vector2 = draw_pos(a)
+				var tp: Vector2 = draw_pos(t) + _world._off.get(t.id, Vector2.ZERO) + Vector2(0, -6) if t.is_unit() 					else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
+				var ap: Vector2 = draw_pos(a) + _world._off.get(a.id, Vector2.ZERO)
 				_action_pos = tp if time - _action_time > 2.0 else _action_pos.lerp(tp, 0.2)
 				_action_time = time
 				attack_info[a.id] = {"t": time, "dir": (tp - ap).normalized()}
 				if a.kind == "ranged":
-					# The bolt leaves the staff; the target flashes when it lands.
-					var staff: Vector2 = ap + Vector2(9.0 * signf(tp.x - ap.x + 0.01), -14)
-					effects.bolt(staff, tp, a.faction, t.id, int(ev.damage))
+					# The arrow leaves the bow at the shot's release frame; the
+					# target flashes when it lands.
+					var bow: Vector2 = ap + Vector2(0, -14) + (tp - ap).normalized() * 8.0
+					effects.arrow(bow, tp + Vector2(0, -8), a.faction, t.id, int(ev.damage), 0.17)
+					effects.later(0.17, func() -> void: Sound.play_at("bow", bow, camera.position, -7.0))
 				else:
-					_hit_time[t.id] = time
-					effects.hit(tp, ap)
-					effects.float_text(tp + Vector2(0, -22), "-%d" % int(ev.damage), Color("ff6b5a"), 14)
+					# The sparks and the flash come when the swing connects.
+					var tid: int = t.id
+					effects.later(0.2, func() -> void:
+						_hit_time[tid] = time
+						effects.hit(tp + Vector2(0, -10), ap)
+						Sound.play_at("sword", tp, camera.position, -4.0))
+				# Buildings show damage numbers, at most one every 0.35 s each
+				# (several attackers at once would otherwise pile them up).
+				if t.is_building() and time - float(_number_time.get(t.id, -1.0)) > 0.35:
+					_number_time[t.id] = time
+					effects.float_text(tp + Vector2(0, -22) + Vector2(effects.rng.randf_range(-14, 14), 0), "-%d" % int(ev.damage), Color("ff6b5a"), 14)
 			"destroyed":
 				var center: Vector2 = Vector2(ev.pos) * C / 1000.0 if ev.kind in Entity.UNIT_KINDS \
 					else (Vector2(ev.cell) + Vector2(ev.size) / 2.0) * C
 				var cell: Vector2i = Vector2i(center / C)
 				if ev.faction != "" and (ev.faction == faction or spectate or sim.fog.is_visible(faction, cell)):
 					if ev.kind in Entity.UNIT_KINDS:
-						effects.unit_died(center + Vector2(0, 8), ev.kind, ev.faction, facing.get(ev.entity_id, false))
+						effects.unit_died(center + Vector2(0, 8) + _world._off.get(ev.entity_id, Vector2.ZERO), ev.kind, ev.faction)
+						Sound.play_at("death", center, camera.position, -3.0)
 					else:
 						effects.building_died(Rect2(Vector2(ev.cell) * C, Vector2(ev.size) * C))
+						Sound.play_at("collapse", center, camera.position, 0.0)
 						shake(0.75 if ev.kind == "hq" else 0.5)
 				if ev.faction == faction and ev.kind in Entity.UNIT_KINDS:
 					_lost += 1
@@ -312,15 +330,21 @@ func _ambient_effects(delta: float) -> void:
 			if ratio < 0.35 and r.randf() < delta * 14.0:
 				effects.fire(roof + Vector2(0, 10), 0.9)
 			if not e.complete and _builder_near(e) and r.randf() < delta * 5.0:
-				effects.hammer(Vector2(r.randf_range(rect.position.x + 8, rect.end.x - 8), rect.end.y - r.randf_range(4, 18)))
+				var hp: Vector2 = Vector2(r.randf_range(rect.position.x + 8, rect.end.x - 8), rect.end.y - r.randf_range(4, 18))
+				effects.hammer(hp)
+				Sound.play_at("hammer", hp, camera.position, -10.0)
 		elif e.is_unit():
 			var p: Vector2 = draw_pos(e) + Vector2(0, 8)
 			if e.phase == "gathering" and e.harvest_type != "" and r.randf() < delta * 2.5:
 				var node_p: Vector2 = (Vector2(e.harvest_cell) + Vector2(0.5, 0.5)) * C
 				if e.harvest_type == "wood":
 					effects.wood_chips(node_p.lerp(p, 0.35))
+					if r.randf() < 0.4:
+						Sound.play_at("chop", node_p, camera.position, -12.0)
 				else:
 					effects.gold_glint(node_p)
+					if r.randf() < 0.4:
+						Sound.play_at("mine", node_p, camera.position, -13.0)
 			elif _prev_pos.has(id) and _prev_pos[id] != e.pos and r.randf() < delta * 3.0:
 				effects.dust(p + Vector2(0, 2), 1, 3.0, 7.0)
 
@@ -335,7 +359,7 @@ func _builder_near(b: Entity) -> bool:
 
 ## Drops animation records of entities that no longer exist.
 func _forget_dead() -> void:
-	for d: Dictionary in [attack_info, facing, _hit_time, _world._walk, _world._last]:
+	for d: Dictionary in [attack_info, facing, _hit_time, _world._walk, _world._last, _world._off]:
 		for id: int in d.keys():
 			if not sim.entities.has(id):
 				d.erase(id)
@@ -367,6 +391,9 @@ func issue(cmd: Dictionary) -> String:
 	var r: String = sim.submit(cmd)
 	if r != "ok":
 		messages.add(HudModel.MESSAGES.get(r, r), time, "warn")
+		Sound.play("error", -10.0, 0.0)
+	elif cmd.command == "train" or cmd.command == "build":
+		Sound.play("confirm", -8.0, 0.0)
 	return r
 
 
@@ -476,6 +503,8 @@ func _right_click(mouse: Vector2) -> void:
 	var cmds: Array[Dictionary] = selection.context_commands(sim, faction, _to_milli(mouse))
 	for cmd: Dictionary in cmds:
 		var r: String = issue(cmd)
+		if r == "ok":
+			Sound.play("order", -9.0, 0.05)
 		if r == "ok" or r == "no_path":
 			var col: Color = {"move": Color(1.0, 0.95, 0.72), "harvest": Palette.GOLD, "attack": Palette.BAD}[cmd.command]
 			_add_fx({"type": "marker", "a": mouse, "color": col, "life": 0.7, "order": cmd.command})

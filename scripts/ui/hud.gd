@@ -116,6 +116,12 @@ func _build_top_bar() -> void:
 	right.add_theme_constant_override("separation", 8)
 	root.add_child(right)
 	_slide_in(right, -90.0, 0.25)
+	var sound: Button = _small_button("Sound: on" if not Sound.is_muted() else "Sound: off", func() -> void: pass)
+	sound.custom_minimum_size = Vector2(118, 40)
+	sound.pressed.connect(func() -> void:
+		Sound.toggle_mute()
+		sound.text = "Sound: off" if Sound.is_muted() else "Sound: on")
+	right.add_child(sound)
 	right.add_child(_small_button("Restart", func() -> void: game.restart_requested.emit()))
 	right.add_child(_small_button("Menu", func() -> void: game.menu_requested.emit()))
 

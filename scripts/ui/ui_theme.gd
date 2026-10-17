@@ -103,6 +103,7 @@ static func style_button(b: Button, colour: String = "beige", font_size: int = 1
 	b.add_theme_color_override("font_disabled_color", Color(0.25, 0.25, 0.28))
 	b.add_theme_font_override("font", font("bold"))
 	b.add_theme_font_size_override("font_size", font_size)
+	b.pressed.connect(func() -> void: Sound.play("click", -6.0, 0.0))
 
 
 static func get_theme() -> Theme:

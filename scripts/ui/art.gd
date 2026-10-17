@@ -1,5 +1,6 @@
-## The game's art (presentation layer): sprites from Kenney's CC0 "Medieval
-## RTS" pack (decision D-38), plus team rings, shadows, banners, bars and
+## The game's art (presentation layer): buildings and scenery from Kenney's
+## CC0 "Medieval RTS" pack (decision D-38), animated LPC units (D-41,
+## UnitSprites), plus team rings, shadows, banners, bars and
 ## effects drawn in code. Each function draws onto the CanvasItem it is
 ## given, from inside that item's _draw(), so the map, the HUD and the menu
 ## share one look.
@@ -7,16 +8,6 @@ class_name Art
 extends RefCounted
 
 const DIR: String = "res://assets/kenney/medieval_rts/"
-## Sprite names per unit kind and faction.
-const UNIT_SPRITES: Dictionary = {
-	"worker": {"player": "unit_worker_blue", "ai": "unit_worker_red"},
-	"melee": {"player": "unit_melee_blue", "ai": "unit_melee_red"},
-	"ranged": {"player": "unit_ranged_blue", "ai": "unit_ranged_red"},
-}
-## A unit sprite is drawn this big (world pixels; one cell is 32). The figure
-## fills about 40 % of the 128 px canvas, its feet at 69 % of the height.
-const UNIT_SIZE: float = 62.0
-const FEET: float = 88.0 / 128.0
 
 static var _tex: Dictionary = {}
 static var _boxes: Dictionary = {}
@@ -70,42 +61,26 @@ static func _box(key: String, bg: Color, radius: int, border: Color = Color(0, 0
 
 
 static func unit_radius(kind: String) -> float:
-	return 9.0 if kind == "worker" else 11.0
+	return 10.0 if kind == "worker" else 12.0
 
 
-## A unit standing at `pos` (its feet): a team-coloured ring on the ground,
-## a soft shadow, then the sprite. `flash` tints it red when hit. `pose`
-## animates it (all optional): flip (face left), lift (hop height, px),
-## tilt (radians, about the feet), sx / sy (squash and stretch), ring (bool).
-static func unit(ci: CanvasItem, pos: Vector2, kind: String, faction: String, scale: float = 1.0,
-		alpha: float = 1.0, flash: float = 0.0, pose: Dictionary = {}) -> void:
-	var r: float = unit_radius(kind) * scale
-	var lift: float = pose.get("lift", 0.0)
-	var shadow_k: float = 1.0 - clampf(lift / 14.0, 0.0, 0.35)
-	# Shadow and team ring are stamped from small cached textures: far
-	# cheaper than tessellating anti-aliased circles for every unit.
-	ci.draw_set_transform(pos + Vector2(0, 3 * scale), 0.0, Vector2(shadow_k, 0.45 * shadow_k))
-	var sr: float = r + 3.0
-	ci.draw_texture_rect(disc(), Rect2(-sr, -sr, sr * 2.0, sr * 2.0), false, Color(0, 0, 0, 0.36 * alpha))
-	if pose.get("ring", true):
-		var rr: float = r + 1.5 * scale
-		ci.draw_texture_rect(ring(), Rect2(-rr, -rr, rr * 2.0, rr * 2.0), false, Color(Palette.TEAM[faction], 0.95 * alpha))
-	var size: float = UNIT_SIZE * scale
-	var flip: float = -1.0 if pose.get("flip", false) else 1.0
-	# The sprite is drawn about the feet so tilt and squash pivot there.
-	ci.draw_set_transform(pos + Vector2(0, 4 * scale - lift), pose.get("tilt", 0.0),
-		Vector2(flip * pose.get("sx", 1.0), pose.get("sy", 1.0)))
-	var rect: Rect2 = Rect2(-size / 2.0, -size * FEET, size, size)
-	var tint: Color = Color(1, 1 - 0.55 * flash, 1 - 0.55 * flash, alpha)
-	ci.draw_texture_rect(tex(UNIT_SPRITES[kind][faction]), rect, false, tint)
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+## A unit, animated (decision D-41): a team-coloured ring on the ground,
+## then the LPC sprite frame (which carries its own shadow). `flash` tints
+## it red when hit; `alpha` fades it.
+static func unit(ci: CanvasItem, feet: Vector2, kind: String, faction: String, anim: String, dir: int, frame: int,
+		alpha: float = 1.0, flash: float = 0.0, scale: float = UnitSprites.SCALE, ring_on: bool = true) -> void:
+	if ring_on:
+		var rr: float = unit_radius(kind) * scale / UnitSprites.SCALE
+		ci.draw_set_transform(feet + Vector2(0, 1), 0.0, Vector2(1.0, 0.45))
+		ci.draw_texture_rect(ring(), Rect2(-rr, -rr, rr * 2.0, rr * 2.0), false, Color(Palette.TEAM[faction], 0.85 * alpha))
+		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var tint: Color = Color(1, 1 - 0.6 * flash, 1 - 0.6 * flash, alpha)
+	UnitSprites.draw(ci, feet, kind, faction, anim, dir, frame, scale, tint)
 
 
-## Just the sprite, centred in a box (HUD icons and portraits).
+## The standing unit, centred in a box (HUD icons and portraits).
 static func unit_icon(ci: CanvasItem, centre: Vector2, kind: String, faction: String, height: float, alpha: float = 1.0) -> void:
-	var size: float = height / 0.42
-	var rect: Rect2 = Rect2(centre.x - size / 2.0, centre.y - size * 0.49, size, size)
-	ci.draw_texture_rect(tex(UNIT_SPRITES[kind][faction]), rect, false, Color(1, 1, 1, alpha))
+	UnitSprites.icon(ci, centre, kind, faction, height, alpha)
 
 
 ## A building on its footprint `rect`: a dirt plot with a team-coloured edge,

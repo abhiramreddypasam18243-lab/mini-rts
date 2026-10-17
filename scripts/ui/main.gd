@@ -24,6 +24,7 @@ func _ready() -> void:
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_fade)
+	add_child(Sound.new())
 	if Benchmark.requested():
 		start_match({"map": "generated", "seed": 42, "mode": "bench"})
 	else:
