@@ -5,6 +5,8 @@ A small, complete real-time strategy game in **Godot 4.7.2**. Gather wood and go
 **Play it in the browser: <https://abhiramreddypasam18243-lab.github.io/mini-rts/>**
 (or run it yourself in a container, below). The main menu also has **Watch demo**: a recorded match played back at 2× speed.
 
+**On Streamlit:** the same game in a Streamlit page: `streamlit/streamlit_app.py` (deploy on [share.streamlit.io](https://share.streamlit.io): this repository, branch `main`, main file `streamlit/streamlit_app.py`). Run it locally with `pip install -r streamlit/requirements.txt` and `streamlit run streamlit/streamlit_app.py`.
+
 **As an app:**
 - **Install the web app:** open the link in Chrome or Edge and click the *Install* icon in the address bar (or *⋮ → Install Mini RTS*). It opens in its own window with its own icon and works offline after the first load.
 - **Windows download:** [Releases page](https://github.com/abhiramreddypasam18243-lab/mini-rts/releases/latest) → download `MiniRTS-windows-x64.zip`, unzip, double-click `MiniRTS.exe` (one file, nothing to install). Windows SmartScreen may warn because the file is not code-signed: click *More info → Run anyway*.
