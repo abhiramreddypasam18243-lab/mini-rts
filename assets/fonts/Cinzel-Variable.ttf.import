@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://csybldkvqcp1u"
-path="res://.godot/imported/ChakraPetch-Bold.ttf-36b1681cc4458f50138f3d51061f0fbc.fontdata"
+uid="uid://bh07thyac7sil"
+path="res://.godot/imported/Cinzel-Variable.ttf-cb8b22c0ce69aee9b0769de96b701b82.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/ChakraPetch-Bold.ttf"
-dest_files=["res://.godot/imported/ChakraPetch-Bold.ttf-36b1681cc4458f50138f3d51061f0fbc.fontdata"]
+source_file="res://assets/fonts/Cinzel-Variable.ttf"
+dest_files=["res://.godot/imported/Cinzel-Variable.ttf-cb8b22c0ce69aee9b0769de96b701b82.fontdata"]
 
 [params]
 

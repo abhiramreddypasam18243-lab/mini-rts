@@ -97,25 +97,28 @@ func _spread(units: Array[Entity]) -> Dictionary:
 
 
 func _draw_unit(e: Entity, sim: Simulation, offset: Vector2 = Vector2.ZERO) -> void:
-	var p: Vector2 = game.draw_pos(e) + offset
+	# The unit's position is its cell centre; its feet are drawn a little below.
+	var feet: Vector2 = game.draw_pos(e) + offset + Vector2(0, 8)
 	var r: float = Art.unit_radius(e.kind)
 	var selected: bool = game.selection.selected.has(e.id)
 	var inspected: bool = game.selection.inspected == e.id
 	if selected or inspected or e.id == game.hover_id:
-		var pulse: float = 0.75 + 0.2 * sin(game.time * 5.0)
-		var col: Color = Color(1, 1, 1, pulse) if selected else Color(Palette.TEAM_LIGHT[e.faction], 0.5)
-		draw_set_transform(p + Vector2(0, r * 0.55), 0.0, Vector2(1.0, 0.55))
-		draw_arc(Vector2.ZERO, r + 6.0, 0.0, TAU, 40, col, 2.2, true)
+		var pulse: float = 0.8 + 0.2 * sin(game.time * 5.0)
+		var col: Color = Color(1, 0.95, 0.6, pulse) if selected else Color(1, 1, 1, 0.55)
+		draw_set_transform(feet + Vector2(0, 3), 0.0, Vector2(1.0, 0.5))
+		draw_arc(Vector2.ZERO, r + 6.0, 0.0, TAU, 40, Color(0, 0, 0, 0.35), 4.5, true)
+		draw_arc(Vector2.ZERO, r + 6.0, 0.0, TAU, 40, col, 2.5, true)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	Art.unit(self, p, e.kind, e.faction, r, 1.0, game.flash(e.id))
+	Art.unit(self, feet, e.kind, e.faction, 1.0, 1.0, game.flash(e.id))
+	var head: float = feet.y - 30.0
 	if e.carry > 0:
-		var cp: Vector2 = p + Vector2(r * 0.78, -r * 0.7)
-		draw_circle(cp, 4.2, Palette.BG, true, -1.0, true)
-		draw_circle(cp, 3.2, Palette.resource(e.carry_type), true, -1.0, true)
+		var cp: Vector2 = Vector2(feet.x + 9, head + 4)
+		draw_circle(cp, 5.0, Color(0.2, 0.13, 0.07), true, -1.0, true)
+		draw_circle(cp, 3.8, Palette.resource(e.carry_type), true, -1.0, true)
 	var max_hp: int = sim.stats[e.kind].health
 	if e.hp < max_hp or selected:
 		var ratio: float = float(e.hp) / max_hp
-		Art.bar(self, Rect2(p.x - 11, p.y - r - 8, 22, 3), ratio, Palette.health(ratio))
+		Art.bar(self, Rect2(feet.x - 12, head - 6, 24, 4), ratio, Palette.health(ratio))
 
 
 func _draw_effects() -> void:

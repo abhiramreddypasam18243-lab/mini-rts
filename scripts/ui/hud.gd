@@ -59,7 +59,7 @@ func _ready() -> void:
 	_fps.visible = false
 	root.add_child(_fps)
 	if game.demo:
-		var banner: Label = UiTheme.label("DEMO REPLAY  ·  %s (teal) vs %s (coral)  ·  %d× speed" % [
+		var banner: Label = UiTheme.label("DEMO REPLAY  ·  %s (blue) vs %s (red)  ·  %d× speed" % [
 			_policy_name("player"), _policy_name("ai"), int(Game.DEMO_SPEED)], 14, "semibold", Palette.WARN)
 		banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 		banner.offset_top = 66
@@ -78,7 +78,7 @@ func _policy_name(slot: String) -> String:
 
 func _build_top_bar() -> void:
 	var bar: PanelContainer = PanelContainer.new()
-	bar.add_theme_stylebox_override("panel", UiTheme.box(Palette.PANEL, 12, Palette.PANEL_BORDER, 1, Vector2(18, 8), 14))
+	bar.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(22, 10)))
 	bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	bar.offset_top = 12
 	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -107,7 +107,9 @@ func _build_top_bar() -> void:
 
 func _stat(row: HBoxContainer, kind: String) -> Label:
 	row.add_child(HudWidgets.Icon.new(kind))
-	var l: Label = UiTheme.label("0", 18, "bold")
+	var l: Label = UiTheme.label("0", 21, "bold")
+	l.add_theme_constant_override("outline_size", 4)
+	l.add_theme_color_override("font_outline_color", Color(0.2, 0.12, 0.06, 0.8))
 	l.custom_minimum_size = Vector2(54, 0)
 	row.add_child(l)
 	return l
@@ -115,7 +117,7 @@ func _stat(row: HBoxContainer, kind: String) -> Label:
 
 func _divider(row: HBoxContainer) -> void:
 	var d: ColorRect = ColorRect.new()
-	d.color = Palette.PANEL_BORDER
+	d.color = Color(0.2, 0.12, 0.06, 0.5)
 	d.custom_minimum_size = Vector2(1, 22)
 	d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(d)
@@ -126,7 +128,8 @@ func _small_button(text: String, action: Callable) -> Button:
 	b.text = text
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", 14)
-	b.add_theme_stylebox_override("normal", UiTheme.box(Palette.PANEL, 9, Palette.PANEL_BORDER, 1, Vector2(12, 6)))
+	UiTheme.style_button(b, "beige", 15)
+	b.custom_minimum_size = Vector2(96, 40)
 	b.pressed.connect(action)
 	return b
 
@@ -142,11 +145,14 @@ func _build_bottom_panel() -> void:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 18)
 	panel.add_child(row)
+	var card_frame: PanelContainer = PanelContainer.new()
+	card_frame.add_theme_stylebox_override("panel", UiTheme.parchment(Vector2(14, 10)))
+	card_frame.custom_minimum_size = Vector2(350, 0)
+	row.add_child(card_frame)
 	_card = VBoxContainer.new()
-	_card.custom_minimum_size = Vector2(330, 0)
-	row.add_child(_card)
+	card_frame.add_child(_card)
 	var sep: ColorRect = ColorRect.new()
-	sep.color = Palette.PANEL_BORDER
+	sep.color = Color(0, 0, 0, 0)
 	sep.custom_minimum_size = Vector2(1, 0)
 	row.add_child(sep)
 	_actions_box = VBoxContainer.new()
@@ -159,7 +165,7 @@ func _build_bottom_panel() -> void:
 	_queue = HBoxContainer.new()
 	_queue.add_theme_constant_override("separation", 6)
 	_actions_box.add_child(_queue)
-	_hint = UiTheme.label("", 13, "regular", Palette.FAINT)
+	_hint = UiTheme.label("", 15, "regular", Palette.MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_actions_box.add_child(_hint)
 
@@ -190,21 +196,22 @@ func _build_overlay() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_overlay.add_child(center)
 	var panel: PanelContainer = PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiTheme.box(Palette.PANEL, 18, Palette.PANEL_BORDER, 1, Vector2(44, 34), 30))
+	panel.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(48, 36)))
 	center.add_child(panel)
 	var col: VBoxContainer = VBoxContainer.new()
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_theme_constant_override("separation", 10)
 	col.custom_minimum_size = Vector2(420, 0)
 	panel.add_child(col)
-	_overlay_title = UiTheme.label("Victory", 54, "bold")
-	_overlay_title.add_theme_font_override("font", UiTheme.spaced("bold", 6))
+	_overlay_title = UiTheme.label("Victory", 60, "title")
+	_overlay_title.add_theme_constant_override("outline_size", 10)
+	_overlay_title.add_theme_color_override("font_outline_color", Color(0.18, 0.1, 0.05))
 	_overlay_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_overlay_title)
-	_overlay_sub = UiTheme.label("", 16, "regular", Palette.MUTED)
+	_overlay_sub = UiTheme.label("", 19, "semibold", Palette.MUTED)
 	_overlay_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_overlay_sub)
-	_overlay_stats = UiTheme.label("", 15, "semibold", Palette.TEXT)
+	_overlay_stats = UiTheme.label("", 17, "bold", Palette.TEXT)
 	_overlay_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_overlay_stats)
 	var gap: Control = Control.new()
@@ -217,10 +224,7 @@ func _build_overlay() -> void:
 	var again: Button = Button.new()
 	again.text = "Play again"
 	again.custom_minimum_size = Vector2(160, 46)
-	again.add_theme_stylebox_override("normal", UiTheme.box(Color(Palette.ACCENT, 0.85), 10))
-	again.add_theme_stylebox_override("hover", UiTheme.box(Palette.ACCENT.lightened(0.15), 10))
-	again.add_theme_color_override("font_color", Palette.BG)
-	again.add_theme_color_override("font_hover_color", Palette.BG)
+	UiTheme.style_button(again, "gold", 19)
 	again.pressed.connect(func() -> void: game.restart_requested.emit())
 	buttons.add_child(again)
 	var menu: Button = Button.new()
@@ -295,7 +299,7 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 	var sel: Selection = game.selection
 	var units: Array[int] = sel.units(sim)
 	if units.size() > 1:
-		var title: Label = UiTheme.label("%d units selected" % units.size(), 17, "bold")
+		var title: Label = UiTheme.label("%d units selected" % units.size(), 19, "bold", Palette.INK)
 		_card.add_child(title)
 		var grid: GridContainer = GridContainer.new()
 		grid.columns = 8
@@ -320,9 +324,9 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 		var info: VBoxContainer = VBoxContainer.new()
 		info.add_theme_constant_override("separation", 2)
 		row.add_child(info)
-		_name = UiTheme.label("", 20, "bold")
+		_name = UiTheme.label("", 22, "bold", Palette.INK)
 		info.add_child(_name)
-		_sub = UiTheme.label("", 13, "regular", Palette.MUTED)
+		_sub = UiTheme.label("", 15, "semibold", Palette.INK_MUTED)
 		info.add_child(_sub)
 		var hp_row: HBoxContainer = HBoxContainer.new()
 		hp_row.add_theme_constant_override("separation", 8)
@@ -330,13 +334,13 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 		_hp = HudWidgets.HealthBar.new()
 		_hp.custom_minimum_size = Vector2(150, 16)
 		hp_row.add_child(_hp)
-		_hp_text = UiTheme.label("", 13, "semibold", Palette.MUTED)
+		_hp_text = UiTheme.label("", 15, "bold", Palette.INK_MUTED)
 		hp_row.add_child(_hp_text)
-		_status = UiTheme.label("", 14, "regular", Palette.TEXT)
+		_status = UiTheme.label("", 16, "semibold", Palette.INK)
 		info.add_child(_status)
 	else:
-		_card.add_child(UiTheme.label("Nothing selected", 17, "bold", Palette.MUTED))
-		var tip: Label = UiTheme.label("Click a unit or building, or drag a box around your units.", 13, "regular", Palette.FAINT)
+		_card.add_child(UiTheme.label("Nothing selected", 20, "bold", Palette.INK))
+		var tip: Label = UiTheme.label("Click a unit or building, or drag a box around your units.", 15, "regular", Palette.INK_MUTED)
 		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tip.custom_minimum_size = Vector2(320, 0)
 		_card.add_child(tip)
@@ -438,7 +442,7 @@ func _update_card(sim: Simulation, f: String) -> void:
 func _refresh_messages() -> void:
 	var entries: Array[Dictionary] = game.messages.entries(game.time)
 	while _messages.get_child_count() < entries.size():
-		var l: Label = UiTheme.label("", 15, "semibold")
+		var l: Label = UiTheme.label("", 17, "bold")
 		l.add_theme_constant_override("outline_size", 6)
 		l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
 		_messages.add_child(l)
@@ -465,8 +469,8 @@ func show_result(result: String, stats: Dictionary) -> void:
 		"timeout": ["Time's up", Palette.WARN, "The match reached its time limit."],
 	}
 	if game.demo:
-		titles["victory_player"] = ["Teal wins", Palette.TEAM["player"], "%s beat %s in this recorded match." % [_policy_name("player"), _policy_name("ai")]]
-		titles["victory_ai"] = ["Coral wins", Palette.TEAM["ai"], "%s beat %s in this recorded match." % [_policy_name("ai"), _policy_name("player")]]
+		titles["victory_player"] = ["Blue wins", Palette.TEAM["player"], "%s beat %s in this recorded match." % [_policy_name("player"), _policy_name("ai")]]
+		titles["victory_ai"] = ["Red wins", Palette.TEAM["ai"], "%s beat %s in this recorded match." % [_policy_name("ai"), _policy_name("player")]]
 	var t: Array = titles.get(result, ["Match over", Palette.TEXT, ""])
 	_overlay_title.text = t[0]
 	_overlay_title.add_theme_color_override("font_color", t[1])

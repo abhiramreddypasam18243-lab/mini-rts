@@ -1,6 +1,6 @@
-## Renders the app icon from the game's own drawn-in-code art (no outside
-## image files; ASSETS rule L1) and saves it in the sizes the web app and
-## the desktop build need. Needs a display (not --headless):
+## Renders the app icon from the game's own art (the Kenney CC0 unit sprites
+## listed in ASSETS.md) and saves it in the sizes the web app and the
+## desktop build need. Needs a display (not --headless):
 ##   godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/icons
 extends SceneTree
 
@@ -11,17 +11,17 @@ class IconArt extends Node2D:
 	func _draw() -> void:
 		var s: float = 512.0
 		var bg: StyleBoxFlat = StyleBoxFlat.new()
-		bg.bg_color = Color("0f1620")
+		bg.bg_color = Color("3a2716")
 		bg.set_corner_radius_all(112)
-		bg.border_color = Color("2ec4b6")
+		bg.border_color = Color("f2b632")
 		bg.set_border_width_all(10)
 		bg.anti_aliasing = true
 		draw_style_box(bg, Rect2(16, 16, s - 32, s - 32))
-		# A soft teal glow, a coral token behind, the teal soldier in front.
+		# A soft blue glow, a red mage behind, the blue knight in front.
 		for k: int in 14:
-			draw_circle(Vector2(s * 0.42, s * 0.6), 210.0 * (1.0 - k / 14.0), Color(0.18, 0.77, 0.71, 0.018), true, -1.0, true)
-		Art.unit(self, Vector2(s * 0.68, s * 0.34), "ranged", "ai", 70.0)
-		Art.unit(self, Vector2(s * 0.42, s * 0.58), "melee", "player", 128.0)
+			draw_circle(Vector2(s * 0.42, s * 0.6), 210.0 * (1.0 - k / 14.0), Color(0.24, 0.56, 0.84, 0.03), true, -1.0, true)
+		Art.unit_icon(self, Vector2(s * 0.68, s * 0.36), "ranged", "ai", 150.0)
+		Art.unit_icon(self, Vector2(s * 0.42, s * 0.6), "melee", "player", 260.0)
 
 
 func _initialize() -> void:

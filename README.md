@@ -18,6 +18,8 @@ A small, complete real-time strategy game in **Godot 4.7.2**. Gather wood and go
 | ![Your base](docs/images/base.png) | ![Placing a barracks](docs/images/placement.png) |
 | ![A battle (demo replay)](docs/images/battle.png) | ![End of the demo](docs/images/demo-end.png) |
 
+Art: Kenney's CC0 *Medieval RTS* and *UI Pack: RPG Expansion*, with the Cinzel and Alegreya Sans fonts (SIL OFL); every file and its licence is listed in [`ASSETS.md`](ASSETS.md). You play **blue**; the AI is **red**.
+
 The game is built on one idea: **all the rules live in a deterministic simulation that knows nothing about graphics.** The Godot scenes only draw what the simulation says and turn clicks into commands. So every rule can be tested without a window, matches can run headless about 200 times faster than real time, a match can be replayed exactly from its command log, and two AI strategies can be compared over hundreds of matches. The full specification is [`SPEC.md`](SPEC.md).
 
 ## Contents

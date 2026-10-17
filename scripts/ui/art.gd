@@ -1,12 +1,31 @@
-## The game's art, drawn with shapes in code (no image files; ASSETS rule L1).
-## Each function draws onto the CanvasItem it is given, from inside that
-## item's _draw(), so the map, the HUD portraits and the menu share one look.
+## The game's art (presentation layer): sprites from Kenney's CC0 "Medieval
+## RTS" pack (decision D-38), plus team rings, shadows, banners, bars and
+## effects drawn in code. Each function draws onto the CanvasItem it is
+## given, from inside that item's _draw(), so the map, the HUD and the menu
+## share one look.
 class_name Art
 extends RefCounted
 
-const INK: Color = Color(0.05, 0.08, 0.11, 0.9)
+const DIR: String = "res://assets/kenney/medieval_rts/"
+## Sprite names per unit kind and faction.
+const UNIT_SPRITES: Dictionary = {
+	"worker": {"player": "unit_worker_blue", "ai": "unit_worker_red"},
+	"melee": {"player": "unit_melee_blue", "ai": "unit_melee_red"},
+	"ranged": {"player": "unit_ranged_blue", "ai": "unit_ranged_red"},
+}
+## A unit sprite is drawn this big (world pixels; one cell is 32). The figure
+## fills about 40 % of the 128 px canvas, its feet at 69 % of the height.
+const UNIT_SIZE: float = 62.0
+const FEET: float = 88.0 / 128.0
 
+static var _tex: Dictionary = {}
 static var _boxes: Dictionary = {}
+
+
+static func tex(name: String) -> Texture2D:
+	if not _tex.has(name):
+		_tex[name] = load(DIR + name + ".png")
+	return _tex[name]
 
 
 static func _box(key: String, bg: Color, radius: int, border: Color = Color(0, 0, 0, 0), bw: int = 0) -> StyleBoxFlat:
@@ -22,92 +41,79 @@ static func _box(key: String, bg: Color, radius: int, border: Color = Color(0, 0
 
 
 static func unit_radius(kind: String) -> float:
-	return 8.5 if kind == "worker" else 10.5
+	return 9.0 if kind == "worker" else 11.0
 
 
-## A unit token: shadow, faction body with a soft highlight, and its symbol.
-static func unit(ci: CanvasItem, pos: Vector2, kind: String, faction: String, r: float = -1.0,
+## A unit standing at `pos` (its feet): a team-coloured ring on the ground,
+## a soft shadow, then the sprite. `flash` tints it red when hit.
+static func unit(ci: CanvasItem, pos: Vector2, kind: String, faction: String, scale: float = 1.0,
 		alpha: float = 1.0, flash: float = 0.0) -> void:
-	if r < 0.0:
-		r = unit_radius(kind)
-	var body: Color = Palette.TEAM[faction]
-	ci.draw_set_transform(pos + Vector2(0, r * 0.75), 0.0, Vector2(1.0, 0.42))
-	ci.draw_circle(Vector2.ZERO, r * 1.05, Color(0, 0, 0, 0.4 * alpha), true, -1.0, true)
+	var r: float = unit_radius(kind) * scale
+	ci.draw_set_transform(pos + Vector2(0, 3 * scale), 0.0, Vector2(1.0, 0.45))
+	ci.draw_circle(Vector2.ZERO, r + 2.0, Color(0, 0, 0, 0.32 * alpha), true, -1.0, true)
+	ci.draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, Color(Palette.TEAM[faction], 0.9 * alpha), 3.0 * scale, true)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	ci.draw_circle(pos, r + 1.6, Color(Palette.TEAM_DARK[faction], alpha), true, -1.0, true)
-	ci.draw_circle(pos, r, Color(body, alpha), true, -1.0, true)
-	ci.draw_circle(pos - Vector2(r * 0.28, r * 0.32), r * 0.5, Color(1, 1, 1, 0.16 * alpha), true, -1.0, true)
-	glyph(ci, kind, pos, r / 10.5, Color(INK, INK.a * alpha))
-	if flash > 0.0:
-		ci.draw_circle(pos, r + 1.0, Color(1, 1, 1, 0.75 * flash), true, -1.0, true)
+	var size: float = UNIT_SIZE * scale
+	var rect: Rect2 = Rect2(pos.x - size / 2.0, pos.y + 4 * scale - size * FEET, size, size)
+	var tint: Color = Color(1, 1 - 0.55 * flash, 1 - 0.55 * flash, alpha)
+	ci.draw_texture_rect(tex(UNIT_SPRITES[kind][faction]), rect, false, tint)
 
 
-## The symbol inside a unit: pickaxe, sword or bow. `s` scales a 10.5 px token.
-static func glyph(ci: CanvasItem, kind: String, c: Vector2, s: float, col: Color) -> void:
-	var w: float = maxf(1.6 * s, 1.0)
-	match kind:
-		"worker":
-			ci.draw_line(c + Vector2(-4.5, 5) * s, c + Vector2(3, -2.5) * s, col, w * 1.15, true)
-			ci.draw_polyline([c + Vector2(-1.5, -6.5) * s, c + Vector2(3.5, -5.2) * s, c + Vector2(6.5, -1) * s], col, w * 1.3, true)
-		"melee":
-			ci.draw_line(c + Vector2(-5, 5) * s, c + Vector2(5.5, -5.5) * s, col, w * 1.25, true)
-			ci.draw_line(c + Vector2(-5, -0.5) * s, c + Vector2(0.5, 5) * s, col, w * 1.2, true)
-			ci.draw_circle(c + Vector2(-5.6, 5.6) * s, 1.5 * s, col, true, -1.0, true)
-		"ranged":
-			ci.draw_arc(c + Vector2(1.5, 0) * s, 6.5 * s, deg_to_rad(110), deg_to_rad(250), 12, col, w * 1.15, true)
-			var top: Vector2 = c + (Vector2(1.5, 0) + Vector2.from_angle(deg_to_rad(110)) * 6.5) * s
-			var bot: Vector2 = c + (Vector2(1.5, 0) + Vector2.from_angle(deg_to_rad(250)) * 6.5) * s
-			ci.draw_line(top, bot, Color(col, col.a * 0.7), maxf(w * 0.6, 1.0), true)
-			ci.draw_line(c + Vector2(-4.5, 0) * s, c + Vector2(6, 0) * s, col, w, true)
-			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(7.5, 0) * s, c + Vector2(4.5, -2.2) * s, c + Vector2(4.5, 2.2) * s]), col)
-		"hq":
-			ci.draw_line(c + Vector2(0, 7) * s, c + Vector2(0, -8) * s, col, w, true)
-			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8) * s, c + Vector2(8, -5) * s, c + Vector2(0, -2) * s]), col)
-		"barracks":
-			ci.draw_line(c + Vector2(-6, 6) * s, c + Vector2(6, -6) * s, col, w * 1.2, true)
-			ci.draw_line(c + Vector2(6, 6) * s, c + Vector2(-6, -6) * s, col, w * 1.2, true)
-			ci.draw_line(c + Vector2(-6, 1) * s, c + Vector2(-1, 6) * s, col, w, true)
-			ci.draw_line(c + Vector2(6, 1) * s, c + Vector2(1, 6) * s, col, w, true)
+## Just the sprite, centred in a box (HUD icons and portraits).
+static func unit_icon(ci: CanvasItem, centre: Vector2, kind: String, faction: String, height: float, alpha: float = 1.0) -> void:
+	var size: float = height / 0.42
+	var rect: Rect2 = Rect2(centre.x - size / 2.0, centre.y - size * 0.49, size, size)
+	ci.draw_texture_rect(tex(UNIT_SPRITES[kind][faction]), rect, false, Color(1, 1, 1, alpha))
 
 
-## A building: shadow, rounded base, roof, emblem; scaffold stripes and a
-## progress bar while under construction. `ghost` draws a faded memory.
+## A building on its footprint `rect`: a dirt plot with a team-coloured edge,
+## the sprite standing on it, and a team banner. While under construction it
+## is faded with scaffold stripes and a progress bar; a ghost is greyed out.
 static func building(ci: CanvasItem, rect: Rect2, kind: String, faction: String, t: float,
 		complete: bool = true, progress: float = 1.0, ghost: bool = false, flash: float = 0.0) -> void:
-	var a: float = 0.55 if ghost else 1.0
 	var team: Color = Palette.TEAM[faction]
-	var dark: Color = Palette.TEAM_DARK[faction]
+	var plot: Rect2 = rect.grow(-2.0)
+	# A soft shadow and a team-coloured outline on the grass.
+	ci.draw_style_box(_box("plot_shadow", Color(0, 0, 0, 0.18), 10), Rect2(plot.position + Vector2(0, 3), plot.size))
+	ci.draw_style_box(_box("plot_edge_%s_%s" % [faction, ghost], Color(team, 0.12 if not ghost else 0.05), 8,
+		Color(team, 0.85 if not ghost else 0.35), 3), plot)
+	var a: float = 1.0
+	var tint: Color = Color(1, 1, 1)
 	if ghost:
-		team = team.lerp(Color("6b7686"), 0.6)
-		dark = dark.lerp(Color("2b323d"), 0.6)
-	var r: Rect2 = rect.grow(-3.0)
-	ci.draw_style_box(_box("shadow", Color(0, 0, 0, 0.38), 9), Rect2(r.position + Vector2(0, 6), r.size))
-	var base: StyleBoxFlat = _box("base_%s_%s" % [faction, ghost], Color(dark, a), 9, Color(team.darkened(0.15), a * 0.9), 2)
-	ci.draw_style_box(base, r)
-	var roof: Rect2 = r.grow(-6.0)
-	var roof_col: Color = Color(team.darkened(0.35), a) if complete else Color(team.darkened(0.55), a * 0.6)
-	ci.draw_style_box(_box("roof_%s_%s_%s" % [faction, ghost, complete], roof_col, 6), roof)
-	ci.draw_rect(Rect2(roof.position + Vector2(4, 2), Vector2(roof.size.x - 8, 2)), Color(1, 1, 1, 0.07 * a))
-	var c: Vector2 = r.get_center()
-	if kind == "hq":
-		for corner: Vector2 in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
-			var p: Vector2 = corner + (c - corner).normalized() * 9.0
-			ci.draw_circle(p, 6.5, Color(dark, a), true, -1.0, true)
-			ci.draw_circle(p, 4.5, Color(team, a), true, -1.0, true)
-		# Waving flag.
-		var top: Vector2 = c + Vector2(-2, -22)
-		ci.draw_line(c + Vector2(-2, 14), top, Color(Palette.TEXT, a), 2.0, true)
-		var wave: float = 0.0 if ghost else sin(t * 4.0)
-		ci.draw_colored_polygon(PackedVector2Array([top, top + Vector2(10, 3 + wave), top + Vector2(19, 2 + wave * 1.6),
-			top + Vector2(10, 10 + wave), top + Vector2(0, 11)]), Color(team.lightened(0.15), a))
-		ci.draw_circle(c + Vector2(-2, 14), 3.0, Color(Palette.TEXT, a * 0.8), true, -1.0, true)
-	else:
-		glyph(ci, kind, c, 1.35, Color(Palette.TEAM_LIGHT[faction] if not ghost else Color("aab3bf"), a * 0.9))
-	if not complete:
-		hatch(ci, r.grow(-2.0), Color(1, 1, 1, 0.07))
-		bar(ci, Rect2(r.position.x + 6, r.end.y - 9, r.size.x - 12, 4), progress, Palette.ACCENT)
+		tint = Color(0.62, 0.62, 0.66)
+		a = 0.6
+	elif not complete:
+		a = 0.55
 	if flash > 0.0:
-		ci.draw_rect(r.grow(-2.0), Color(1, 1, 1, 0.35 * flash))
+		tint = Color(1, 1 - 0.5 * flash, 1 - 0.5 * flash)
+	var s: Texture2D = tex("castle" if kind == "hq" else "barracks")
+	var sprite: Rect2
+	if kind == "hq":
+		# The castle fills the top 76 / 128 of its canvas: scale it to the
+		# footprint's width and stand it on the plot.
+		# Its visible part is centred on the footprint.
+		var w: float = rect.size.x * 128.0 / 120.0 * 1.08
+		var visible_h: float = w * 76.0 / 128.0
+		sprite = Rect2(rect.get_center().x - w / 2.0, rect.get_center().y - visible_h / 2.0 - 2.0, w, w)
+	else:
+		var w2: float = rect.size.x * 128.0 / 112.0 * 1.04
+		sprite = Rect2(rect.get_center().x - w2 / 2.0, rect.end.y - w2 * 124.0 / 128.0 + 1.0, w2, w2)
+	ci.draw_texture_rect(s, sprite, false, Color(tint, a))
+	if not complete:
+		hatch(ci, plot.grow(-3.0), Color(0.36, 0.24, 0.14, 0.45), 8.0)
+		bar(ci, Rect2(plot.position.x + 6, plot.end.y - 8, plot.size.x - 12, 5), progress, Palette.ACCENT)
+	if not ghost:
+		banner(ci, Vector2(rect.end.x - 6, rect.position.y + 4), team, t)
+
+
+## A small flag on a pole, waving.
+static func banner(ci: CanvasItem, top: Vector2, colour: Color, t: float) -> void:
+	var foot: Vector2 = top + Vector2(0, 22)
+	ci.draw_line(foot, top, Color("4a3523"), 2.0, true)
+	var wave: float = sin(t * 4.0 + top.x * 0.05)
+	ci.draw_colored_polygon(PackedVector2Array([top + Vector2(1, 0), top + Vector2(13, 2 + wave),
+		top + Vector2(11, 6 + wave * 0.5), top + Vector2(14, 10 + wave), top + Vector2(1, 9)]), colour)
+	ci.draw_circle(top, 1.8, Palette.ACCENT, true, -1.0, true)
 
 
 ## Diagonal scaffold stripes clipped to a rectangle.
@@ -115,67 +121,83 @@ static func hatch(ci: CanvasItem, r: Rect2, col: Color, gap: float = 7.0) -> voi
 	var o: float = -r.size.y
 	while o < r.size.x:
 		var x0: float = r.position.x + o
-		var a: Vector2 = Vector2(x0, r.position.y)
-		var b: Vector2 = Vector2(x0 + r.size.y, r.end.y)
-		if a.x < r.position.x:
-			a = Vector2(r.position.x, r.position.y + (r.position.x - a.x))
-		if b.x > r.end.x:
-			b = Vector2(r.end.x, r.end.y - (b.x - r.end.x))
-		if a.x <= b.x:
-			ci.draw_line(a, b, col, 2.0, true)
+		var p: Vector2 = Vector2(x0, r.position.y)
+		var q: Vector2 = Vector2(x0 + r.size.y, r.end.y)
+		if p.x < r.position.x:
+			p = Vector2(r.position.x, r.position.y + (r.position.x - p.x))
+		if q.x > r.end.x:
+			q = Vector2(r.end.x, r.end.y - (q.x - r.end.x))
+		if p.x <= q.x:
+			ci.draw_line(p, q, col, 2.5, true)
 		o += gap
 
 
-## A small rounded bar with a dark background.
+## A small bar with a dark rim (world health and progress bars).
 static func bar(ci: CanvasItem, r: Rect2, ratio: float, col: Color) -> void:
-	ci.draw_style_box(_box("bar_bg", Color(0, 0, 0, 0.55), 2), r.grow(1.0))
+	ci.draw_style_box(_box("bar_bg", Color(0.12, 0.08, 0.05, 0.85), 2), r.grow(1.0))
 	if ratio > 0.0:
 		var fill: StyleBoxFlat = _box("bar_" + col.to_html(), col, 2)
 		ci.draw_style_box(fill, Rect2(r.position, Vector2(maxf(r.size.x * clampf(ratio, 0.0, 1.0), 2.0), r.size.y)))
+		ci.draw_rect(Rect2(r.position + Vector2(1, 0.5), Vector2(maxf(r.size.x * ratio - 2.0, 0.0), maxf(r.size.y * 0.35, 1.0))), Color(1, 1, 1, 0.25))
 
 
-## A resource node: a cluster of trees or a faceted gold nugget. `fullness`
-## (0..1) shrinks it as it runs out.
+## A UI-pack bar (HUD): back, then the coloured fill, three slices each.
+static func ui_bar(ci: CanvasItem, r: Rect2, ratio: float, colour: String) -> void:
+	_three_slice(ci, "barBack_horizontal", r)
+	if ratio > 0.0:
+		var w: float = maxf(r.size.x * clampf(ratio, 0.0, 1.0), r.size.y)
+		_three_slice(ci, "bar%s_horizontal" % colour, Rect2(r.position, Vector2(w, r.size.y)))
+
+
+static func _three_slice(ci: CanvasItem, prefix: String, r: Rect2) -> void:
+	var cap: float = r.size.y * 0.5
+	ci.draw_texture_rect(UiTheme.tex(prefix + "Left"), Rect2(r.position, Vector2(cap, r.size.y)), false)
+	var mid: String = prefix + ("Mid" if not prefix.begins_with("barBlue") else "Blue")
+	ci.draw_texture_rect(UiTheme.tex(mid), Rect2(r.position + Vector2(cap, 0), Vector2(maxf(r.size.x - 2 * cap, 0), r.size.y)), false)
+	ci.draw_texture_rect(UiTheme.tex(prefix + "Right"), Rect2(Vector2(r.end.x - cap, r.position.y), Vector2(cap, r.size.y)), false)
+
+
+## A resource node in the cell whose centre is `c`: a pine grove that thins
+## out as it is used, or a gold-flecked ore mound that shrinks.
 static func node(ci: CanvasItem, c: Vector2, kind: String, fullness: float, t: float, alpha: float = 1.0) -> void:
-	var s: float = 0.75 + 0.25 * clampf(fullness, 0.0, 1.0)
-	ci.draw_set_transform(c + Vector2(0, 9 * s), 0.0, Vector2(1.0, 0.4))
-	ci.draw_circle(Vector2.ZERO, 12.0 * s, Color(0, 0, 0, 0.35 * alpha), true, -1.0, true)
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var cell: float = Consts.PIXELS_PER_CELL
 	if kind == "wood":
-		for p: Vector3 in [Vector3(-5.5, 2.5, 7.0), Vector3(5.5, 3.5, 6.5), Vector3(0, -4.5, 7.5)]:
-			var q: Vector2 = c + Vector2(p.x, p.y) * s
-			ci.draw_circle(q, p.z * s + 1.2, Color(Palette.WOOD_DARK, alpha), true, -1.0, true)
-			ci.draw_circle(q, p.z * s, Color(Palette.WOOD, alpha), true, -1.0, true)
-			ci.draw_circle(q - Vector2(1.8, 2.2) * s, p.z * s * 0.45, Color(Palette.WOOD_LIGHT, 0.45 * alpha), true, -1.0, true)
+		# A small grove: three pines when full, fewer as it is used.
+		var trees: int = 3 if fullness > 0.6 else (2 if fullness > 0.25 else 1)
+		var spots: Array[Vector3] = [Vector3(-7, 2, 1.0), Vector3(8, 4, 0.95), Vector3(0, 11, 1.1)]
+		ci.draw_set_transform(c + Vector2(0, 12), 0.0, Vector2(1.0, 0.4))
+		ci.draw_circle(Vector2.ZERO, cell * 0.5, Color(0, 0, 0, 0.18 * alpha), true, -1.0, true)
+		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		for i: int in trees:
+			var sp: Vector3 = spots[i]
+			var sz: float = cell * 1.25 * sp.z
+			var foot: Vector2 = c + Vector2(sp.x, sp.y)
+			ci.draw_texture_rect(tex("tree_pine"), Rect2(foot - Vector2(sz * 0.5, sz * 0.84), Vector2(sz, sz)), false, Color(1, 1, 1, alpha))
 	else:
-		var pts: PackedVector2Array = PackedVector2Array()
-		for k: int in 6:
-			var ang: float = TAU * k / 6.0 + 0.3
-			pts.append(c + Vector2(cos(ang) * 10.5, sin(ang) * 8.5) * s)
-		ci.draw_colored_polygon(pts, Color(Palette.GOLD_DARK, alpha))
-		var inner: PackedVector2Array = PackedVector2Array()
-		for p: Vector2 in pts:
-			inner.append(c + (p - c) * 0.72 - Vector2(0, 1.2))
-		ci.draw_colored_polygon(inner, Color(Palette.GOLD, alpha))
-		ci.draw_colored_polygon(PackedVector2Array([inner[3], inner[4], c - Vector2(0, 1.2)]), Color(Palette.GOLD_LIGHT, 0.7 * alpha))
+		var size: float = cell * (1.6 if fullness > 0.4 else 1.25)
+		ci.draw_texture_rect(tex("gold_ore" if fullness > 0.4 else "gold_ore_small"),
+			Rect2(c - Vector2(size, size) * 0.5 - Vector2(0, 2), Vector2(size, size)), false, Color(1, 1, 1, alpha))
 		var tw: float = maxf(sin(t * 2.3 + c.x * 0.1), 0.0)
-		if tw > 0.6:
-			var sp: Vector2 = c + Vector2(4, -5) * s
+		if tw > 0.6 and alpha > 0.5:
+			var sp: Vector2 = c + Vector2(5, -7)
 			var k: float = (tw - 0.6) * 2.5
-			ci.draw_line(sp - Vector2(3, 0) * k, sp + Vector2(3, 0) * k, Color(1, 1, 1, 0.8 * alpha), 1.2, true)
-			ci.draw_line(sp - Vector2(0, 3) * k, sp + Vector2(0, 3) * k, Color(1, 1, 1, 0.8 * alpha), 1.2, true)
+			ci.draw_line(sp - Vector2(3.5, 0) * k, sp + Vector2(3.5, 0) * k, Color(1, 1, 0.9, 0.9), 1.4, true)
+			ci.draw_line(sp - Vector2(0, 3.5) * k, sp + Vector2(0, 3.5) * k, Color(1, 1, 0.9, 0.9), 1.4, true)
 
 
 ## Small HUD icons: "wood", "gold", "pop", "clock".
 static func icon(ci: CanvasItem, c: Vector2, kind: String, s: float = 1.0) -> void:
 	match kind:
-		"wood", "gold":
-			node(ci, c + Vector2(0, -1), kind, 1.0, 0.0)
+		"wood":
+			var size: float = 40.0 * s
+			ci.draw_texture_rect(tex("tree_pine"), Rect2(c - Vector2(size * 0.5, size * 0.56), Vector2(size, size)), false)
+		"gold":
+			var size: float = 40.0 * s
+			ci.draw_texture_rect(tex("gold_ore"), Rect2(c - Vector2(size, size) * 0.5 - Vector2(0, 1), Vector2(size, size)), false)
 		"pop":
-			ci.draw_circle(c + Vector2(0, -4) * s, 3.6 * s, Palette.TEXT, true, -1.0, true)
-			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-6.5, 7) * s, c + Vector2(-5, 1) * s,
-				c + Vector2(5, 1) * s, c + Vector2(6.5, 7) * s]), Palette.TEXT)
+			unit_icon(ci, c + Vector2(0, 1), "worker", "player", 22.0 * s)
 		"clock":
-			ci.draw_arc(c, 6.5 * s, 0, TAU, 24, Palette.MUTED, 1.6, true)
-			ci.draw_line(c, c + Vector2(0, -4) * s, Palette.MUTED, 1.6, true)
-			ci.draw_line(c, c + Vector2(3, 0) * s, Palette.MUTED, 1.6, true)
+			ci.draw_circle(c, 9.0 * s, Color("f3e3bd"), true, -1.0, true)
+			ci.draw_arc(c, 9.0 * s, 0, TAU, 24, Color("5a3d24"), 2.0, true)
+			ci.draw_line(c, c + Vector2(0, -5.5) * s, Color("3d2a19"), 1.8, true)
+			ci.draw_line(c, c + Vector2(4, 0) * s, Color("3d2a19"), 1.8, true)

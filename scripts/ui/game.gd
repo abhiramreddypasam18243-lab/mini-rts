@@ -17,7 +17,9 @@ const C: float = Consts.PIXELS_PER_CELL
 const DRAG_THRESHOLD: float = 6.0
 ## Extra room so the map's edges can be scrolled out from under the HUD bars.
 const TOP_PAD: float = 70.0
-const BOTTOM_PAD: float = 180.0
+const BOTTOM_PAD: float = 190.0
+## The world is drawn zoomed in so the sprites read well (screen pixels per world pixel).
+const ZOOM: float = 1.35
 
 var settings: Dictionary = {}
 var faction: String = "player"
@@ -100,6 +102,7 @@ func _ready() -> void:
 	camera = Camera2D.new()
 	add_child(camera)
 	camera.make_current()
+	camera.zoom = Vector2(ZOOM, ZOOM)
 	var hq: Entity = sim.entity(sim.hq_of(faction))
 	camera.position = (Vector2(hq.cell) + Vector2(hq.size) / 2.0) * C
 	_clamp_camera()
@@ -380,9 +383,9 @@ func _pan(delta: float) -> void:
 
 
 ## Demo camera, unless the viewer panned in the last 3 seconds: glides to
-## where fighting happened in the last 2 seconds, else to the main teal
+## where fighting happened in the last 2 seconds, else to the main blue
 ## army (median position, so one scout far away does not pull the camera
-## into empty ground), else to the teal base.
+## into empty ground), else to the blue base.
 func _follow_action(delta: float) -> void:
 	if time - _last_manual_pan < 3.0:
 		return
@@ -411,7 +414,9 @@ func _follow_action(delta: float) -> void:
 
 
 func _clamp_camera() -> void:
-	var view: Vector2 = get_viewport_rect().size
+	# The view and the HUD paddings in world units (the camera is zoomed in).
+	var view: Vector2 = get_viewport_rect().size / ZOOM
 	var map_px: Vector2 = Vector2(sim.map.width, sim.map.height) * C
-	var padded: Vector2 = map_px + Vector2(0, TOP_PAD + BOTTOM_PAD)
-	camera.position = CameraMath.clamp_center(camera.position + Vector2(0, TOP_PAD), view, padded) - Vector2(0, TOP_PAD)
+	var top: float = TOP_PAD / ZOOM
+	var padded: Vector2 = map_px + Vector2(0, top + BOTTOM_PAD / ZOOM)
+	camera.position = CameraMath.clamp_center(camera.position + Vector2(0, top), view, padded) - Vector2(0, top)

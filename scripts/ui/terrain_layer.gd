@@ -1,7 +1,8 @@
 ## Draws the static terrain once; Godot caches the drawing, so it costs
-## nothing per frame (presentation layer).
-## Ground cells get a small deterministic tone variation and specks; blocked
-## cells become rounded rocks that merge with their neighbours.
+## nothing per frame (presentation layer). Walkable ground is grass tiles
+## with a few scattered details; blocked cells are rock outcrops or dense
+## forest (chosen per cell by a stable hash), from Kenney's CC0 Medieval RTS
+## pack (decision D-38).
 class_name TerrainLayer
 extends Node2D
 
@@ -24,80 +25,46 @@ func _draw() -> void:
 	if map == null:
 		return
 	var size: Vector2 = Vector2(map.width, map.height) * C
-	# Soft frame around the board.
-	draw_rect(Rect2(Vector2(-10, -10), size + Vector2(20, 20)), Color(0, 0, 0, 0.35))
-	draw_rect(Rect2(Vector2(-4, -4), size + Vector2(8, 8)), Palette.MAP_EDGE)
+	# A wooden frame around the board.
+	draw_rect(Rect2(Vector2(-14, -14), size + Vector2(28, 28)), Palette.MAP_EDGE_DARK)
+	draw_rect(Rect2(Vector2(-9, -9), size + Vector2(18, 18)), Palette.MAP_EDGE)
+	draw_rect(Rect2(Vector2(-3, -3), size + Vector2(6, 6)), Palette.MAP_EDGE_DARK)
+	var grass_a: Texture2D = Art.tex("grass_a")
+	var grass_b: Texture2D = Art.tex("grass_b")
 	for y: int in map.height:
 		for x: int in map.width:
 			var r: Rect2 = Rect2(Vector2(x, y) * C, Vector2(C, C))
-			var n: float = noise(x, y)
-			var base: Color = Palette.GROUND if (x + y) % 2 == 0 else Palette.GROUND_ALT
-			draw_rect(r, base.lightened(n * 0.025))
+			draw_texture_rect(grass_a if noise(x, y) < 0.6 else grass_b, r, false)
+	# Scattered details on open ground.
+	for y: int in map.height:
+		for x: int in map.width:
+			if not map.is_walkable(Vector2i(x, y)):
+				continue
+			if noise(x, y, 5) > 0.035:
+				continue
+			var name: String = ["pebble", "bush", "stump"][int(noise(x, y, 6) * 3.0) % 3]
+			var p: Vector2 = (Vector2(x, y) + Vector2(noise(x, y, 7) * 0.5 + 0.25, noise(x, y, 8) * 0.5 + 0.25)) * C
+			draw_texture_rect(Art.tex(name), Rect2(p - Vector2(10, 10), Vector2(20, 20)), false, Color(1, 1, 1, 0.9))
+	_draw_blocked()
+
+
+## Blocked cells: neighbouring cells are mostly the same kind (forest or
+## rock), picked by a hash of their 3 x 3 block, so they read as woods and
+## outcrops rather than a checkerboard. Forests are individual tree sprites
+## standing on the grass, rows drawn top to bottom so lower trees overlap.
+func _draw_blocked() -> void:
+	for y: int in map.height:
+		for x: int in map.width:
 			if map.is_walkable(Vector2i(x, y)):
-				for k: int in 2:
-					var p: Vector2 = r.position + Vector2(noise(x, y, 11 + k), noise(x, y, 23 + k)) * C
-					draw_circle(p, 1.2, Palette.GROUND_SPECK)
-	# Faint grid lines.
-	for x: int in range(1, map.width):
-		draw_line(Vector2(x * C, 0), Vector2(x * C, size.y), Palette.GRID, 1.0)
-	for y: int in range(1, map.height):
-		draw_line(Vector2(0, y * C), Vector2(size.x, y * C), Palette.GRID, 1.0)
-	_draw_rocks()
-
-
-## Rocks: rounded blocks that merge with blocked neighbours, drawn in four
-## passes (shadow, dark rim, body, lit top edge and pebbles).
-func _draw_rocks() -> void:
-	var inset: float = 2.5
-	var rim: StyleBoxFlat = _rounded(Palette.ROCK_DARK)
-	var body: StyleBoxFlat = _rounded(Palette.ROCK)
-	var shade: StyleBoxFlat = _rounded(Color(0, 0, 0, 0.32))
-	for pass_i: int in 4:
-		for y: int in map.height:
-			for x: int in map.width:
-				if map.is_walkable(Vector2i(x, y)):
-					continue
-				var r: Rect2 = Rect2(Vector2(x, y) * C, Vector2(C, C)).grow(-inset)
-				var right: bool = x + 1 < map.width and not map.is_walkable(Vector2i(x + 1, y))
-				var down: bool = y + 1 < map.height and not map.is_walkable(Vector2i(x, y + 1))
-				# A solid 2 x 2 block: also fill the gap where the four cells meet.
-				var corner: bool = right and down and not map.is_walkable(Vector2i(x + 1, y + 1))
-				match pass_i:
-					0:
-						draw_style_box(shade, Rect2(r.position + Vector2(1, 5), r.size))
-						if right:
-							draw_rect(Rect2(r.end.x - 4, r.position.y + 7, inset * 2 + 8, r.size.y - 6), Color(0, 0, 0, 0.32))
-						if down:
-							draw_rect(Rect2(r.position.x + 5, r.end.y, r.size.x - 8, inset * 2 + 4), Color(0, 0, 0, 0.32))
-					1:
-						draw_style_box(rim, r)
-						if right:
-							draw_rect(Rect2(r.end.x - 4, r.position.y, inset * 2 + 8, r.size.y), Palette.ROCK_DARK)
-						if down:
-							draw_rect(Rect2(r.position.x, r.end.y - 4, r.size.x, inset * 2 + 8), Palette.ROCK_DARK)
-						if corner:
-							draw_rect(Rect2(r.end - Vector2(4, 4), Vector2(inset * 2 + 8, inset * 2 + 8)), Palette.ROCK_DARK)
-					2:
-						var b: Rect2 = r.grow_individual(-1.5, -1.5, -1.5, -3.0)
-						draw_style_box(body, b)
-						if right:
-							draw_rect(Rect2(b.end.x - 4, b.position.y, inset * 2 + 8, b.size.y), Palette.ROCK)
-						if down:
-							draw_rect(Rect2(b.position.x, b.end.y - 4, b.size.x, inset * 2 + 9.5), Palette.ROCK)
-						if corner:
-							draw_rect(Rect2(b.end - Vector2(4, 4), Vector2(inset * 2 + 9.5, inset * 2 + 9.5)), Palette.ROCK)
-					3:
-						if y == 0 or map.is_walkable(Vector2i(x, y - 1)):
-							draw_line(r.position + Vector2(5, 2.5), Vector2(r.end.x - 5, r.position.y + 2.5), Palette.ROCK_LIGHT, 2.0, true)
-						if noise(x, y, 5) > 0.5:
-							var p: Vector2 = r.position + Vector2(noise(x, y, 7), noise(x, y, 9)) * (r.size - Vector2(12, 12)) + Vector2(6, 7)
-							draw_circle(p, 2.4, Palette.ROCK_LIGHT.darkened(0.3), true, -1.0, true)
-							draw_circle(p + Vector2(4, 3), 1.5, Palette.ROCK_LIGHT.darkened(0.4), true, -1.0, true)
-
-
-func _rounded(col: Color) -> StyleBoxFlat:
-	var s: StyleBoxFlat = StyleBoxFlat.new()
-	s.bg_color = col
-	s.set_corner_radius_all(7)
-	s.anti_aliasing = true
-	return s
+				continue
+			var r: Rect2 = Rect2(Vector2(x, y) * C, Vector2(C, C))
+			if noise(x / 3, y / 3, 41) < 0.5:
+				for k: int in 3:
+					var name: String = ["tree_pine", "tree_tall", "tree_pine_small"][int(noise(x, y, 10 + k) * 3.0) % 3]
+					var sz: float = C * (1.05 + noise(x, y, 20 + k) * 0.35)
+					var foot: Vector2 = r.position + Vector2(0.2 + 0.6 * noise(x, y, 30 + k), 0.45 + 0.45 * float(k) / 2.0) * C
+					draw_texture_rect(Art.tex(name), Rect2(foot - Vector2(sz * 0.5, sz * 0.82), Vector2(sz, sz)), false)
+			else:
+				var name2: String = ["rock_cluster", "rock_pair", "rock_big"][int(noise(x, y, 3) * 3.0) % 3]
+				var s2: float = C * 1.6
+				draw_texture_rect(Art.tex(name2), Rect2(r.get_center() - Vector2(s2, s2) * 0.5 - Vector2(0, 3), Vector2(s2, s2)), false)

@@ -41,7 +41,7 @@ func _draw() -> void:
 		s.set_corner_radius_all(9)
 		s.anti_aliasing = true
 		draw_style_box(s, r.grow(-2.0))
-		Art.glyph(self, "barracks", r.get_center(), 1.35, Color(col, 0.9))
+		draw_texture_rect(Art.tex("barracks"), r.grow(4.0), false, Color(col.lightened(0.4), 0.75))
 		var text: String = "Build barracks" if ok else HudModel.reason_text(code, HudModel.cost_of(game.sim, "barracks"))
 		var font: Font = UiTheme.font("semibold")
 		var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x

@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://dtqqa015h02ct"
-path="res://.godot/imported/ChakraPetch-SemiBold.ttf-87a6da42122dc6ad3132f6ee6c79d8d9.fontdata"
+uid="uid://bh7kexbp2h3yl"
+path="res://.godot/imported/AlegreyaSans-Regular.ttf-9e563a1e934f53ac91a9db41ed3e52ed.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/ChakraPetch-SemiBold.ttf"
-dest_files=["res://.godot/imported/ChakraPetch-SemiBold.ttf-87a6da42122dc6ad3132f6ee6c79d8d9.fontdata"]
+source_file="res://assets/fonts/AlegreyaSans-Regular.ttf"
+dest_files=["res://.godot/imported/AlegreyaSans-Regular.ttf-9e563a1e934f53ac91a9db41ed3e52ed.fontdata"]
 
 [params]
 

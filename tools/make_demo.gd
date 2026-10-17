@@ -1,7 +1,7 @@
-## Records the demo replay (AC-93): an Aggressive (player start, teal) vs
-## Balanced (AI start, coral) match that shows an economy, a barracks, a
+## Records the demo replay (AC-93): an Aggressive (player start, blue) vs
+## Balanced (AI start, red) match that shows an economy, a barracks, a
 ## fight and a victory. Tries seeds in order and keeps the first match the
-## teal side wins after a real fight (both sides lose at least 5 units),
+## blue side wins after a real fight (both sides lose at least 5 units),
 ## lasting 2.5 to 5 minutes of game time.
 ##   godot --headless --script res://tools/make_demo.gd -- data/replays/demo.replay.jsonl
 extends SceneTree

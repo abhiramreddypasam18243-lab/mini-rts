@@ -15,7 +15,7 @@ func test_ac_93_demo_replay_shows_economy_barracks_fight_and_victory() -> void:
 	for e: Dictionary in sim.events:
 		if e.get("faction", "") == "player" or e.type in ["attack", "match_ended"]:
 			seen[e.type] = seen.get(e.type, 0) + 1
-	assert_gt(seen.get("deposit", 0), 10, "an economy: teal deposits resources")
+	assert_gt(seen.get("deposit", 0), 10, "an economy: the player (blue) deposits resources")
 	assert_gt(seen.get("completed", 0), 0, "a barracks is completed")
 	assert_gt(seen.get("trained", 0), 3, "units are trained")
 	assert_gt(seen.get("attack", 0), 20, "a fight")
@@ -37,4 +37,4 @@ func test_ac_93_demo_plays_in_the_game_screen_to_the_end() -> void:
 		guard += 1
 	assert_eq(game.sim.match_result, "victory_player")
 	assert_true(game.hud.is_overlay_showing())
-	assert_eq(game.hud.overlay_title(), "Teal wins")
+	assert_eq(game.hud.overlay_title(), "Blue wins")
