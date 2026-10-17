@@ -9,6 +9,7 @@ config/name="Mini RTS"
 config/description="A small deterministic real-time strategy game."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://assets/icons/icon_512.png"
 
 [display]
 

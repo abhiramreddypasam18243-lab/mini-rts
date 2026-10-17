@@ -5,6 +5,10 @@ A small, complete real-time strategy game in **Godot 4.7.2**. Gather wood and go
 **Play it in the browser: <https://abhiramreddypasam18243-lab.github.io/mini-rts/>**
 (or run it yourself in a container, below). The main menu also has **Watch demo**: a recorded match played back at 2× speed.
 
+**As an app:**
+- **Install the web app:** open the link in Chrome or Edge and click the *Install* icon in the address bar (or *⋮ → Install Mini RTS*). It opens in its own window with its own icon and works offline after the first load.
+- **Windows download:** [Releases page](https://github.com/abhiramreddypasam18243-lab/mini-rts/releases/latest) → download `MiniRTS-windows-x64.zip`, unzip, double-click `MiniRTS.exe` (one file, nothing to install). Windows SmartScreen may warn because the file is not code-signed: click *More info → Run anyway*.
+
 ![Main menu](docs/images/menu.png)
 
 | | |
@@ -80,6 +84,10 @@ godot --headless --script res://tools/run_matches.gd -- --policy-a aggressive --
 godot --headless --script res://tools/analyze.gd -- --out docs/experiment-tables.md docs/experiment/*.csv
 # Re-record the demo replay
 godot --headless --script res://tools/make_demo.gd -- data/replays/demo.replay.jsonl
+# Windows desktop build (needs the windows_release_x86_64 template from the same .tpz)
+mkdir -p build/windows && godot --headless --export-release "Windows Desktop" build/windows/MiniRTS.exe
+# Re-render the app icon (needs a display)
+godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/icons
 ```
 
 ## Controls
@@ -218,6 +226,8 @@ Test names follow the acceptance criteria (for example `test_ac_13_wall_with_gap
 - **Compose:** `restart: unless-stopped` and a health check every 15 s. Verified: killing the server process restarts the container and it is healthy again within seconds (AC-80).
 - **First load:** about 10 MB transferred (compressed).
 - **Public host:** GitHub Pages, deployed by `.github/workflows/pages.yml` after the tests pass on every push.
+- **Installable web app (PWA):** the Web preset has `progressive_web_app/enabled=true` (standalone window, the game's own icon, an offline page). Its cross-origin-isolation option is off, as threads are off.
+- **Windows build:** the `Windows Desktop` preset embeds the game data in a single `MiniRTS.exe` (Compatibility renderer), published as a GitHub Release.
 
 ## Known limitations and simplifications
 

@@ -11,6 +11,9 @@ Game graphics are shapes drawn in code (decision D-21) and need no outside file.
 | `assets/fonts/ChakraPetch-SemiBold.ttf` | same source | SIL Open Font License 1.1 | Buttons, labels |
 | `assets/fonts/ChakraPetch-Bold.ttf` | same source | SIL Open Font License 1.1 | Titles, numbers |
 | `assets/fonts/OFL.txt` | same source | (the licence text itself) | Shipped with the fonts, as the OFL requires |
+| `assets/icons/icon_512.png` | Made for this project: rendered from the game's own drawn-in-code art by `tools/make_icon.gd` | Own work (no third-party content) | App icon (project, desktop build, web app 512 px) |
+| `assets/icons/icon_180.png` | Made for this project (`tools/make_icon.gd`) | Own work | Web app icon, 180 px |
+| `assets/icons/icon_144.png` | Made for this project (`tools/make_icon.gd`) | Own work | Web app icon, 144 px |
 
 ## Third-party code and tools
 
