@@ -93,6 +93,9 @@ func _ready() -> void:
 		_policy.add_item(p[1])
 	policy_row.add_child(_policy)
 
+	var demo: Button = _button("Watch demo", false)
+	demo.pressed.connect(func() -> void: start_requested.emit({"mode": "demo"}))
+	box.add_child(demo)
 	var help_button: Button = _button("How to play", false)
 	box.add_child(help_button)
 	_help = _build_help()

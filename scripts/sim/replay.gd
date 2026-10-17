@@ -50,18 +50,18 @@ static func play(text: String, map: MapGrid) -> Dictionary:
 	var next: int = 0
 	while sim.tick < sim.max_ticks and sim.match_result == "":
 		while next < commands.size() and int(commands[next].tick) == sim.tick:
-			_submit(sim, commands[next])
+			apply(sim, commands[next])
 			next += 1
 		sim.step()
 	while next < commands.size():
-		_submit(sim, commands[next])
+		apply(sim, commands[next])
 		next += 1
 	return {"sim": sim, "error": ""}
 
 
 ## A command the firewall rejected changed nothing but the violation count,
 ## so playback records it the same way instead of applying it.
-static func _submit(sim: Simulation, entry: Dictionary) -> void:
+static func apply(sim: Simulation, entry: Dictionary) -> void:
 	if entry.get("firewall", false):
 		sim.firewall_violations += 1
 		sim.command_log.append(entry)

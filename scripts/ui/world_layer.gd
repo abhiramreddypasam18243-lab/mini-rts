@@ -19,9 +19,16 @@ func _draw() -> void:
 	var t: float = game.time
 	var mem: Dictionary = sim.fog.memory[f]
 
-	# Resource nodes, as the player remembers them.
-	for id: int in mem:
-		var g: Dictionary = mem[id]
+	# Resource nodes, as the player remembers them (all of them when spectating).
+	var nodes: Dictionary = mem
+	if game.spectate:
+		nodes = {}
+		for id: int in sim.entities:
+			var n: Entity = sim.entities[id]
+			if n.is_node():
+				nodes[id] = Fog.snapshot(n)
+	for id: int in nodes:
+		var g: Dictionary = nodes[id]
 		if g.faction == "":
 			var full_amount: int = Consts.WOOD_NODE_AMOUNT if g.kind == "wood" else Consts.GOLD_NODE_AMOUNT
 			Art.node(self, _cell_center(g.cell), g.kind, float(g.amount) / full_amount, t)
@@ -31,7 +38,7 @@ func _draw() -> void:
 	# Ghosts: enemy buildings remembered but not seen now.
 	for id: int in mem:
 		var g: Dictionary = mem[id]
-		if g.faction == "" or g.faction == f:
+		if g.faction == "" or g.faction == f or game.spectate:
 			continue
 		if sim.fog.any_visible(f, g.cell, g.size) and sim.entities.has(id):
 			continue
@@ -40,7 +47,7 @@ func _draw() -> void:
 	# Buildings the player owns or sees.
 	for id: int in sim.entities:
 		var e: Entity = sim.entities[id]
-		if not e.is_building() or not (e.faction == f or sim.fog.any_visible(f, e.cell, e.size)):
+		if not e.is_building() or not (e.faction == f or game.spectate or sim.fog.any_visible(f, e.cell, e.size)):
 			continue
 		var r: Rect2 = Rect2(Vector2(e.cell) * C, Vector2(e.size) * C)
 		var progress: float = float(e.progress) / sim.stats[e.kind].build_time if not e.complete else 1.0
@@ -60,7 +67,7 @@ func _draw() -> void:
 	var shown: Array[Entity] = []
 	for id: int in sim.entities:
 		var e: Entity = sim.entities[id]
-		if e.is_unit() and (e.faction == f or sim.fog.is_visible(f, e.unit_cell())):
+		if e.is_unit() and (e.faction == f or game.spectate or sim.fog.is_visible(f, e.unit_cell())):
 			shown.append(e)
 	shown.sort_custom(func(a: Entity, b: Entity) -> bool: return a.pos.y < b.pos.y or (a.pos.y == b.pos.y and a.id < b.id))
 	var spread: Dictionary = _spread(shown)

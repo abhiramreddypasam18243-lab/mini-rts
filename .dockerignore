@@ -3,7 +3,8 @@
 build
 docs
 tests
-tools
+tools/*
+!tools/csp_hash.gd
 addons/gut
 *.replay.jsonl
 results.csv

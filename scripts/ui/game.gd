@@ -36,6 +36,19 @@ var hud: Hud
 var camera: Camera2D
 ## The opponent: the enemy AI, driven through its firewall (build step 8).
 var opponent: AIController
+## Demo mode (AC-93): a recorded replay plays back; the player only watches.
+const DEMO_PATH: String = "res://data/replays/demo.replay.jsonl"
+const DEMO_SPEED: float = 2.0
+var demo: bool = false
+## Draw every unit and building, ignoring fog (demo only; drawing only).
+var spectate: bool = false
+var demo_policies: Dictionary = {}
+var _demo_cmds: Array = []
+var _demo_next: int = 0
+var _last_manual_pan: float = -100.0
+## Where and when the last attack happened (the demo camera follows it).
+var _action_pos: Vector2 = Vector2.ZERO
+var _action_time: float = -100.0
 
 var _terrain: TerrainLayer
 var _world: WorldLayer
@@ -61,8 +74,16 @@ static func load_map(p_settings: Dictionary) -> MapGrid:
 
 
 func _ready() -> void:
-	sim = Simulation.new(load_map(settings), int(settings.get("seed", 1)), {})
-	opponent = AIController.new("ai", AIConfig.preset(str(settings.get("ai_policy", "balanced"))))
+	if settings.get("mode", "") == "demo":
+		var r: Dictionary = Replay.parse(FileAccess.get_file_as_string(DEMO_PATH))
+		demo = true
+		spectate = true
+		demo_policies = r.header.ai_configs
+		_demo_cmds = r.commands
+		sim = Simulation.new(Replay.map_for(str(r.header.map)), int(r.header.seed), {"max_ticks": int(r.header.max_ticks)})
+	else:
+		sim = Simulation.new(load_map(settings), int(settings.get("seed", 1)), {})
+		opponent = AIController.new("ai", AIConfig.preset(str(settings.get("ai_policy", "balanced"))))
 	_terrain = TerrainLayer.new()
 	add_child(_terrain)
 	_terrain.setup(sim.map)
@@ -72,6 +93,7 @@ func _ready() -> void:
 	_fog = FogLayer.new()
 	add_child(_fog)
 	_fog.setup(sim, faction)
+	_fog.visible = not spectate
 	_overlay = OverlayLayer.new()
 	_overlay.game = self
 	add_child(_overlay)
@@ -85,14 +107,19 @@ func _ready() -> void:
 	hud.game = self
 	add_child(hud)
 	_snapshot_positions()
-	messages.add("Gather wood and gold, build a barracks, destroy the enemy HQ.", time, "info")
+	if demo:
+		messages.add("Demo: a recorded match plays back. WASD pans; the camera follows the action.", time, "info")
+	else:
+		messages.add("Gather wood and gold, build a barracks, destroy the enemy HQ.", time, "info")
 
 
 func _process(delta: float) -> void:
 	time += delta
 	if sim.match_result == "":
-		advance_ticks(clock.advance(delta))
+		advance_ticks(clock.advance(delta * (DEMO_SPEED if demo else 1.0)))
 	_pan(delta)
+	if demo:
+		_follow_action(delta)
 	hover_id = Selection.pick(sim, faction, _to_milli(get_global_mouse_position()))
 	selection.prune(sim)
 	_fog.refresh(delta)
@@ -108,7 +135,12 @@ func advance_ticks(n: int) -> void:
 		if sim.match_result != "":
 			break
 		_snapshot_positions()
-		opponent.before_step(sim)
+		if demo:
+			while _demo_next < _demo_cmds.size() and int(_demo_cmds[_demo_next].tick) == sim.tick:
+				Replay.apply(sim, _demo_cmds[_demo_next])
+				_demo_next += 1
+		else:
+			opponent.before_step(sim)
 		sim.step()
 		_consume(sim.take_events())
 	if sim.match_result != "" and not _result_shown:
@@ -166,6 +198,8 @@ func _consume(events: Array[Dictionary]) -> void:
 					continue
 				_hit_time[t.id] = time
 				var tp: Vector2 = draw_pos(t) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
+				_action_pos = tp if time - _action_time > 2.0 else _action_pos.lerp(tp, 0.2)
+				_action_time = time
 				if a.kind == "ranged":
 					_add_fx({"type": "tracer", "a": draw_pos(a), "b": tp, "faction": a.faction, "life": 0.22})
 				else:
@@ -197,8 +231,11 @@ func _add_fx(e: Dictionary) -> void:
 
 # --- commands from the player -------------------------------------------------
 
-## Submits a command; a rejection is shown as a message.
+## Submits a command; a rejection is shown as a message. In the demo the
+## player only watches: nothing is submitted, so the replay stays exact.
 func issue(cmd: Dictionary) -> String:
+	if demo:
+		return "demo"
 	var r: String = sim.submit(cmd)
 	if r != "ok":
 		messages.add(HudModel.MESSAGES.get(r, r), time, "warn")
@@ -218,6 +255,8 @@ func cancel_train(index: int) -> void:
 
 
 func start_placing() -> void:
+	if demo:
+		return
 	if selection.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker").is_empty():
 		messages.add("Select a worker first", time, "warn")
 		return
@@ -337,6 +376,38 @@ func _pan(delta: float) -> void:
 	if dir != Vector2.ZERO:
 		camera.position += dir.normalized() * CameraMath.SPEED * delta
 		_clamp_camera()
+		_last_manual_pan = time
+
+
+## Demo camera, unless the viewer panned in the last 3 seconds: glides to
+## where fighting happened in the last 2 seconds, else to the main teal
+## army (median position, so one scout far away does not pull the camera
+## into empty ground), else to the teal base.
+func _follow_action(delta: float) -> void:
+	if time - _last_manual_pan < 3.0:
+		return
+	var xs: Array[float] = []
+	var ys: Array[float] = []
+	for id: int in sim.entities:
+		var e: Entity = sim.entities[id]
+		if e.faction == faction and e.is_soldier():
+			var p: Vector2 = draw_pos(e)
+			xs.append(p.x)
+			ys.append(p.y)
+	var target: Vector2
+	if time - _action_time < 2.0:
+		target = _action_pos
+	elif not xs.is_empty():
+		xs.sort()
+		ys.sort()
+		target = Vector2(xs[xs.size() / 2], ys[ys.size() / 2])
+	else:
+		var hq: Entity = sim.entity(sim.hq_of(faction))
+		if hq == null:
+			return
+		target = (Vector2(hq.cell) + Vector2(hq.size) / 2.0) * C
+	camera.position = camera.position.lerp(target, clampf(delta * 1.5, 0.0, 1.0))
+	_clamp_camera()
 
 
 func _clamp_camera() -> void:

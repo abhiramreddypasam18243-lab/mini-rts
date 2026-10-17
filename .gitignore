@@ -5,7 +5,8 @@ build/
 
 # Experiment and replay outputs (regenerated)
 results*.csv
-*.replay.jsonl
+/*.replay.jsonl
+results/
 
 # Course guide: kept locally, not published (public repo)
 docs/*.docx

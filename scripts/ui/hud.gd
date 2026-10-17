@@ -58,6 +58,20 @@ func _ready() -> void:
 	_fps.offset_top = 18
 	_fps.visible = false
 	root.add_child(_fps)
+	if game.demo:
+		var banner: Label = UiTheme.label("DEMO REPLAY  ·  %s (teal) vs %s (coral)  ·  %d× speed" % [
+			_policy_name("player"), _policy_name("ai"), int(Game.DEMO_SPEED)], 14, "semibold", Palette.WARN)
+		banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+		banner.offset_top = 66
+		banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		banner.add_theme_constant_override("outline_size", 6)
+		banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		root.add_child(banner)
+
+
+func _policy_name(slot: String) -> String:
+	var names: Dictionary = {"balanced": "Balanced", "aggressive": "Aggressive", "economy_first": "Economy-first"}
+	return names.get(game.demo_policies.get(slot, ""), "AI")
 
 
 # --- building the layout ------------------------------------------------------
@@ -230,7 +244,7 @@ func refresh() -> void:
 	_refresh_card(sim, f)
 	_refresh_messages()
 	if _fps.visible:
-		_fps.text = "%d FPS · %d units · enemy AI: %s" % [Engine.get_frames_per_second(), sim.unit_ids().size(), game.opponent.ai.state]
+		_fps.text = "%d FPS · %d units · enemy AI: %s" % [Engine.get_frames_per_second(), sim.unit_ids().size(), ("replay" if game.opponent == null else game.opponent.ai.state)]
 
 
 func toggle_fps() -> void:
@@ -327,9 +341,11 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 		tip.custom_minimum_size = Vector2(320, 0)
 		_card.add_child(tip)
 
-	# Actions for the selection.
+	# Actions for the selection (none in the demo: the player only watches).
 	var b: Entity = sel.building(sim)
-	if b != null and b.faction == f:
+	if game.demo:
+		_hint.text = "Watching a recorded match. Click a unit or building to see its details; WASD pans."
+	elif b != null and b.faction == f:
 		for kind: String in Simulation.TRAINS[b.kind]:
 			var hotkey: String = {"worker": "Q", "melee": "W", "ranged": "E"}[kind]
 			_add_button(kind, "Train " + HudModel.KIND_NAMES[kind].to_lower().replace(" soldier", ""), hotkey,
@@ -448,6 +464,9 @@ func show_result(result: String, stats: Dictionary) -> void:
 		"draw": ["Draw", Palette.WARN, "Both headquarters fell in the same moment."],
 		"timeout": ["Time's up", Palette.WARN, "The match reached its time limit."],
 	}
+	if game.demo:
+		titles["victory_player"] = ["Teal wins", Palette.TEAM["player"], "%s beat %s in this recorded match." % [_policy_name("player"), _policy_name("ai")]]
+		titles["victory_ai"] = ["Coral wins", Palette.TEAM["ai"], "%s beat %s in this recorded match." % [_policy_name("ai"), _policy_name("player")]]
 	var t: Array = titles.get(result, ["Match over", Palette.TEXT, ""])
 	_overlay_title.text = t[0]
 	_overlay_title.add_theme_color_override("font_color", t[1])

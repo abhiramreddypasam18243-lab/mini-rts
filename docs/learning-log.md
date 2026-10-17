@@ -253,3 +253,21 @@ On the tutorial map the two HQs are only 4 cells apart, so with "any visible ene
 
 **One thing that could go wrong**
 Mixing up which side won: the simulation reports "victory_player" or "victory_ai" (start positions), but the experiment needs "A" or "B" (policies), which swap starts every other match. A swapped mapping would silently invert every conclusion. A dedicated test pins the mapping, and we planted the swap to check it fails.
+
+---
+
+## Step 10: Production deployment and documentation (AC-79 to AC-96)
+
+**What was built**
+- A strict Content-Security-Policy: `tools/csp_hash.gd` runs in the Docker build after the export, hashes the page's one inline `<script>` and one inline `<style>` (SHA-256, base64), and writes the header nginx includes. No `'unsafe-inline'`.
+- An asset-licence check (`test_assets.gd`) that fails CI if a file in `assets/` is not in `ASSETS.md`.
+- The demo (AC-93): `tools/make_demo.gd` records an Aggressive vs Balanced match; the main menu's **Watch demo** plays it back at 2× with fog off and a camera that follows the fighting; the viewer cannot issue commands.
+- `README.md`, `docs/architecture.md`, `docs/test-plan.md` (generated from the spec and the test names), and tests that keep them complete.
+
+**Why it is designed this way**
+- *Hashes instead of 'unsafe-inline'.* 'unsafe-inline' would let any injected script run. A hash allows exactly the code Godot generated and nothing else. The hash changes whenever the exported page changes (the page embeds build details), so it is computed during the build, never by hand.
+- *The demo is a replay, not a video.* Because the simulation is deterministic, the 19 KB command log rebuilds the whole match in any browser, and the same file is checked by a test.
+- *Documents are tested too.* The test plan must list every acceptance test that exists, so adding a test without documenting it fails the build.
+
+**One thing that could go wrong**
+Playing back a replay while the viewer can still issue commands would change the match and break the replay. In demo mode `Game.issue()` refuses every command, and a test checks it.

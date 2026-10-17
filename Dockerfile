@@ -35,10 +35,13 @@ RUN set -eux; \
     godot --headless --import >/dev/null 2>&1 || true; \
     mkdir -p build/web; \
     godot --headless --export-release "Web" build/web/index.html; \
-    test -f build/web/index.wasm && test -f build/web/index.pck
+    test -f build/web/index.wasm && test -f build/web/index.pck; \
+    godot --headless --script res://tools/csp_hash.gd -- build/web/index.html build/csp.conf; \
+    test -s build/csp.conf
 
 FROM nginxinc/nginx-unprivileged:1.30.6-alpine3.24
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /src/build/csp.conf /etc/nginx/csp.conf
 COPY --from=build /src/build/web/ /usr/share/nginx/html/
 COPY deploy/healthz /usr/share/nginx/html/healthz
 EXPOSE 8080
