@@ -14,12 +14,14 @@ Run these by hand and record the date and result. The automated tests cannot jud
 
 ## AC-77 Frame rate
 
-Press **F3** in a match to show frames per second and the unit count. Measure with 80 units on the map (40 per side; reachable once the AI trains units in step 8).
+Measured with the built-in benchmark (decision D-40): the seed-42 map with exactly 80 units (each side's 3 workers plus 37 soldiers), both armies marching into each other and fighting, every unit drawn (no fog), all effects on, 15 seconds after a 2-second warm-up, 1280 × 720. Start it with `MiniRTS.exe -- --bench` (desktop) or by adding `?bench` to the web address; the result appears on screen and in the log as a `BENCH` line. Press **F3** in any match to see the live frame rate.
 
-| Build | Target | Measured | Machine | Date |
-| --- | --- | --- | --- | --- |
-| Desktop | ≥ 60 FPS | pending | | |
-| Web (browser) | ≥ 30 FPS | pending | | |
+| Build | Target | Average | 1 % low | Machine | Date |
+| --- | --- | --- | --- | --- | --- |
+| Desktop (`MiniRTS.exe`, Windows 11) | ≥ 60 FPS | **109 FPS** | 50 FPS | Laptop, NVIDIA GeForce RTX 4050 Laptop GPU, OpenGL 3.3 | 2026-10-17 |
+| Web (Microsoft Edge, WebGL 2) | ≥ 30 FPS | **80 FPS** | 45 FPS | Same laptop | 2026-10-17 |
+
+Before the drawing fix of D-40 the desktop build measured 72 FPS average (29 FPS 1 % low); world drawing then took 5 to 12 ms a frame and now takes 1 to 4 ms. The 1 % low (the average of the slowest 1 % of frames) shows occasional slower frames below 60 on the desktop; the average meets the target.
 
 ## Screens checked during build step 7
 

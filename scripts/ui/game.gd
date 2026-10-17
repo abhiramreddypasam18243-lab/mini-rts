@@ -45,6 +45,8 @@ var demo: bool = false
 ## Draw every unit and building, ignoring fog (demo only; drawing only).
 var spectate: bool = false
 var demo_policies: Dictionary = {}
+## The AC-77 frame-rate benchmark, when this match is one.
+var bench: Benchmark
 var _demo_cmds: Array = []
 var _demo_next: int = 0
 var _last_manual_pan: float = -100.0
@@ -94,7 +96,10 @@ func _ready() -> void:
 		sim = Simulation.new(Replay.map_for(str(r.header.map)), int(r.header.seed), {"max_ticks": int(r.header.max_ticks)})
 	else:
 		sim = Simulation.new(load_map(settings), int(settings.get("seed", 1)), {})
-		opponent = AIController.new("ai", AIConfig.preset(str(settings.get("ai_policy", "balanced"))))
+		if settings.get("mode", "") == "bench":
+			spectate = true
+		else:
+			opponent = AIController.new("ai", AIConfig.preset(str(settings.get("ai_policy", "balanced"))))
 	_terrain = TerrainLayer.new()
 	add_child(_terrain)
 	_terrain.setup(sim.map)
@@ -131,6 +136,11 @@ func _ready() -> void:
 	hud.game = self
 	add_child(hud)
 	_snapshot_positions()
+	if spectate and not demo:
+		bench = Benchmark.new()
+		bench.setup(self)
+		hud.toggle_fps()
+		messages.add("Benchmark (AC-77): 80 units, 15 seconds. Results appear here.", time, "info")
 	if demo:
 		messages.add("Demo: a recorded match plays back. WASD pans; the camera follows the action.", time, "info")
 	else:
@@ -139,28 +149,46 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	time += delta
+	var t_sim: int = Time.get_ticks_usec()
 	if sim.match_result == "":
 		advance_ticks(clock.advance(delta * (DEMO_SPEED if demo else 1.0)))
+	t_sim = Time.get_ticks_usec() - t_sim
 	_pan(delta)
 	if demo:
 		_follow_action(delta)
 	hover_id = Selection.pick(sim, faction, _to_milli(get_global_mouse_position()))
 	selection.prune(sim)
+	var t0: int = Time.get_ticks_usec()
 	_fog.refresh(delta)
+	Benchmark.mark("fog", t0)
 	fx = fx.filter(func(e: Dictionary) -> bool: return time - e.t0 < e.life)
+	t0 = Time.get_ticks_usec()
 	effects.update(delta)
+	Benchmark.mark("fxupd", t0)
 	for b: Dictionary in effects.landed:
 		_hit_time[b.target] = time
 		effects.float_text(b.b + Vector2(0, -26), "-%d" % b.damage, Color("ff6b5a"), 14)
+	t0 = Time.get_ticks_usec()
 	_ambient_effects(delta)
+	Benchmark.mark("ambient", t0)
 	_shake(delta)
+	if bench != null:
+		bench.sim_us = t_sim
+		bench.tick(delta)
+		if bench.done and not bench.get_meta("reported", false):
+			bench.set_meta("reported", true)
+			messages.add(bench.text(), time, "good")
+			if "--bench" in OS.get_cmdline_user_args() and "--quit" in OS.get_cmdline_user_args():
+				get_tree().quit()
 	if Engine.get_process_frames() % 300 == 0:
 		_forget_dead()
 	for n: FxDraw in _fx_nodes:
 		n.queue_redraw()
 	_world.queue_redraw()
 	_overlay.queue_redraw()
+	t0 = Time.get_ticks_usec()
 	hud.refresh()
+	Benchmark.mark("hud", t0)
 
 
 ## Runs `n` simulation ticks and turns their events into messages and effects.
@@ -173,7 +201,7 @@ func advance_ticks(n: int) -> void:
 			while _demo_next < _demo_cmds.size() and int(_demo_cmds[_demo_next].tick) == sim.tick:
 				Replay.apply(sim, _demo_cmds[_demo_next])
 				_demo_next += 1
-		else:
+		elif opponent != null:
 			opponent.before_step(sim)
 		sim.step()
 		_consume(sim.take_events())
@@ -529,6 +557,11 @@ class FxDraw extends Node2D:
 	func _draw() -> void:
 		if game == null:
 			return
+		var t0: int = Time.get_ticks_usec()
+		_draw_mode()
+		Benchmark.mark("fxdraw", t0)
+
+	func _draw_mode() -> void:
 		match mode:
 			"normal":
 				game.effects.draw_particles(self, false)

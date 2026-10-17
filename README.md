@@ -217,10 +217,12 @@ Policies are the same machine with different numbers:
 
 | Suite | What | Time |
 | --- | --- | --- |
-| Fast (`tools/run_tests.sh`) | 172 tests, reduced iteration counts; runs in CI before every deploy and fails the build on any failure or script error | about 20 s |
+| Fast (`tools/run_tests.sh`) | 180 tests, reduced iteration counts; runs in CI before every deploy and fails the build on any failure or script error | about 20 s |
 | Long (`--long`) | the same tests at the spec's full counts: 1,000 random simulations × 2,000 ticks under random commands with the invariant and conservation checks every tick, 1,000 generated maps, 1,000 random A* grids, 100 full AI matches | about 20 min |
 
 Test names follow the acceptance criteria (for example `test_ac_13_wall_with_gap`). [`docs/test-plan.md`](docs/test-plan.md) lists every acceptance criterion with its test or manual check; [`docs/measurements.md`](docs/measurements.md) has the measured performance numbers.
+
+**Frame rate (AC-77).** A built-in benchmark puts 80 units on the map (40 per side), lets them march and fight with every effect on, and measures 15 seconds: run `MiniRTS.exe -- --bench`, or add `?bench` to the web address. On a laptop with an RTX 4050 the desktop build averaged **109 FPS** (target 60) and the web build in Edge **80 FPS** (target 30); details in [`docs/playtest.md`](docs/playtest.md).
 
 ## Deployment
 

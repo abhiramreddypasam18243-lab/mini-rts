@@ -20,6 +20,12 @@ var _last: Dictionary = {}
 func _draw() -> void:
 	if game == null or game.sim == null:
 		return
+	var t0: int = Time.get_ticks_usec()
+	_draw_world()
+	Benchmark.mark("world", t0)
+
+
+func _draw_world() -> void:
 	var sim: Simulation = game.sim
 	var f: String = game.faction
 	var t: float = game.time

@@ -22,6 +22,35 @@ static var _tex: Dictionary = {}
 static var _boxes: Dictionary = {}
 
 
+## A soft white disc and a white ring (64 px), made once, for shadows and
+## team rings.
+static var _disc: ImageTexture
+static var _ring: ImageTexture
+
+
+static func disc() -> Texture2D:
+	if _disc == null:
+		_disc = _round_tex(func(d: float) -> float: return clampf((1.0 - d) * 6.0, 0.0, 1.0))
+	return _disc
+
+
+static func ring() -> Texture2D:
+	if _ring == null:
+		# A band 14 % of the radius wide, with soft edges.
+		_ring = _round_tex(func(d: float) -> float: return clampf(1.0 - absf(d - 0.84) / 0.09, 0.0, 1.0) * 1.4)
+	return _ring
+
+
+static func _round_tex(alpha_at: Callable) -> ImageTexture:
+	var n: int = 64
+	var img: Image = Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for y: int in n:
+		for x: int in n:
+			var d: float = Vector2(x + 0.5 - n / 2.0, y + 0.5 - n / 2.0).length() / (n / 2.0)
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(alpha_at.call(d), 0.0, 1.0)))
+	return ImageTexture.create_from_image(img)
+
+
 static func tex(name: String) -> Texture2D:
 	if not _tex.has(name):
 		_tex[name] = load(DIR + name + ".png")
@@ -53,10 +82,14 @@ static func unit(ci: CanvasItem, pos: Vector2, kind: String, faction: String, sc
 	var r: float = unit_radius(kind) * scale
 	var lift: float = pose.get("lift", 0.0)
 	var shadow_k: float = 1.0 - clampf(lift / 14.0, 0.0, 0.35)
+	# Shadow and team ring are stamped from small cached textures: far
+	# cheaper than tessellating anti-aliased circles for every unit.
 	ci.draw_set_transform(pos + Vector2(0, 3 * scale), 0.0, Vector2(shadow_k, 0.45 * shadow_k))
-	ci.draw_circle(Vector2.ZERO, r + 2.0, Color(0, 0, 0, 0.32 * alpha), true, -1.0, true)
+	var sr: float = r + 3.0
+	ci.draw_texture_rect(disc(), Rect2(-sr, -sr, sr * 2.0, sr * 2.0), false, Color(0, 0, 0, 0.36 * alpha))
 	if pose.get("ring", true):
-		ci.draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, Color(Palette.TEAM[faction], 0.9 * alpha), 3.0 * scale, true)
+		var rr: float = r + 1.5 * scale
+		ci.draw_texture_rect(ring(), Rect2(-rr, -rr, rr * 2.0, rr * 2.0), false, Color(Palette.TEAM[faction], 0.95 * alpha))
 	var size: float = UNIT_SIZE * scale
 	var flip: float = -1.0 if pose.get("flip", false) else 1.0
 	# The sprite is drawn about the feet so tilt and squash pivot there.
@@ -143,10 +176,9 @@ static func hatch(ci: CanvasItem, r: Rect2, col: Color, gap: float = 7.0) -> voi
 
 ## A small bar with a dark rim (world health and progress bars).
 static func bar(ci: CanvasItem, r: Rect2, ratio: float, col: Color) -> void:
-	ci.draw_style_box(_box("bar_bg", Color(0.12, 0.08, 0.05, 0.85), 2), r.grow(1.0))
+	ci.draw_rect(r.grow(1.0), Color(0.12, 0.08, 0.05, 0.85))
 	if ratio > 0.0:
-		var fill: StyleBoxFlat = _box("bar_" + col.to_html(), col, 2)
-		ci.draw_style_box(fill, Rect2(r.position, Vector2(maxf(r.size.x * clampf(ratio, 0.0, 1.0), 2.0), r.size.y)))
+		ci.draw_rect(Rect2(r.position, Vector2(maxf(r.size.x * clampf(ratio, 0.0, 1.0), 2.0), r.size.y)), col)
 		ci.draw_rect(Rect2(r.position + Vector2(1, 0.5), Vector2(maxf(r.size.x * ratio - 2.0, 0.0), maxf(r.size.y * 0.35, 1.0))), Color(1, 1, 1, 0.25))
 
 
@@ -175,7 +207,7 @@ static func node(ci: CanvasItem, c: Vector2, kind: String, fullness: float, t: f
 		var trees: int = 3 if fullness > 0.6 else (2 if fullness > 0.25 else 1)
 		var spots: Array[Vector3] = [Vector3(-7, 2, 1.0), Vector3(8, 4, 0.95), Vector3(0, 11, 1.1)]
 		ci.draw_set_transform(c + Vector2(0, 12), 0.0, Vector2(1.0, 0.4))
-		ci.draw_circle(Vector2.ZERO, cell * 0.5, Color(0, 0, 0, 0.18 * alpha), true, -1.0, true)
+		ci.draw_texture_rect(disc(), Rect2(-cell * 0.55, -cell * 0.55, cell * 1.1, cell * 1.1), false, Color(0, 0, 0, 0.2 * alpha))
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		for i: int in trees:
 			var sp: Vector3 = spots[i]

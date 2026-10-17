@@ -24,7 +24,10 @@ func _ready() -> void:
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_fade)
-	show_menu()
+	if Benchmark.requested():
+		start_match({"map": "generated", "seed": 42, "mode": "bench"})
+	else:
+		show_menu()
 
 
 ## Fades in from dark, so screen changes are not hard cuts.
