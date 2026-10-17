@@ -8,7 +8,8 @@ extends RefCounted
 
 
 ## policies: faction -> policy name ("balanced", "aggressive", "economy_first").
-static func run(map: MapGrid, p_seed: int, policies: Dictionary, max_ticks: int) -> Dictionary:
+## keep_replay: also return the match as replay text (SPEC 8, AC-04).
+static func run(map: MapGrid, p_seed: int, policies: Dictionary, max_ticks: int, keep_replay: bool = false) -> Dictionary:
 	var world: Simulation = Simulation.new(map, p_seed, {"max_ticks": max_ticks, "ai_configs": policies})
 	var controllers: Dictionary = {}
 	for f: String in Consts.FACTIONS:
@@ -38,7 +39,9 @@ static func run(map: MapGrid, p_seed: int, policies: Dictionary, max_ticks: int)
 					if ev.faction != "" and ev.kind in Entity.UNIT_KINDS:
 						stats[ev.faction].units_lost += 1
 	var out: Dictionary = {"seed": p_seed, "result": world.match_result, "ticks": world.tick,
-		"first_attack_tick": first_attack, "hash": world.state_hash()}
+		"first_attack_tick": first_attack, "hash": world.state_hash(), "commands": world.command_log.size()}
+	if keep_replay:
+		out.replay = Replay.to_jsonl(world.replay_header(), world.command_log)
 	for f: String in Consts.FACTIONS:
 		var s: Dictionary = stats[f]
 		s.wood = world.bank.deposited[f].wood

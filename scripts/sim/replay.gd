@@ -59,5 +59,18 @@ static func play(text: String, map: MapGrid) -> Dictionary:
 	return {"sim": sim, "error": ""}
 
 
+## A command the firewall rejected changed nothing but the violation count,
+## so playback records it the same way instead of applying it.
 static func _submit(sim: Simulation, entry: Dictionary) -> void:
+	if entry.get("firewall", false):
+		sim.firewall_violations += 1
+		sim.command_log.append(entry)
+		return
 	sim.submit({"faction": entry.faction, "command": entry.command, "args": entry.args})
+
+
+## The map a replay header names: "tutorial", or "generated-<seed>".
+static func map_for(map_name: String) -> MapGrid:
+	if map_name.begins_with("generated-"):
+		return MapGenerator.generate(int(map_name.trim_prefix("generated-"))).map
+	return MapGrid.load_file("res://data/maps/%s.json" % map_name).map

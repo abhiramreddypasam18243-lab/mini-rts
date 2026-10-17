@@ -234,3 +234,22 @@ On the tutorial map the two HQs are only 4 cells apart, so with "any visible ene
 1. The AI is in ATTACK with Aggressive settings (retreat 25 %), started with 4 soldiers, and has 1 left. Does it retreat? Show the integer comparison.
 2. Why must `decide()` take only an `Observation` and not the `Simulation`, and how do the tests prove it does?
 3. Why did the metamorphic test not catch the planted observation leak, and which test did?
+
+---
+
+## Step 9: Replays, the headless runner, the Wilson interval and the experiment (AC-04, AC-68 to AC-72)
+
+**What was built**
+- Replays of real AI matches: `MatchRunner.run(..., keep_replay = true)` returns the JSON-lines log; `Replay.play()` re-submits every command at its tick and reaches the same final hash and result. `Replay.map_for()` rebuilds the map from its name.
+- `Experiment`: plays each seed twice with the two policies swapped between the start positions, one CSV row per match with the columns of SPEC 8.
+- `tools/run_matches.gd` (the command-line runner, writes rows as matches finish) and `tools/analyze.gd` (the report tables).
+- `Stats.wilson()` (95 % Wilson score interval) and `Stats.sign_test()` for the paired comparison.
+
+**Why it is designed this way**
+- *Replays are just command logs.* The simulation is deterministic, so the seed, the map and the commands with their ticks are enough to rebuild a whole match; the AI does not need to be re-run. The one subtlety: a command the firewall rejected must not be applied on playback, so it is logged with `"firewall": true` and only re-counted.
+- *Swapped sides on every seed.* The maps are point-symmetric, but one start may still be luckier (e.g. which side reaches the middle first). Playing every seed twice, once from each start, cancels that out, and Balanced vs Balanced checks it: its interval must contain 0.5 (AC-71).
+- *Wilson, not the normal approximation.* For 0 wins out of 10 the normal approximation gives [0, 0], claiming certainty; Wilson gives [0, 0.28]. It stays inside [0, 1] and is still right for small samples and extreme rates (D-13).
+- *Speed.* A full 30-minute match runs headless in about 7.8 s (AC-69), so hundreds of matches take minutes, not days.
+
+**One thing that could go wrong**
+Mixing up which side won: the simulation reports "victory_player" or "victory_ai" (start positions), but the experiment needs "A" or "B" (policies), which swap starts every other match. A swapped mapping would silently invert every conclusion. A dedicated test pins the mapping, and we planted the swap to check it fails.

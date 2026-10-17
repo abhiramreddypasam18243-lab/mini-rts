@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://b4ihriw0dax"
+
+[deps]
+
+files=["res://docs/experiment/aggressive_vs_economy_first.map.translation", "res://docs/experiment/aggressive_vs_economy_first.side.translation", "res://docs/experiment/aggressive_vs_economy_first.side.translation", "res://docs/experiment/aggressive_vs_economy_first.a.translation", "res://docs/experiment/aggressive_vs_economy_first.winner.translation", "res://docs/experiment/aggressive_vs_economy_first.outcome.translation", "res://docs/experiment/aggressive_vs_economy_first.duration.translation", "res://docs/experiment/aggressive_vs_economy_first.first.translation", "res://docs/experiment/aggressive_vs_economy_first.wood.translation", "res://docs/experiment/aggressive_vs_economy_first.gold.translation", "res://docs/experiment/aggressive_vs_economy_first.units.translation", "res://docs/experiment/aggressive_vs_economy_first.wood.translation", "res://docs/experiment/aggressive_vs_economy_first.gold.translation", "res://docs/experiment/aggressive_vs_economy_first.units.translation"]
+
+source_file="res://docs/experiment/aggressive_vs_economy_first.csv"
+dest_files=["res://docs/experiment/aggressive_vs_economy_first.map.translation", "res://docs/experiment/aggressive_vs_economy_first.side.translation", "res://docs/experiment/aggressive_vs_economy_first.side.translation", "res://docs/experiment/aggressive_vs_economy_first.a.translation", "res://docs/experiment/aggressive_vs_economy_first.winner.translation", "res://docs/experiment/aggressive_vs_economy_first.outcome.translation", "res://docs/experiment/aggressive_vs_economy_first.duration.translation", "res://docs/experiment/aggressive_vs_economy_first.first.translation", "res://docs/experiment/aggressive_vs_economy_first.wood.translation", "res://docs/experiment/aggressive_vs_economy_first.gold.translation", "res://docs/experiment/aggressive_vs_economy_first.units.translation", "res://docs/experiment/aggressive_vs_economy_first.wood.translation", "res://docs/experiment/aggressive_vs_economy_first.gold.translation", "res://docs/experiment/aggressive_vs_economy_first.units.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

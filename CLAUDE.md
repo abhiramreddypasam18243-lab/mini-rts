@@ -20,7 +20,7 @@ I am an undergraduate student building this as a graded project. I will be quizz
 
 ## Learning rules
 
-- At the end of each step, add a short entry to `docs/learning-log.md`: what was built, why it is designed that way, one thing that could go wrong, and 3 quiz questions for me (no answers; I will answer them myself).
+- At the end of each step, add a short entry to `docs/learning-log.md`: what was built, why it is designed that way, and one thing that could go wrong. No quiz or viva questions (changed 2026-10-17).
 - These modules are marked **[LEARN]**. For them, first explain the design and the key edge cases in a few sentences, then let me write the first version myself and review it afterwards:
   - The A* pathfinder (spec sections 5.2 and 12, AC-12 to AC-17)
   - The resource transaction and the production queue accounting (AC-32, AC-33, AC-07)
@@ -47,7 +47,9 @@ Pinned: Godot 4.7.2-stable, GUT 9.6.1 (verified 2026-10-15). In WSL the binary i
 
 - Run the fast unit tests headless (verified): `GODOT=~/godot/godot tools/run_tests.sh` (runs `--import`, then `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -ginclude_subdirs -gexit`)
 - Run the long suite with full counts (verified): `GODOT=~/godot/godot tools/run_tests.sh --long`
-- Run headless matches (not yet built, step 9): `godot --headless --script res://tools/run_matches.gd -- --matches 200 --out results.csv`
+- Run headless matches (verified): `~/godot/godot --headless --script res://tools/run_matches.gd -- --policy-a balanced --policy-b aggressive --seeds 1-100 --max-ticks 36000 --out docs/experiment/balanced_vs_aggressive.csv` (`--matches 200` also works; add `--replay-dir DIR` to save replays)
+- Experiment tables (verified): `~/godot/godot --headless --script res://tools/analyze.gd -- --out docs/experiment-tables.md docs/experiment/*.csv`
+- Staged screenshots (needs a display, e.g. WSLg): `~/godot/godot --rendering-driver opengl3 --script res://tools/ui_snapshot.gd -- <out_dir> [seed]`
 - Export the web build: `godot --headless --export-release "Web" build/web/index.html`
 - Run the deployed service: `docker compose up -d --build` (from WSL), then open `http://localhost:8080`
 

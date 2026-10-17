@@ -661,7 +661,7 @@ func submit_observed(cmd: Dictionary, known: Dictionary) -> String:
 		if not known.has(id):
 			firewall_violations += 1
 			command_log.append({"tick": tick, "faction": cmd.get("faction", ""), "command": cmd.get("command", ""),
-				"args": cmd.get("args", {}), "result": "unknown_entity"})
+				"args": cmd.get("args", {}), "result": "unknown_entity", "firewall": true})
 			return "firewall"
 	return submit(cmd)
 
