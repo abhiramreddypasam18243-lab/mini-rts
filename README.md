@@ -68,7 +68,7 @@ You need **Godot 4.7.2-stable** (the pinned version) and, for the web build, its
    GODOT=/path/to/godot tools/run_tests.sh --long   # full counts, about 20 min
    ```
 4. **Run the game:** `godot --path .` (or open `project.godot` in the editor and press F5).
-5. **Export the web build:** `godot --headless --export-release "Web" build/web/index.html`
+5. **Export the web build:** `mkdir -p build/web && touch build/.gdignore && godot --headless --export-release "Web" build/web/index.html` (the folder must exist; `.gdignore` stops Godot importing its own output)
 6. **Start the container:** `docker compose up -d --build`, then open <http://localhost:8080>.
 
 Other tools:

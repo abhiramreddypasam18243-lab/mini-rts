@@ -331,128 +331,128 @@ The project must run as a deployed service. "Deployed" means: the game is export
 ## 12. Acceptance Criteria
 
 ### Simulation foundation
-- [ ] **AC-01** (FR-01) `step()` advances exactly one tick. Running 20 ticks in one frame or spread over many frames gives the same state hash.
-- [ ] **AC-02** (FR-01) The simulation uses its own integer pseudo-random generator, seeded from the match seed (not Godot's global random functions), and a static check finds no call to `randf`, `randi`, `randomize` or the system clock inside `scripts/sim/`.
-- [ ] **AC-03** (FR-01) Two runs with the same seed and the same command log have identical state hashes every 100 ticks and at the end.
-- [ ] **AC-04** (FR-14) A recorded replay, played back, reproduces the final state hash and the result of the original match.
-- [ ] **AC-05** (FR-02) The stats loaded from `units.json` equal the constants of section 4, and a file with a missing or negative field fails with a message naming the field.
-- [ ] **AC-06** (FR-01) *Invariant checker.* After every tick of 1,000 simulations of 2,000 ticks each under random valid and invalid commands: no two buildings overlap, no unit stands on a blocked cell or inside a building, every order and selection refers only to living entities, all resources are at least 0, every queue has at most 5 items, population is at most 40, and at most one match result was raised.
-- [ ] **AC-07** (FR-06) *Conservation.* In the same simulations, for each resource type: the amount removed from nodes equals the amount carried plus the amount deposited, and the stockpile equals the starting amount plus deposits plus refunds minus spending.
+- [x] **AC-01** (FR-01) `step()` advances exactly one tick. Running 20 ticks in one frame or spread over many frames gives the same state hash.
+- [x] **AC-02** (FR-01) The simulation uses its own integer pseudo-random generator, seeded from the match seed (not Godot's global random functions), and a static check finds no call to `randf`, `randi`, `randomize` or the system clock inside `scripts/sim/`.
+- [x] **AC-03** (FR-01) Two runs with the same seed and the same command log have identical state hashes every 100 ticks and at the end.
+- [x] **AC-04** (FR-14) A recorded replay, played back, reproduces the final state hash and the result of the original match.
+- [x] **AC-05** (FR-02) The stats loaded from `units.json` equal the constants of section 4, and a file with a missing or negative field fails with a message naming the field.
+- [x] **AC-06** (FR-01) *Invariant checker.* After every tick of 1,000 simulations of 2,000 ticks each under random valid and invalid commands: no two buildings overlap, no unit stands on a blocked cell or inside a building, every order and selection refers only to living entities, all resources are at least 0, every queue has at most 5 items, population is at most 40, and at most one match result was raised.
+- [x] **AC-07** (FR-06) *Conservation.* In the same simulations, for each resource type: the amount removed from nodes equals the amount carried plus the amount deposited, and the stockpile equals the starting amount plus deposits plus refunds minus spending.
 
 ### Map
-- [ ] **AC-08** (FR-02) The example map of section 8 loads with the right size, walkable and blocked cells, nodes and starts; a ragged row, an unknown tile character, a start or node on a blocked cell, or a node outside the map fails with a clear message.
-- [ ] **AC-09** (FR-02) Cell centre conversion round-trips: cell (3, 4) has centre (3,500, 4,500) milli-cells, and that position maps back to cell (3, 4); at 32 pixels per cell it draws at (112, 144).
-- [ ] **AC-10** (FR-02) For 1,000 seeds, the generated 48 × 48 map is point-symmetric (cell `(x, y)` matches `(47 − x, 47 − y)` in terrain, nodes and starts), the two HQs are connected by a walkable path, and each side has at least 2 wood nodes and 1 gold node within 15 cells of its HQ. If the generator cannot satisfy this in 50 tries it fails with `map_generation_failed`.
-- [ ] **AC-11** (FR-02) The same seed always generates the same map, and 100 different seeds generate at least 95 distinct maps.
+- [x] **AC-08** (FR-02) The example map of section 8 loads with the right size, walkable and blocked cells, nodes and starts; a ragged row, an unknown tile character, a start or node on a blocked cell, or a node outside the map fails with a clear message.
+- [x] **AC-09** (FR-02) Cell centre conversion round-trips: cell (3, 4) has centre (3,500, 4,500) milli-cells, and that position maps back to cell (3, 4); at 32 pixels per cell it draws at (112, 144).
+- [x] **AC-10** (FR-02) For 1,000 seeds, the generated 48 × 48 map is point-symmetric (cell `(x, y)` matches `(47 − x, 47 − y)` in terrain, nodes and starts), the two HQs are connected by a walkable path, and each side has at least 2 wood nodes and 1 gold node within 15 cells of its HQ. If the generator cannot satisfy this in 50 tries it fails with `map_generation_failed`.
+- [x] **AC-11** (FR-02) The same seed always generates the same map, and 100 different seeds generate at least 95 distinct maps.
 
 ### Pathfinding
-- [ ] **AC-12** (FR-03) On an empty 10 × 10 grid, the path from (0,0) to (9,9) has 18 steps (19 cells), every step moves to a neighbouring cell, and every cell is walkable.
-- [ ] **AC-13** (FR-03) With a wall at x = 5 blocking y = 0 to 8 (a gap at y = 9), the path from (0,0) to (9,0) has exactly **27** steps.
-- [ ] **AC-14** (FR-03) A fully enclosed destination, a blocked destination, and a blocked start each return `no_path` (never a partial path) after exploring no more than the reachable cells; start equal to goal returns a path of one cell and length 0.
-- [ ] **AC-15** (FR-03) On 1,000 random grids, the A* path length equals the breadth-first-search shortest length, or both report no path.
-- [ ] **AC-16** (FR-03) The Manhattan heuristic is admissible (never above the true distance) and consistent (`h(a) ≤ 1 + h(b)` for neighbours) on random grids.
-- [ ] **AC-17** (FR-03) Identical inputs give the identical path every time (fixed neighbour order and tie-breaking).
-- [ ] **AC-18** (FR-03) *(initial target)* The worst-case path on a 48 × 48 map takes at most **5 ms** in GDScript; the measured value is recorded.
-- [ ] **AC-19** (FR-05) When a building is placed on a moving unit's path, the unit re-plans around it; if no route exists it stops, becomes `Idle`, raises `no_path` once, and the game stays responsive.
+- [x] **AC-12** (FR-03) On an empty 10 × 10 grid, the path from (0,0) to (9,9) has 18 steps (19 cells), every step moves to a neighbouring cell, and every cell is walkable.
+- [x] **AC-13** (FR-03) With a wall at x = 5 blocking y = 0 to 8 (a gap at y = 9), the path from (0,0) to (9,0) has exactly **27** steps.
+- [x] **AC-14** (FR-03) A fully enclosed destination, a blocked destination, and a blocked start each return `no_path` (never a partial path) after exploring no more than the reachable cells; start equal to goal returns a path of one cell and length 0.
+- [x] **AC-15** (FR-03) On 1,000 random grids, the A* path length equals the breadth-first-search shortest length, or both report no path.
+- [x] **AC-16** (FR-03) The Manhattan heuristic is admissible (never above the true distance) and consistent (`h(a) ≤ 1 + h(b)` for neighbours) on random grids.
+- [x] **AC-17** (FR-03) Identical inputs give the identical path every time (fixed neighbour order and tie-breaking).
+- [x] **AC-18** (FR-03) *(initial target)* The worst-case path on a 48 × 48 map takes at most **5 ms** in GDScript; the measured value is recorded.
+- [x] **AC-19** (FR-05) When a building is placed on a moving unit's path, the unit re-plans around it; if no route exists it stops, becomes `Idle`, raises `no_path` once, and the game stays responsive.
 
 ### Selection and commands
-- [ ] **AC-20** (FR-04) A command for an unknown entity returns `unknown_entity`; a command for the other faction's unit returns `not_owner`; a negative amount returns `invalid_amount`; none of them changes the state hash.
-- [ ] **AC-21** (FR-04) Clicking a friendly unit selects it and shows its details; clicking an enemy shows its details but does not select it for commands; clicking empty ground clears the selection.
-- [ ] **AC-22** (FR-04) Box-select selects only friendly units inside the box, at most 24; a selected unit that dies is removed from the selection.
-- [ ] **AC-23** (FR-04) The context-order function maps a right click on an empty cell to `move`, on a resource node with workers selected to `harvest`, and on a visible enemy to `attack`; any other combination does nothing.
-- [ ] **AC-24** (FR-04) A new order replaces the current one: a unit never has two current orders, and issuing the same order twice leaves the same state as issuing it once.
+- [x] **AC-20** (FR-04) A command for an unknown entity returns `unknown_entity`; a command for the other faction's unit returns `not_owner`; a negative amount returns `invalid_amount`; none of them changes the state hash.
+- [x] **AC-21** (FR-04) Clicking a friendly unit selects it and shows its details; clicking an enemy shows its details but does not select it for commands; clicking empty ground clears the selection.
+- [x] **AC-22** (FR-04) Box-select selects only friendly units inside the box, at most 24; a selected unit that dies is removed from the selection.
+- [x] **AC-23** (FR-04) The context-order function maps a right click on an empty cell to `move`, on a resource node with workers selected to `harvest`, and on a visible enemy to `attack`; any other combination does nothing.
+- [x] **AC-24** (FR-04) A new order replaces the current one: a unit never has two current orders, and issuing the same order twice leaves the same state as issuing it once.
 
 ### Movement
-- [ ] **AC-25** (FR-05) A worker (150 milli-cells per tick) sent along a straight 15-cell path arrives after exactly 100 ticks; a melee soldier (125) on the same path arrives after exactly 120 ticks.
-- [ ] **AC-26** (FR-05) Across random maps and orders, no unit is ever on a blocked cell.
-- [ ] **AC-27** (FR-05) Two units sent to the same cell both arrive and share it.
-- [ ] **AC-28** (FR-05) An unreachable destination sets the unit `Idle` and raises one `no_path` message, not one per tick.
+- [x] **AC-25** (FR-05) A worker (150 milli-cells per tick) sent along a straight 15-cell path arrives after exactly 100 ticks; a melee soldier (125) on the same path arrives after exactly 120 ticks.
+- [x] **AC-26** (FR-05) Across random maps and orders, no unit is ever on a blocked cell.
+- [x] **AC-27** (FR-05) Two units sent to the same cell both arrive and share it.
+- [x] **AC-28** (FR-05) An unreachable destination sets the unit `Idle` and raises one `no_path` message, not one per tick.
 
 ### Economy
-- [ ] **AC-29** (FR-06) A worker adjacent to both a wood node and the HQ completes a trip in at most 41 ticks: the stockpile rises by exactly 10 wood and the node falls by exactly 10.
-- [ ] **AC-30** (FR-06) A node with 15 units left yields trips of 10 and 5 (total exactly 15), then disappears and its cell becomes walkable; the worker then moves to another node of the same type within 10 cells, or becomes `Idle` with a message if none exists.
-- [ ] **AC-31** (FR-06) With two HQs, a worker deposits at the nearer one by path length; if its HQ is destroyed it keeps the carried resources and becomes `Idle` with `no_dropoff`.
-- [ ] **AC-32** (FR-06) With 100 wood and 100 gold, training one melee soldier (60 wood, 20 gold) leaves 40 wood and 80 gold; a second one is rejected with `insufficient_resources` and the stockpile stays 40 and 80.
-- [ ] **AC-33** (FR-08) Queueing two workers from 200 wood leaves 100 wood; cancelling the second restores 50 (150 wood); cancelling the same item again is rejected and refunds nothing.
-- [ ] **AC-34** (FR-06) Changing a harvesting worker's order loses and duplicates nothing: its carried amount is kept and later deposited, and AC-07 still holds.
-- [ ] **AC-35** (FR-13) The HUD counters show the stockpile values of the same tick.
+- [x] **AC-29** (FR-06) A worker adjacent to both a wood node and the HQ completes a trip in at most 41 ticks: the stockpile rises by exactly 10 wood and the node falls by exactly 10.
+- [x] **AC-30** (FR-06) A node with 15 units left yields trips of 10 and 5 (total exactly 15), then disappears and its cell becomes walkable; the worker then moves to another node of the same type within 10 cells, or becomes `Idle` with a message if none exists.
+- [x] **AC-31** (FR-06) With two HQs, a worker deposits at the nearer one by path length; if its HQ is destroyed it keeps the carried resources and becomes `Idle` with `no_dropoff`.
+- [x] **AC-32** (FR-06) With 100 wood and 100 gold, training one melee soldier (60 wood, 20 gold) leaves 40 wood and 80 gold; a second one is rejected with `insufficient_resources` and the stockpile stays 40 and 80.
+- [x] **AC-33** (FR-08) Queueing two workers from 200 wood leaves 100 wood; cancelling the second restores 50 (150 wood); cancelling the same item again is rejected and refunds nothing.
+- [x] **AC-34** (FR-06) Changing a harvesting worker's order loses and duplicates nothing: its carried amount is kept and later deposited, and AC-07 still holds.
+- [x] **AC-35** (FR-13) The HUD counters show the stockpile values of the same tick.
 
 ### Construction and production
-- [ ] **AC-36** (FR-07) Barracks placement returns the right code for each case: out of bounds, blocked terrain, overlapping a building, overlapping a resource node, overlapping a unit, an unexplored cell (`not_explored`), and insufficient resources. Each rejection leaves the stockpile unchanged.
-- [ ] **AC-37** (FR-07) A valid placement deducts 120 wood and 60 gold exactly once, and from that tick the footprint cells block pathfinding.
-- [ ] **AC-38** (FR-07) A barracks under construction completes after exactly 300 ticks with an adjacent worker; with no worker adjacent the progress holds, and it resumes from the same value when a worker returns. Soldier training is rejected with `not_ready` until it completes.
-- [ ] **AC-39** (FR-08) A melee soldier (200 ticks) is absent at tick 199 and present at tick 200; a second queued soldier appears at tick 400.
-- [ ] **AC-40** (FR-08) Training a soldier at the HQ returns `invalid_unit_for_building`; the sixth queue item returns `queue_full`; the 41st unit returns `population_cap`.
-- [ ] **AC-41** (FR-08) With every cell in the spawn rings blocked, a finished unit waits with `spawn_blocked` and a message; it spawns in the first tick a cell becomes free, in the documented ring and row-major order.
-- [ ] **AC-42** (FR-08) Destroying a building removes its queue without refund and makes its footprint walkable.
+- [x] **AC-36** (FR-07) Barracks placement returns the right code for each case: out of bounds, blocked terrain, overlapping a building, overlapping a resource node, overlapping a unit, an unexplored cell (`not_explored`), and insufficient resources. Each rejection leaves the stockpile unchanged.
+- [x] **AC-37** (FR-07) A valid placement deducts 120 wood and 60 gold exactly once, and from that tick the footprint cells block pathfinding.
+- [x] **AC-38** (FR-07) A barracks under construction completes after exactly 300 ticks with an adjacent worker; with no worker adjacent the progress holds, and it resumes from the same value when a worker returns. Soldier training is rejected with `not_ready` until it completes.
+- [x] **AC-39** (FR-08) A melee soldier (200 ticks) is absent at tick 199 and present at tick 200; a second queued soldier appears at tick 400.
+- [x] **AC-40** (FR-08) Training a soldier at the HQ returns `invalid_unit_for_building`; the sixth queue item returns `queue_full`; the 41st unit returns `population_cap`.
+- [x] **AC-41** (FR-08) With every cell in the spawn rings blocked, a finished unit waits with `spawn_blocked` and a message; it spawns in the first tick a cell becomes free, in the documented ring and row-major order.
+- [x] **AC-42** (FR-08) Destroying a building removes its queue without refund and makes its footprint walkable.
 
 ### Combat
-- [ ] **AC-43** (FR-09) A melee soldier at distance 2.0 cells deals no damage; at 1.0 cell it deals 10 damage on the first tick and again exactly 20 ticks later.
-- [ ] **AC-44** (FR-09) A ranged soldier hits at 5.0 cells and does not at 5.1 cells.
-- [ ] **AC-45** (FR-09) A 100-health target dies on the tenth melee hit, is removed in that same tick, and cannot attack afterwards; a unit cannot be damaged twice in the tick it dies.
-- [ ] **AC-46** (FR-09) Two soldiers that land lethal hits in the same tick both die (the end-of-tick removal rule).
-- [ ] **AC-47** (FR-09) Attacking a friendly unit returns `invalid_target`; a worker given an attack order is rejected.
-- [ ] **AC-48** (FR-09) When a target dies, every order that referenced it is cleared and no stale reference remains (checked by the invariant checker).
-- [ ] **AC-49** (FR-09) Soldiers can destroy buildings: a melee soldier needs 30 hits to destroy a 300-health barracks.
-- [ ] **AC-50** (FR-09) An idle soldier with an enemy in vision attacks it, chases it, and returns to `Idle` when it dies or leaves vision.
+- [x] **AC-43** (FR-09) A melee soldier at distance 2.0 cells deals no damage; at 1.0 cell it deals 10 damage on the first tick and again exactly 20 ticks later.
+- [x] **AC-44** (FR-09) A ranged soldier hits at 5.0 cells and does not at 5.1 cells.
+- [x] **AC-45** (FR-09) A 100-health target dies on the tenth melee hit, is removed in that same tick, and cannot attack afterwards; a unit cannot be damaged twice in the tick it dies.
+- [x] **AC-46** (FR-09) Two soldiers that land lethal hits in the same tick both die (the end-of-tick removal rule).
+- [x] **AC-47** (FR-09) Attacking a friendly unit returns `invalid_target`; a worker given an attack order is rejected.
+- [x] **AC-48** (FR-09) When a target dies, every order that referenced it is cleared and no stale reference remains (checked by the invariant checker).
+- [x] **AC-49** (FR-09) Soldiers can destroy buildings: a melee soldier needs 30 hits to destroy a 300-health barracks.
+- [x] **AC-50** (FR-09) An idle soldier with an enemy in vision attacks it, chases it, and returns to `Idle` when it dies or leaves vision.
 
 ### End of match
-- [ ] **AC-51** (FR-12) Destroying an HQ raises exactly one `victory` or `defeat` event; both HQs destroyed in the same tick raises `draw`; reaching the tick limit raises `timeout`.
-- [ ] **AC-52** (FR-12) After the match ends, every command returns `match_over` and the state hash stops changing.
-- [ ] **AC-53** (FR-12) After a restart with the same seed, the state hash equals that of a fresh process, and no unit, timer, selection or message from the previous match remains.
+- [x] **AC-51** (FR-12) Destroying an HQ raises exactly one `victory` or `defeat` event; both HQs destroyed in the same tick raises `draw`; reaching the tick limit raises `timeout`.
+- [x] **AC-52** (FR-12) After the match ends, every command returns `match_over` and the state hash stops changing.
+- [x] **AC-53** (FR-12) After a restart with the same seed, the state hash equals that of a fresh process, and no unit, timer, selection or message from the previous match remains.
 
 ### Fog of war
-- [ ] **AC-54** (FR-10) For a unit with vision 6 at (10,10): the cells (10,16) and (14,14) are `VISIBLE`, and (10,17) and (16,14) are not.
-- [ ] **AC-55** (FR-10) A cell that was visible and is no longer becomes `EXPLORED`, never `UNEXPLORED` again.
-- [ ] **AC-56** (FR-10) An enemy unit in an `EXPLORED` but not `VISIBLE` cell is not drawn and not in the player's observation; a seen enemy building stays as a ghost until it is seen destroyed.
-- [ ] **AC-57** (FR-10) The player's `Attack` order against a non-visible enemy returns `target_not_visible`.
-- [ ] **AC-58** (FR-10) Vision is recomputed at least every 5 ticks, and *(initial target)* the update for 80 units on a 48 × 48 map takes at most **2 ms**.
+- [x] **AC-54** (FR-10) For a unit with vision 6 at (10,10): the cells (10,16) and (14,14) are `VISIBLE`, and (10,17) and (16,14) are not.
+- [x] **AC-55** (FR-10) A cell that was visible and is no longer becomes `EXPLORED`, never `UNEXPLORED` again.
+- [x] **AC-56** (FR-10) An enemy unit in an `EXPLORED` but not `VISIBLE` cell is not drawn and not in the player's observation; a seen enemy building stays as a ghost until it is seen destroyed.
+- [x] **AC-57** (FR-10) The player's `Attack` order against a non-visible enemy returns `target_not_visible`.
+- [x] **AC-58** (FR-10) Vision is recomputed at least every 5 ticks, and *(initial target)* the update for 80 units on a 48 × 48 map takes at most **2 ms**.
 
 ### Enemy AI
-- [ ] **AC-59** (FR-11) The AI receives only an `Observation` and holds no reference to the simulation; a static check finds no import or reference to the simulation or world classes in `scripts/sim/ai/`.
-- [ ] **AC-60** (FR-11) *Metamorphic test.* Two worlds that differ only in the positions of player units outside the AI's vision give the AI identical commands.
-- [ ] **AC-61** (FR-11) Over 100 headless matches there are **zero** firewall violations (no command targets an unobserved entity).
-- [ ] **AC-62** (FR-11) Each row of the transition priority list in section 7.1 has a unit test with a synthetic observation: a visible enemy near the HQ gives `DEFEND`; 5 workers, 120 wood, 60 gold and no barracks gives `BUILD`; 6 soldiers and a known target gives `ATTACK`; an army of 2 after starting an attack with 6 gives `RECOVER` (Balanced policy).
-- [ ] **AC-63** (FR-11) In any one decision, no unit receives more than one AI command.
-- [ ] **AC-64** (FR-11) Over 100 headless matches, the longest stretch in which the AI had idle units or an affordable action but issued nothing is at most 200 ticks, and every `stuck` event triggers the fallback.
-- [ ] **AC-65** (FR-11) *(initial target)* On the tutorial map, the Balanced AI has built a barracks and trained at least 3 soldiers within 6,000 ticks (5 minutes) in 20 of 20 seeds.
-- [ ] **AC-66** (FR-11) *(initial target)* Against an opponent that issues no commands, the Balanced AI wins at least 95 of 100 matches within 18,000 ticks (15 minutes).
-- [ ] **AC-67** (FR-11) Every AI state change is logged with its tick and the triggering condition.
+- [x] **AC-59** (FR-11) The AI receives only an `Observation` and holds no reference to the simulation; a static check finds no import or reference to the simulation or world classes in `scripts/sim/ai/`.
+- [x] **AC-60** (FR-11) *Metamorphic test.* Two worlds that differ only in the positions of player units outside the AI's vision give the AI identical commands.
+- [x] **AC-61** (FR-11) Over 100 headless matches there are **zero** firewall violations (no command targets an unobserved entity).
+- [x] **AC-62** (FR-11) Each row of the transition priority list in section 7.1 has a unit test with a synthetic observation: a visible enemy near the HQ gives `DEFEND`; 5 workers, 120 wood, 60 gold and no barracks gives `BUILD`; 6 soldiers and a known target gives `ATTACK`; an army of 2 after starting an attack with 6 gives `RECOVER` (Balanced policy).
+- [x] **AC-63** (FR-11) In any one decision, no unit receives more than one AI command.
+- [x] **AC-64** (FR-11) Over 100 headless matches, the longest stretch in which the AI had idle units or an affordable action but issued nothing is at most 200 ticks, and every `stuck` event triggers the fallback.
+- [x] **AC-65** (FR-11) *(initial target)* On the tutorial map, the Balanced AI has built a barracks and trained at least 3 soldiers within 6,000 ticks (5 minutes) in 20 of 20 seeds.
+- [x] **AC-66** (FR-11) *(initial target)* Against an opponent that issues no commands, the Balanced AI wins at least 95 of 100 matches within 18,000 ticks (15 minutes).
+- [x] **AC-67** (FR-11) Every AI state change is logged with its tick and the triggering condition.
 
 ### Replays, headless runner and experiments
-- [ ] **AC-68** (FR-15) The headless runner plays `N` matches for given policies and seeds, with sides swapped on each seed, and writes one CSV row per match with the columns of section 8.
-- [ ] **AC-69** (FR-15) *(initial target)* A full 30-minute simulated match runs headless in at most **30 seconds** (at least 60 times real time) on a laptop.
-- [ ] **AC-70** (FR-16) The Wilson 95% confidence interval function returns about **[0.531, 0.665]** for 120 wins out of 200 (± 0.002).
-- [ ] **AC-71** (FR-16) *Sanity check.* Balanced against Balanced over 200 matches (swapped sides on 100 seeds) gives a win rate for side A whose 95% confidence interval contains 0.5. If it does not, the map generator or the side set-up is biased and must be fixed before any other comparison is trusted.
-- [ ] **AC-72** (FR-16) The experiment report compares Aggressive, EconomyFirst and Balanced pairwise over at least 200 matches each, reporting win rate with its confidence interval, mean match duration, mean time to first attack, resources gathered and units lost, plus a discussion of limitations.
+- [x] **AC-68** (FR-15) The headless runner plays `N` matches for given policies and seeds, with sides swapped on each seed, and writes one CSV row per match with the columns of section 8.
+- [x] **AC-69** (FR-15) *(initial target)* A full 30-minute simulated match runs headless in at most **30 seconds** (at least 60 times real time) on a laptop.
+- [x] **AC-70** (FR-16) The Wilson 95% confidence interval function returns about **[0.531, 0.665]** for 120 wins out of 200 (± 0.002).
+- [x] **AC-71** (FR-16) *Sanity check.* Balanced against Balanced over 200 matches (swapped sides on 100 seeds) gives a win rate for side A whose 95% confidence interval contains 0.5. If it does not, the map generator or the side set-up is biased and must be fixed before any other comparison is trusted.
+- [x] **AC-72** (FR-16) The experiment report compares Aggressive, EconomyFirst and Balanced pairwise over at least 200 matches each, reporting win rate with its confidence interval, mean match duration, mean time to first attack, resources gathered and units lost, plus a discussion of limitations.
 
 ### User interface
-- [ ] **AC-73** (FR-13) The HUD shows both resource counters, the selected entity's details and queue, command buttons that are disabled (with the reason) when the command would be rejected, and messages that fade after 3 seconds.
-- [ ] **AC-74** (FR-13) A main menu starts a match, and the victory or defeat overlay offers a restart.
-- [ ] **AC-75** (FR-13) All controls in section 9 work, including placement preview with a valid or invalid colour.
-- [ ] **AC-76** (FR-13) The camera pans with the keys and screen edges and never leaves the map.
+- [x] **AC-73** (FR-13) The HUD shows both resource counters, the selected entity's details and queue, command buttons that are disabled (with the reason) when the command would be rejected, and messages that fade after 3 seconds.
+- [x] **AC-74** (FR-13) A main menu starts a match, and the victory or defeat overlay offers a restart.
+- [x] **AC-75** (FR-13) All controls in section 9 work, including placement preview with a valid or invalid colour.
+- [x] **AC-76** (FR-13) The camera pans with the keys and screen edges and never leaves the map.
 - [ ] **AC-77** *(initial target)* On a laptop, the desktop build holds **60 frames per second** with 80 units on the map, and the web build at least **30 frames per second**; both are measured and recorded.
 - [ ] **AC-78** (FR-13) The manual play-test checklist passes and is recorded: a new player can select and command a unit; a player can collect enough to produce a soldier; the AI makes progress without getting stuck; the player can win and lose; a restart leaves nothing from the previous match.
 
 ### Deployment and documentation
-- [ ] **AC-79** (D3) From a fresh clone with only Docker installed, `docker compose up -d` serves the game at `http://localhost:8080`, and a full match can be played in the browser.
-- [ ] **AC-80** (D2, D4) `docker compose ps` reports the container as healthy, killing the server process makes it restart and become healthy again, and the container runs as a non-root user.
-- [ ] **AC-81** (D1) The web export has thread support off and runs without cross-origin-isolation headers; the export settings are recorded in the README.
-- [ ] **AC-82** (D5) `.wasm` is served as `application/wasm`; `.wasm`, `.pck` and `.js` responses are compressed; the Content-Security-Policy is present; the browser's network panel shows no third-party request.
-- [ ] **AC-83** *(initial target)* The total transferred size of the web build on first load is at most **20 MB** (compressed); the measured size is recorded.
+- [x] **AC-79** (D3) From a fresh clone with only Docker installed, `docker compose up -d` serves the game at `http://localhost:8080`, and a full match can be played in the browser.
+- [x] **AC-80** (D2, D4) `docker compose ps` reports the container as healthy, killing the server process makes it restart and become healthy again, and the container runs as a non-root user.
+- [x] **AC-81** (D1) The web export has thread support off and runs without cross-origin-isolation headers; the export settings are recorded in the README.
+- [x] **AC-82** (D5) `.wasm` is served as `application/wasm`; `.wasm`, `.pck` and `.js` responses are compressed; the Content-Security-Policy is present; the browser's network panel shows no third-party request.
+- [x] **AC-83** *(initial target)* The total transferred size of the web build on first load is at most **20 MB** (compressed); the measured size is recorded.
 - [ ] **AC-84** (D6) From a second device on the same network, the game loads at `http://<LAN-IP>:8080` and a match is playable. This is a manual check: record the date and result in the README.
-- [ ] **AC-85** (L1, L2) The CI asset check passes: every asset file is listed in `ASSETS.md` with a source and licence.
-- [ ] **AC-86** *(Optional)* (D7) The export is published on a public static host and playable.
-- [ ] **AC-87** (FR-18) From a clean checkout, the README's instructions install the pinned Godot version, run the tests, run the game, export the web build and start the container, and all required assets are included.
-- [ ] **AC-88** (FR-18) The README lists the controls, the architecture, the final stats table, the AI state machine, the experiment results, and the known limitations.
-- [ ] **AC-89** The unit test suite runs headless from the command line (no window) in at most **2 minutes**, and fails the build on any failure.
-- [ ] **AC-90** The README's balance section records every change made to the initial stats and the play-test that motivated it.
-- [ ] **AC-91** The architecture document shows the two layers of section 6 and which module owns each rule.
-- [ ] **AC-92** The test plan document lists every acceptance criterion with its test name or manual check.
-- [ ] **AC-93** A short demo recording (or a scripted replay playing back in the browser) shows an economy, a barracks, a fight and a victory.
-- [ ] **AC-94** The README explains A* and the finite-state machine in your own words, with a worked example from the tests (AC-13 and AC-62).
-- [ ] **AC-95** The README states the simplifications of v1 (pathfinding ignores fog, units share cells, no line-of-sight, finite nodes).
-- [ ] **AC-96** Each decision in section 19 that you changed during the project is updated in the log with the reason.
+- [x] **AC-85** (L1, L2) The CI asset check passes: every asset file is listed in `ASSETS.md` with a source and licence.
+- [x] **AC-86** *(Optional)* (D7) The export is published on a public static host and playable.
+- [x] **AC-87** (FR-18) From a clean checkout, the README's instructions install the pinned Godot version, run the tests, run the game, export the web build and start the container, and all required assets are included.
+- [x] **AC-88** (FR-18) The README lists the controls, the architecture, the final stats table, the AI state machine, the experiment results, and the known limitations.
+- [x] **AC-89** The unit test suite runs headless from the command line (no window) in at most **2 minutes**, and fails the build on any failure.
+- [x] **AC-90** The README's balance section records every change made to the initial stats and the play-test that motivated it.
+- [x] **AC-91** The architecture document shows the two layers of section 6 and which module owns each rule.
+- [x] **AC-92** The test plan document lists every acceptance criterion with its test name or manual check.
+- [x] **AC-93** A short demo recording (or a scripted replay playing back in the browser) shows an economy, a barracks, a fight and a victory.
+- [x] **AC-94** The README explains A* and the finite-state machine in your own words, with a worked example from the tests (AC-13 and AC-62).
+- [x] **AC-95** The README states the simplifications of v1 (pathfinding ignores fog, units share cells, no line-of-sight, finite nodes).
+- [x] **AC-96** Each decision in section 19 that you changed during the project is updated in the log with the reason.
 
 ## 13. Traceability to the Guide's Acceptance Criteria
 

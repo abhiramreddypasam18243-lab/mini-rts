@@ -50,7 +50,7 @@ Pinned: Godot 4.7.2-stable, GUT 9.6.1 (verified 2026-10-15). In WSL the binary i
 - Run headless matches (verified): `~/godot/godot --headless --script res://tools/run_matches.gd -- --policy-a balanced --policy-b aggressive --seeds 1-100 --max-ticks 36000 --out docs/experiment/balanced_vs_aggressive.csv` (`--matches 200` also works; add `--replay-dir DIR` to save replays)
 - Experiment tables (verified): `~/godot/godot --headless --script res://tools/analyze.gd -- --out docs/experiment-tables.md docs/experiment/*.csv`
 - Staged screenshots (needs a display, e.g. WSLg): `~/godot/godot --rendering-driver opengl3 --script res://tools/ui_snapshot.gd -- <out_dir> [seed]`
-- Export the web build: `godot --headless --export-release "Web" build/web/index.html`
+- Export the web build (verified on a fresh clone): `mkdir -p build/web && touch build/.gdignore && godot --headless --export-release "Web" build/web/index.html`
 - Run the deployed service: `docker compose up -d --build` (from WSL), then open `http://localhost:8080`
 
 ## Git
