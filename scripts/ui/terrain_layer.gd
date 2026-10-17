@@ -60,6 +60,8 @@ func _draw_rocks() -> void:
 				var r: Rect2 = Rect2(Vector2(x, y) * C, Vector2(C, C)).grow(-inset)
 				var right: bool = x + 1 < map.width and not map.is_walkable(Vector2i(x + 1, y))
 				var down: bool = y + 1 < map.height and not map.is_walkable(Vector2i(x, y + 1))
+				# A solid 2 x 2 block: also fill the gap where the four cells meet.
+				var corner: bool = right and down and not map.is_walkable(Vector2i(x + 1, y + 1))
 				match pass_i:
 					0:
 						draw_style_box(shade, Rect2(r.position + Vector2(1, 5), r.size))
@@ -73,6 +75,8 @@ func _draw_rocks() -> void:
 							draw_rect(Rect2(r.end.x - 4, r.position.y, inset * 2 + 8, r.size.y), Palette.ROCK_DARK)
 						if down:
 							draw_rect(Rect2(r.position.x, r.end.y - 4, r.size.x, inset * 2 + 8), Palette.ROCK_DARK)
+						if corner:
+							draw_rect(Rect2(r.end - Vector2(4, 4), Vector2(inset * 2 + 8, inset * 2 + 8)), Palette.ROCK_DARK)
 					2:
 						var b: Rect2 = r.grow_individual(-1.5, -1.5, -1.5, -3.0)
 						draw_style_box(body, b)
@@ -80,6 +84,8 @@ func _draw_rocks() -> void:
 							draw_rect(Rect2(b.end.x - 4, b.position.y, inset * 2 + 8, b.size.y), Palette.ROCK)
 						if down:
 							draw_rect(Rect2(b.position.x, b.end.y - 4, b.size.x, inset * 2 + 9.5), Palette.ROCK)
+						if corner:
+							draw_rect(Rect2(b.end - Vector2(4, 4), Vector2(inset * 2 + 9.5, inset * 2 + 9.5)), Palette.ROCK)
 					3:
 						if y == 0 or map.is_walkable(Vector2i(x, y - 1)):
 							draw_line(r.position + Vector2(5, 2.5), Vector2(r.end.x - 5, r.position.y + 2.5), Palette.ROCK_LIGHT, 2.0, true)

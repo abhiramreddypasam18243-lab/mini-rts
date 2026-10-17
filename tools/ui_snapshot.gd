@@ -1,17 +1,20 @@
 ## Dev tool: renders staged game scenes and saves screenshots, to check the
 ## look of states that are hard to reach by hand (a battle, the end screen).
 ## Needs a display (not --headless):
-##   godot --rendering-driver opengl3 --script res://tools/ui_snapshot.gd -- <out_dir>
+##   godot --rendering-driver opengl3 --script res://tools/ui_snapshot.gd -- <out_dir> [seed]
 ## It sets up scenes through the simulation's own setup helpers, as the tests do.
 extends SceneTree
 
 var _out: String = "user://snapshots"
+var _seed: int = 79407
 
 
 func _initialize() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() > 0:
 		_out = args[0]
+	if args.size() > 1:
+		_seed = int(args[1])
 	DirAccess.make_dir_recursive_absolute(_out)
 	_run.call_deferred()
 
@@ -34,8 +37,9 @@ func _run() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await _frames(10)
-	main.start_match({"map": "generated", "seed": 79407})
+	main.start_match({"map": "generated", "seed": _seed})
 	await _frames(5)
+	await _shot("00_start_%d" % _seed)
 	var game: Game = main.game
 	var sim: Simulation = game.sim
 	# A skirmish next to the player's base.
