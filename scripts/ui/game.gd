@@ -58,6 +58,15 @@ var _fog: FogLayer
 var _overlay: OverlayLayer
 var _prev_pos: Dictionary = {}
 var _hit_time: Dictionary = {}
+## Particles, bolts, rubble and floating numbers (drawing only, D-39).
+var effects: Effects = Effects.new()
+## Per unit: when it last attacked and towards where (for its lunge).
+var attack_info: Dictionary = {}
+## Screen shake strength, 0 to 1, decaying.
+var _trauma: float = 0.0
+var _fx_nodes: Array[FxDraw] = []
+## A unit's last facing (true = left), kept by the world layer.
+var facing: Dictionary = {}
 var _pressed: bool = false
 var _press_screen: Vector2 = Vector2.ZERO
 var _trained: int = 0
@@ -92,6 +101,17 @@ func _ready() -> void:
 	_world = WorldLayer.new()
 	_world.game = self
 	add_child(_world)
+	for mode: String in ["normal", "add", "text"]:
+		var n: FxDraw = FxDraw.new()
+		n.game = self
+		n.mode = mode
+		if mode == "add":
+			var m: CanvasItemMaterial = CanvasItemMaterial.new()
+			m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			n.material = m
+		add_child(n)
+		_fx_nodes.append(n)
+	add_child(_terrain.make_clouds())
 	_fog = FogLayer.new()
 	add_child(_fog)
 	_fog.setup(sim, faction)
@@ -106,6 +126,7 @@ func _ready() -> void:
 	var hq: Entity = sim.entity(sim.hq_of(faction))
 	camera.position = (Vector2(hq.cell) + Vector2(hq.size) / 2.0) * C
 	_clamp_camera()
+	add_child(PostFx.new())
 	hud = Hud.new()
 	hud.game = self
 	add_child(hud)
@@ -127,6 +148,16 @@ func _process(delta: float) -> void:
 	selection.prune(sim)
 	_fog.refresh(delta)
 	fx = fx.filter(func(e: Dictionary) -> bool: return time - e.t0 < e.life)
+	effects.update(delta)
+	for b: Dictionary in effects.landed:
+		_hit_time[b.target] = time
+		effects.float_text(b.b + Vector2(0, -26), "-%d" % b.damage, Color("ff6b5a"), 14)
+	_ambient_effects(delta)
+	_shake(delta)
+	if Engine.get_process_frames() % 300 == 0:
+		_forget_dead()
+	for n: FxDraw in _fx_nodes:
+		n.queue_redraw()
 	_world.queue_redraw()
 	_overlay.queue_redraw()
 	hud.refresh()
@@ -192,28 +223,35 @@ func _consume(events: Array[Dictionary]) -> void:
 				if ev.faction == faction:
 					var w: Entity = sim.entity(ev.entity_id)
 					if w != null:
-						_add_fx({"type": "float", "a": draw_pos(w) + Vector2(0, -12), "text": "+%d" % ev.amount,
-							"color": Palette.resource(ev.resource), "life": 0.9})
+						effects.float_text(draw_pos(w) + Vector2(0, -22), "+%d" % ev.amount, Palette.resource(ev.resource).lightened(0.25), 16, ev.resource)
 			"attack":
 				var a: Entity = sim.entity(ev.attacker)
 				var t: Entity = sim.entity(ev.target)
 				if a == null or t == null or not (_seen(a) or _seen(t)):
 					continue
-				_hit_time[t.id] = time
-				var tp: Vector2 = draw_pos(t) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
+				var tp: Vector2 = draw_pos(t) + Vector2(0, -6) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
+				var ap: Vector2 = draw_pos(a)
 				_action_pos = tp if time - _action_time > 2.0 else _action_pos.lerp(tp, 0.2)
 				_action_time = time
+				attack_info[a.id] = {"t": time, "dir": (tp - ap).normalized()}
 				if a.kind == "ranged":
-					_add_fx({"type": "tracer", "a": draw_pos(a), "b": tp, "faction": a.faction, "life": 0.22})
+					# The bolt leaves the staff; the target flashes when it lands.
+					var staff: Vector2 = ap + Vector2(9.0 * signf(tp.x - ap.x + 0.01), -14)
+					effects.bolt(staff, tp, a.faction, t.id, int(ev.damage))
 				else:
-					_add_fx({"type": "slash", "b": tp, "life": 0.18})
+					_hit_time[t.id] = time
+					effects.hit(tp, ap)
+					effects.float_text(tp + Vector2(0, -22), "-%d" % int(ev.damage), Color("ff6b5a"), 14)
 			"destroyed":
 				var center: Vector2 = Vector2(ev.pos) * C / 1000.0 if ev.kind in Entity.UNIT_KINDS \
 					else (Vector2(ev.cell) + Vector2(ev.size) / 2.0) * C
 				var cell: Vector2i = Vector2i(center / C)
-				if ev.faction == faction or sim.fog.is_visible(faction, cell):
-					if ev.faction != "":
-						_add_fx({"type": "puff", "a": center, "color": Palette.TEAM[ev.faction], "life": 0.55})
+				if ev.faction != "" and (ev.faction == faction or spectate or sim.fog.is_visible(faction, cell)):
+					if ev.kind in Entity.UNIT_KINDS:
+						effects.unit_died(center + Vector2(0, 8), ev.kind, ev.faction, facing.get(ev.entity_id, false))
+					else:
+						effects.building_died(Rect2(Vector2(ev.cell) * C, Vector2(ev.size) * C))
+						shake(0.75 if ev.kind == "hq" else 0.5)
 				if ev.faction == faction and ev.kind in Entity.UNIT_KINDS:
 					_lost += 1
 					messages.add("%s lost" % HudModel.KIND_NAMES[ev.kind], time, "bad")
@@ -225,6 +263,65 @@ func _seen(e: Entity) -> bool:
 	if e.faction == faction:
 		return true
 	return sim.fog.is_visible(faction, e.unit_cell()) if e.is_unit() else sim.fog.any_visible(faction, e.cell, e.size)
+
+
+## Effects that run continuously while something is happening: smoke and
+## fire on damaged buildings, dust and sparks at building sites, chips and
+## glints at gathering workers, dust behind walking units. Rates are per
+## second, so they do not depend on the frame rate.
+func _ambient_effects(delta: float) -> void:
+	var r: RandomNumberGenerator = effects.rng
+	for id: int in sim.entities:
+		var e: Entity = sim.entities[id]
+		if e.faction == "" or not (e.faction == faction or spectate or _seen(e)):
+			continue
+		if e.is_building():
+			var rect: Rect2 = Rect2(Vector2(e.cell) * C, Vector2(e.size) * C)
+			var ratio: float = float(e.hp) / sim.stats[e.kind].health
+			var roof: Vector2 = rect.get_center() + Vector2(r.randf_range(-0.3, 0.3) * rect.size.x, -rect.size.y * 0.3)
+			if ratio < 0.65 and r.randf() < delta * (3.0 + 6.0 * (0.65 - ratio)):
+				effects.smoke(roof, 0.9, 1.0 - ratio)
+			if ratio < 0.35 and r.randf() < delta * 14.0:
+				effects.fire(roof + Vector2(0, 10), 0.9)
+			if not e.complete and _builder_near(e) and r.randf() < delta * 5.0:
+				effects.hammer(Vector2(r.randf_range(rect.position.x + 8, rect.end.x - 8), rect.end.y - r.randf_range(4, 18)))
+		elif e.is_unit():
+			var p: Vector2 = draw_pos(e) + Vector2(0, 8)
+			if e.phase == "gathering" and e.harvest_type != "" and r.randf() < delta * 2.5:
+				var node_p: Vector2 = (Vector2(e.harvest_cell) + Vector2(0.5, 0.5)) * C
+				if e.harvest_type == "wood":
+					effects.wood_chips(node_p.lerp(p, 0.35))
+				else:
+					effects.gold_glint(node_p)
+			elif _prev_pos.has(id) and _prev_pos[id] != e.pos and r.randf() < delta * 3.0:
+				effects.dust(p + Vector2(0, 2), 1, 3.0, 7.0)
+
+
+func _builder_near(b: Entity) -> bool:
+	for id: int in sim.entities:
+		var w: Entity = sim.entities[id]
+		if w.kind == "worker" and w.phase == "building" and w.order_target == b.id:
+			return true
+	return false
+
+
+## Drops animation records of entities that no longer exist.
+func _forget_dead() -> void:
+	for d: Dictionary in [attack_info, facing, _hit_time, _world._walk, _world._last]:
+		for id: int in d.keys():
+			if not sim.entities.has(id):
+				d.erase(id)
+
+
+## Shakes the camera; `amount` 0 to 1 (stacks, capped).
+func shake(amount: float) -> void:
+	_trauma = minf(_trauma + amount, 1.0)
+
+
+func _shake(delta: float) -> void:
+	_trauma = maxf(_trauma - delta * 1.8, 0.0)
+	var k: float = _trauma * _trauma * 9.0
+	camera.offset = Vector2(effects.rng.randf_range(-k, k), effects.rng.randf_range(-k, k))
 
 
 func _add_fx(e: Dictionary) -> void:
@@ -292,7 +389,8 @@ func _try_place() -> void:
 		return da.length_squared() < db.length_squared() or (da.length_squared() == db.length_squared() and a < b))
 	if issue(Commands.build(faction, workers[0], "barracks", anchor)) == "ok":
 		placing = false
-		_add_fx({"type": "marker", "a": (Vector2(anchor) + Vector2.ONE) * C, "color": Palette.ACCENT, "life": 0.5})
+		_add_fx({"type": "marker", "a": (Vector2(anchor) + Vector2.ONE) * C, "color": Palette.ACCENT, "life": 0.7, "order": "build"})
+		effects.dust((Vector2(anchor) + Vector2.ONE) * C, 8, 22.0, 18.0)
 
 
 # --- input ------------------------------------------------------------------------
@@ -351,8 +449,8 @@ func _right_click(mouse: Vector2) -> void:
 	for cmd: Dictionary in cmds:
 		var r: String = issue(cmd)
 		if r == "ok" or r == "no_path":
-			var col: Color = {"move": Palette.GOOD, "harvest": Palette.GOLD, "attack": Palette.BAD}[cmd.command]
-			_add_fx({"type": "marker", "a": mouse, "color": col, "life": 0.45})
+			var col: Color = {"move": Color(1.0, 0.95, 0.72), "harvest": Palette.GOLD, "attack": Palette.BAD}[cmd.command]
+			_add_fx({"type": "marker", "a": mouse, "color": col, "life": 0.7, "order": cmd.command})
 
 
 func _to_milli(p: Vector2) -> Vector2i:
@@ -420,3 +518,21 @@ func _clamp_camera() -> void:
 	var top: float = TOP_PAD / ZOOM
 	var padded: Vector2 = map_px + Vector2(0, top + BOTTOM_PAD / ZOOM)
 	camera.position = CameraMath.clamp_center(camera.position + Vector2(0, top), view, padded) - Vector2(0, top)
+
+
+## Draws one group of effects above the units: "normal" particles,
+## "add" glowing particles (additive blending) or "text" floating numbers.
+class FxDraw extends Node2D:
+	var game: Game
+	var mode: String = "normal"
+
+	func _draw() -> void:
+		if game == null:
+			return
+		match mode:
+			"normal":
+				game.effects.draw_particles(self, false)
+			"add":
+				game.effects.draw_particles(self, true)
+			"text":
+				game.effects.draw_texts(self)

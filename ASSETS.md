@@ -1,12 +1,29 @@
 # Assets and Third-Party Code (SPEC section 3, L1 to L3)
 
 Every file in `assets/` and every piece of borrowed code or tooling is listed here with its source and licence.
-The game world and HUD use two CC0 art packs by Kenney (decision D-38); effects, bars and highlights are still drawn in code.
+The game world, HUD and effects use three CC0 art packs by Kenney (decisions D-38 and D-39); bars, rings and highlights are still drawn in code.
 
 ## Game assets (`assets/`)
 
 | File | Source | Licence | Notes |
 | --- | --- | --- | --- |
+| `assets/kenney/particles/License.txt` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | licence text |
+| `assets/kenney/particles/circle_05.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/dirt_02.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/fire_01.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/flame_03.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/light_01.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/magic_02.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/magic_04.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/scorch_02.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/slash_02.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/smoke_01.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/smoke_04.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/smoke_08.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/spark_01.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/spark_04.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/star_04.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
+| `assets/kenney/particles/twirl_02.png` | Kenney "Particle Pack" 1.1, https://kenney.nl/assets/particle-pack (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/particles/License.txt`) | particle texture (resized to 128 px) |
 | `assets/kenney/medieval_rts/License.txt` | Kenney "Medieval RTS" (RTS Pack: Medieval), https://kenney.nl/assets/medieval-rts (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/medieval_rts/License.txt`) | the pack's licence file |
 | `assets/kenney/medieval_rts/barracks.png` | Kenney "Medieval RTS" (RTS Pack: Medieval), https://kenney.nl/assets/medieval-rts (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/medieval_rts/License.txt`) | game sprite |
 | `assets/kenney/medieval_rts/bush.png` | Kenney "Medieval RTS" (RTS Pack: Medieval), https://kenney.nl/assets/medieval-rts (downloaded 2026-10-17) | CC0 1.0 (`assets/kenney/medieval_rts/License.txt`) | game sprite |

@@ -18,6 +18,24 @@ var _policy: OptionButton
 var _help: PanelContainer
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _scene: Array[Dictionary] = []
+## The backdrop's battle effects (drawing only).
+var _fx: Effects = Effects.new()
+var _fx_holder: Node2D
+var _cam: Vector2 = Vector2.ZERO
+var _next_clash: float = 0.0
+var _units: Array[Dictionary] = []
+## A bright band that sweeps across the gold title now and then.
+const SHINE_SHADER: String = """
+shader_type canvas_item;
+void fragment() {
+	vec4 c = texture(TEXTURE, UV) * COLOR;
+	float x = FRAGCOORD.x + FRAGCOORD.y * 0.6;
+	float band = exp(-pow((x - mod(TIME * 260.0, 2600.0) + 400.0) / 34.0, 2.0));
+	float bright = smoothstep(0.45, 0.75, dot(c.rgb, vec3(0.3, 0.59, 0.11)));
+	c.rgb += vec3(1.0, 0.95, 0.8) * band * bright * 0.75;
+	COLOR = c;
+}
+"""
 
 
 func _ready() -> void:
@@ -41,6 +59,11 @@ func _ready() -> void:
 	title.add_theme_constant_override("shadow_offset_y", 6)
 	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var shine: Shader = Shader.new()
+	shine.code = SHINE_SHADER
+	var shine_mat: ShaderMaterial = ShaderMaterial.new()
+	shine_mat.shader = shine
+	title.material = shine_mat
 	col.add_child(title)
 	var tag: Label = UiTheme.label("GATHER  ·  BUILD  ·  CONQUER", 20, "title", Palette.TEXT)
 	tag.add_theme_font_override("font", UiTheme.spaced("title", 4))
@@ -167,7 +190,8 @@ func _seed() -> int:
 
 # --- the drifting battlefield backdrop -------------------------------------------
 
-## Places castles, a barracks, forests, rocks, gold and two armies on the field.
+## Places castles, barracks, forests, rocks and gold on the field, two
+## armies that march in and clash in the middle, and the effect layers.
 func _build_scene() -> void:
 	var r: RandomNumberGenerator = RandomNumberGenerator.new()
 	r.seed = 7  # the same backdrop every time
@@ -175,28 +199,108 @@ func _build_scene() -> void:
 	_scene.append({"kind": "castle", "pos": Vector2(1870, 470), "size": 230.0, "faction": "ai"})
 	_scene.append({"kind": "barracks", "pos": Vector2(560, 760), "size": 150.0, "faction": "player"})
 	_scene.append({"kind": "barracks", "pos": Vector2(1640, 260), "size": 150.0, "faction": "ai"})
-	for i: int in 70:
+	for i: int in 90:
 		var p: Vector2 = Vector2(r.randf_range(0, FIELD.x), r.randf_range(0, FIELD.y))
-		if absf(p.y - 520.0) < 140.0 and absf(p.x - 1100.0) < 700.0:
+		if absf(p.y - 520.0) < 170.0 and absf(p.x - 1100.0) < 760.0:
 			continue  # keep the middle open for the armies
 		var k: String = ["tree_pine", "tree_tall", "rock_cluster", "rock_big", "gold_ore", "tree_pine_small", "tree_pine"][r.randi_range(0, 6)]
 		_scene.append({"kind": k, "pos": p, "size": r.randf_range(60.0, 110.0)})
-	for i: int in 14:
-		var f: String = "player" if i < 7 else "ai"
-		var x: float = (850.0 if f == "player" else 1350.0) + r.randf_range(-90, 90)
-		var y: float = 470.0 + r.randf_range(-90, 110)
-		_scene.append({"kind": "unit", "unit": ["melee", "ranged", "melee", "worker"][i % 4], "faction": f, "pos": Vector2(x, y)})
-	_scene.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.pos.y < b.pos.y)
+	for i: int in 16:
+		var f: String = "player" if i < 8 else "ai"
+		var side: float = -1.0 if f == "player" else 1.0
+		var kind: String = "ranged" if i % 8 >= 5 else "melee"
+		var row: int = i % 8
+		var y: float = 400.0 + (row % 5) * 52.0 + r.randf_range(-10, 10) + (26.0 if kind == "ranged" else 0.0)
+		var front: float = 1100.0 + side * (60.0 + (90.0 if kind == "ranged" else 0.0) + r.randf_range(0, 30))
+		var u: Dictionary = {"kind": "unit", "unit": kind, "faction": f, "home": Vector2(1100.0 + side * r.randf_range(520, 700), y),
+			"front": Vector2(front, y), "delay": r.randf_range(0.0, 2.5), "pos": Vector2(0, y), "hit": -10.0, "atk": -10.0,
+			"dir": Vector2.ZERO, "phase": r.randf() * TAU}
+		u.pos = u.home
+		_units.append(u)
+		_scene.append(u)
+	# Effect layers (above the field, below the panel): particles, glows,
+	# drifting cloud shadows, then the vignette.
+	_fx_holder = Node2D.new()
+	add_child(_fx_holder)
+	for additive: bool in [false, true]:
+		var n: MenuFx = MenuFx.new()
+		n.menu = self
+		n.additive = additive
+		if additive:
+			var m: CanvasItemMaterial = CanvasItemMaterial.new()
+			m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			n.material = m
+		_fx_holder.add_child(n)
+	var clouds: ColorRect = ColorRect.new()
+	clouds.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	clouds.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh: Shader = Shader.new()
+	sh.code = TerrainLayer.CLOUD_SHADER
+	var cm: ShaderMaterial = ShaderMaterial.new()
+	cm.shader = sh
+	cm.set_shader_parameter("size", Vector2(1800, 1000))
+	clouds.material = cm
+	add_child(clouds)
+	var vig: Vignette = Vignette.new()
+	vig.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vig)
 
 
 func _process(delta: float) -> void:
 	_t += delta
+	var s: Vector2 = size
+	_cam = Vector2((FIELD.x - s.x) * 0.5 + sin(_t * 0.05) * (FIELD.x - s.x) * 0.45, (FIELD.y - s.y) * 0.5 + cos(_t * 0.04) * 60.0)
+	_fx_holder.position = -_cam
+	for u: Dictionary in _units:
+		var k: float = clampf((_t - u.delay) / 7.0, 0.0, 1.0)
+		u.pos = u.home.lerp(u.front, smoothstep(0.0, 1.0, k))
+	_clash()
+	_ambient(delta)
+	_fx.update(delta)
+	for n: Node in _fx_holder.get_children():
+		(n as Node2D).queue_redraw()
 	queue_redraw()
+
+
+## Once the armies meet, soldiers trade blows: sword hits and magic bolts.
+func _clash() -> void:
+	if _t < 7.5 or _t < _next_clash:
+		return
+	_next_clash = _t + _rng.randf_range(0.18, 0.45)
+	var u: Dictionary = _units[_rng.randi_range(0, _units.size() - 1)]
+	var foes: Array[Dictionary] = []
+	for v: Dictionary in _units:
+		if v.faction != u.faction:
+			foes.append(v)
+	foes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.pos.distance_squared_to(u.pos) < b.pos.distance_squared_to(u.pos))
+	var target: Dictionary = foes[_rng.randi_range(0, mini(2, foes.size() - 1))]
+	var to: Vector2 = target.pos + Vector2(0, -10)
+	u.atk = _t
+	u.dir = (to - u.pos).normalized()
+	if u.unit == "ranged":
+		_fx.bolt(u.pos + Vector2(12.0 * signf(u.dir.x), -20), to, u.faction, 0, 8)
+		target.hit = _t + 0.2
+	else:
+		_fx.hit(to, u.pos)
+		target.hit = _t
+
+
+## Leaves drifting on the wind and golden motes floating up.
+func _ambient(delta: float) -> void:
+	var s: Vector2 = size
+	if _rng.randf() < delta * 6.0:
+		var p: Vector2 = _cam + Vector2(_rng.randf_range(-100, s.x * 0.6), _rng.randf_range(-60, s.y))
+		var leaf: Color = [Color("8fcf5a"), Color("d7c24a"), Color("e09a3a"), Color("6fae45")][_rng.randi_range(0, 3)]
+		_fx.emit("", p, Vector2(_rng.randf_range(45, 80), _rng.randf_range(10, 30)), 7.0, 7.0, 6.0, leaf, false, 3.0, 0.0, _rng.randf_range(-3, 3), 0.1)
+	if _rng.randf() < delta * 5.0:
+		var q: Vector2 = _cam + Vector2(_rng.randf_range(0, s.x), _rng.randf_range(s.y * 0.3, s.y))
+		_fx.emit("light_01", q, Vector2(_rng.randf_range(-8, 8), _rng.randf_range(-22, -10)), 4.0, 10.0, 4.0, Color(1.0, 0.85, 0.45, 0.6), true, 0.0, 0.0, 0.0, 0.3)
 
 
 func _draw() -> void:
 	var s: Vector2 = size
-	var cam: Vector2 = Vector2((FIELD.x - s.x) * 0.5 + sin(_t * 0.05) * (FIELD.x - s.x) * 0.45, (FIELD.y - s.y) * 0.5 + cos(_t * 0.04) * 60.0)
+	var cam: Vector2 = _cam
 	# Grass.
 	var grass_a: Texture2D = Art.tex("grass_a")
 	var grass_b: Texture2D = Art.tex("grass_b")
@@ -204,8 +308,9 @@ func _draw() -> void:
 	var y0: int = int(floor(cam.y / TILE))
 	for y: int in range(y0, y0 + int(s.y / TILE) + 2):
 		for x: int in range(x0, x0 + int(s.x / TILE) + 2):
-			draw_texture_rect(grass_a if TerrainLayer.noise(x, y) < 0.6 else grass_b, Rect2(Vector2(x, y) * TILE - cam, Vector2(TILE, TILE)), false)
-	# Scenery and armies.
+			draw_texture_rect(grass_a if TerrainLayer.noise(x, y) < 0.6 else grass_b, Rect2(Vector2(x, y) * TILE - cam, Vector2(TILE, TILE)), false, Color(0.9, 0.94, 0.86))
+	# Scenery and armies, lower ones drawn last.
+	_scene.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.pos.y < b.pos.y)
 	for o: Dictionary in _scene:
 		var p: Vector2 = o.pos - cam
 		if p.x < -260 or p.x > s.x + 260 or p.y < -260 or p.y > s.y + 260:
@@ -213,26 +318,76 @@ func _draw() -> void:
 		match o.kind:
 			"castle", "barracks":
 				var sz: float = o.size
+				# The shadow sits at the building's foot (the castle sprite's
+				# picture ends higher up its canvas than the barracks').
+				var foot: float = -sz * 0.16 if o.kind == "castle" else sz * 0.2
+				draw_set_transform(p + Vector2(4, foot), 0.0, Vector2(1.0, 0.3))
+				draw_circle(Vector2.ZERO, sz * 0.46, Color(0, 0.05, 0, 0.2), true, -1.0, true)
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 				draw_texture_rect(Art.tex(o.kind), Rect2(p - Vector2(sz / 2.0, sz * 0.75), Vector2(sz, sz)), false)
 				Art.banner(self, p + Vector2(sz * 0.32, -sz * 0.62), Palette.TEAM[o.faction], _t)
 			"unit":
-				var bob: float = sin(_t * 3.0 + p.x * 0.05) * 1.5
-				Art.unit(self, p + Vector2(0, bob), o.unit, o.faction, 1.45)
+				var flash: float = clampf(1.0 - (_t - o.hit) / 0.15, 0.0, 1.0) if _t >= o.hit else 0.0
+				Art.unit(self, p, o.unit, o.faction, 1.45, 1.0, flash, _pose(o))
 			_:
 				var sz2: float = o.size
-				draw_texture_rect(Art.tex(o.kind), Rect2(p - Vector2(sz2, sz2) * 0.5, Vector2(sz2, sz2)), false)
-	# Warm darkening so the title and panel stand out, and a smooth vignette:
-	# each edge is a quad whose colour fades from dark to clear (no banding).
-	draw_rect(Rect2(Vector2.ZERO, s), Color(0.1, 0.06, 0.02, 0.25))
-	var dark: Color = Color(0.06, 0.035, 0.01, 0.75)
-	var clear: Color = Color(0.06, 0.035, 0.01, 0.0)
-	var m: float = minf(s.x, s.y) * 0.32
-	_fade(Vector2.ZERO, Vector2(s.x, 0), Vector2(s.x, m), Vector2(0, m), dark, clear)
-	_fade(Vector2(0, s.y), Vector2(s.x, s.y), Vector2(s.x, s.y - m), Vector2(0, s.y - m), dark, clear)
-	_fade(Vector2.ZERO, Vector2(0, s.y), Vector2(m, s.y), Vector2(m, 0), dark, clear)
-	_fade(Vector2(s.x, 0), Vector2(s.x, s.y), Vector2(s.x - m, s.y), Vector2(s.x - m, 0), dark, clear)
+				draw_set_transform(p + Vector2(3, sz2 * 0.3), 0.0, Vector2(1.0, 0.4))
+				draw_circle(Vector2.ZERO, sz2 * 0.3, Color(0, 0.05, 0, 0.2), true, -1.0, true)
+				if o.kind.begins_with("tree"):
+					var sway: float = sin(_t * 1.6 + o.pos.x * 0.045) * 0.04
+					draw_set_transform_matrix(Transform2D(Vector2(1, 0), Vector2(sway, 1), p + Vector2(0, sz2 * 0.5)))
+					draw_texture_rect(Art.tex(o.kind), Rect2(Vector2(-sz2 * 0.5, -sz2), Vector2(sz2, sz2)), false)
+				else:
+					draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+					draw_texture_rect(Art.tex(o.kind), Rect2(p - Vector2(sz2, sz2) * 0.5, Vector2(sz2, sz2)), false)
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## A quad dark along its first edge (a-b), fading to clear along the second (c-d).
-func _fade(a: Vector2, b: Vector2, c: Vector2, d: Vector2, dark: Color, clear: Color) -> void:
-	draw_polygon(PackedVector2Array([a, b, c, d]), PackedColorArray([dark, dark, clear, clear]))
+## Marching hop, idle breathing, and a lunge or cast when attacking.
+func _pose(u: Dictionary) -> Dictionary:
+	var marching: bool = _t > u.delay and _t < u.delay + 7.0
+	var pose: Dictionary = {"flip": u.faction == "ai"}
+	if marching:
+		var ph: float = _t * 9.0 + u.phase
+		var step: float = absf(sin(ph))
+		pose.lift = step * 4.5
+		pose.tilt = sin(ph) * 0.07
+	else:
+		pose.sy = 1.0 + 0.025 * sin(_t * 2.3 + u.phase)
+	var since: float = _t - u.atk
+	if since < 0.32:
+		var a: float = sin(since / 0.32 * PI)
+		if u.unit == "melee":
+			pose.tilt = 0.35 * a * (-1.0 if pose.flip else 1.0)
+			pose.lift = 2.0 * a
+		else:
+			pose.lift = 4.0 * a
+			pose.sy = 1.0 + 0.1 * a
+	return pose
+
+
+## Draws the backdrop's particles, offset with the drifting view.
+class MenuFx extends Node2D:
+	var menu: MainMenu
+	var additive: bool = false
+
+	func _draw() -> void:
+		menu._fx.draw_particles(self, additive)
+
+
+## Warm darkening so the title and panel stand out, and a smooth vignette:
+## each edge is a quad whose colour fades from dark to clear (no banding).
+class Vignette extends Control:
+	func _draw() -> void:
+		var s: Vector2 = size
+		draw_rect(Rect2(Vector2.ZERO, s), Color(0.1, 0.06, 0.02, 0.22))
+		var dark: Color = Color(0.06, 0.035, 0.01, 0.75)
+		var clear: Color = Color(0.06, 0.035, 0.01, 0.0)
+		var m: float = minf(s.x, s.y) * 0.32
+		_quad(Vector2.ZERO, Vector2(s.x, 0), Vector2(s.x, m), Vector2(0, m), dark, clear)
+		_quad(Vector2(0, s.y), Vector2(s.x, s.y), Vector2(s.x, s.y - m), Vector2(0, s.y - m), dark, clear)
+		_quad(Vector2.ZERO, Vector2(0, s.y), Vector2(m, s.y), Vector2(m, 0), dark, clear)
+		_quad(Vector2(s.x, 0), Vector2(s.x, s.y), Vector2(s.x - m, s.y), Vector2(s.x - m, 0), dark, clear)
+
+	func _quad(a: Vector2, b: Vector2, c: Vector2, d: Vector2, dark: Color, clear: Color) -> void:
+		draw_polygon(PackedVector2Array([a, b, c, d]), PackedColorArray([dark, dark, clear, clear]))

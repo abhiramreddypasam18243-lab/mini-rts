@@ -41,6 +41,8 @@ var _last_res: Dictionary = {}
 var _fps: Label
 
 
+var _overlay_panel: PanelContainer
+
 func _ready() -> void:
 	layer = 10
 	root = Control.new()
@@ -76,6 +78,17 @@ func _policy_name(slot: String) -> String:
 
 # --- building the layout ------------------------------------------------------
 
+## Slides a control in from `dy` pixels away (and fades it in) after `delay`.
+func _slide_in(c: Control, dy: float, delay: float) -> void:
+	c.modulate.a = 0.0
+	c.offset_top += dy
+	c.offset_bottom += dy
+	var tw: Tween = c.create_tween().set_parallel(true)
+	tw.tween_property(c, "offset_top", c.offset_top - dy, 0.5).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(c, "offset_bottom", c.offset_bottom - dy, 0.5).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(c, "modulate:a", 1.0, 0.35).set_delay(delay)
+
+
 func _build_top_bar() -> void:
 	var bar: PanelContainer = PanelContainer.new()
 	bar.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(22, 10)))
@@ -83,6 +96,7 @@ func _build_top_bar() -> void:
 	bar.offset_top = 12
 	bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	root.add_child(bar)
+	_slide_in(bar, -90.0, 0.15)
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	bar.add_child(row)
@@ -101,6 +115,7 @@ func _build_top_bar() -> void:
 	right.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	right.add_theme_constant_override("separation", 8)
 	root.add_child(right)
+	_slide_in(right, -90.0, 0.25)
 	right.add_child(_small_button("Restart", func() -> void: game.restart_requested.emit()))
 	right.add_child(_small_button("Menu", func() -> void: game.menu_requested.emit()))
 
@@ -136,6 +151,7 @@ func _small_button(text: String, action: Callable) -> Button:
 
 func _build_bottom_panel() -> void:
 	var panel: PanelContainer = PanelContainer.new()
+	_slide_in.call_deferred(panel, 220.0, 0.2)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	panel.custom_minimum_size = Vector2(860, 150)
 	panel.offset_bottom = -14
@@ -196,6 +212,7 @@ func _build_overlay() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_overlay.add_child(center)
 	var panel: PanelContainer = PanelContainer.new()
+	_overlay_panel = panel
 	panel.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(48, 36)))
 	center.add_child(panel)
 	var col: VBoxContainer = VBoxContainer.new()
@@ -481,6 +498,16 @@ func show_result(result: String, stats: Dictionary) -> void:
 	_overlay.modulate.a = 0.0
 	var tw: Tween = _overlay.create_tween()
 	tw.tween_property(_overlay, "modulate:a", 1.0, 0.35)
+	# The dialog pops in, and its title settles from a little larger.
+	_overlay_panel.pivot_offset = _overlay_panel.size / 2.0
+	_overlay_panel.scale = Vector2(0.82, 0.82)
+	var pop: Tween = _overlay_panel.create_tween()
+	pop.tween_property(_overlay_panel, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_overlay_title.pivot_offset = _overlay_title.size / 2.0
+	_overlay_title.scale = Vector2(1.35, 1.35)
+	var ttl: Tween = _overlay_title.create_tween()
+	ttl.tween_interval(0.12)
+	ttl.tween_property(_overlay_title, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
 func is_overlay_showing() -> bool:

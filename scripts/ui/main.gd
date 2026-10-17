@@ -8,10 +8,30 @@ var game: Game
 ## The menu lives in its own CanvasLayer so it is laid out against the screen.
 var _menu_layer: CanvasLayer
 var _settings: Dictionary = {}
+## A dark sheet that fades out after each screen change (drawing only).
+var _fade: ColorRect
 
 
 func _ready() -> void:
+	# Kenney CC0 cursors: a gold sword, and a gauntlet over buttons.
+	Input.set_custom_mouse_cursor(UiTheme.tex("cursorSword_gold"), Input.CURSOR_ARROW, Vector2(2, 2))
+	Input.set_custom_mouse_cursor(UiTheme.tex("cursorGauntlet_bronze"), Input.CURSOR_POINTING_HAND, Vector2(6, 2))
+	var layer: CanvasLayer = CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	_fade = ColorRect.new()
+	_fade.color = Color(0.06, 0.04, 0.02)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(_fade)
 	show_menu()
+
+
+## Fades in from dark, so screen changes are not hard cuts.
+func _fade_in() -> void:
+	_fade.modulate.a = 1.0
+	var tw: Tween = _fade.create_tween()
+	tw.tween_property(_fade, "modulate:a", 0.0, 0.55).set_trans(Tween.TRANS_SINE)
 
 
 func is_menu_showing() -> bool:
@@ -26,6 +46,7 @@ func show_menu() -> void:
 		menu = MainMenu.new()
 		menu.start_requested.connect(start_match)
 		_menu_layer.add_child(menu)
+		_fade_in()
 
 
 func start_match(settings: Dictionary) -> void:
@@ -41,6 +62,7 @@ func start_match(settings: Dictionary) -> void:
 	game.restart_requested.connect(restart)
 	game.menu_requested.connect(back_to_menu)
 	add_child(game)
+	_fade_in()
 
 
 func restart() -> void:

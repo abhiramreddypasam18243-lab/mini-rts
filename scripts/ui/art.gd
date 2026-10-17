@@ -45,18 +45,27 @@ static func unit_radius(kind: String) -> float:
 
 
 ## A unit standing at `pos` (its feet): a team-coloured ring on the ground,
-## a soft shadow, then the sprite. `flash` tints it red when hit.
+## a soft shadow, then the sprite. `flash` tints it red when hit. `pose`
+## animates it (all optional): flip (face left), lift (hop height, px),
+## tilt (radians, about the feet), sx / sy (squash and stretch), ring (bool).
 static func unit(ci: CanvasItem, pos: Vector2, kind: String, faction: String, scale: float = 1.0,
-		alpha: float = 1.0, flash: float = 0.0) -> void:
+		alpha: float = 1.0, flash: float = 0.0, pose: Dictionary = {}) -> void:
 	var r: float = unit_radius(kind) * scale
-	ci.draw_set_transform(pos + Vector2(0, 3 * scale), 0.0, Vector2(1.0, 0.45))
+	var lift: float = pose.get("lift", 0.0)
+	var shadow_k: float = 1.0 - clampf(lift / 14.0, 0.0, 0.35)
+	ci.draw_set_transform(pos + Vector2(0, 3 * scale), 0.0, Vector2(shadow_k, 0.45 * shadow_k))
 	ci.draw_circle(Vector2.ZERO, r + 2.0, Color(0, 0, 0, 0.32 * alpha), true, -1.0, true)
-	ci.draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, Color(Palette.TEAM[faction], 0.9 * alpha), 3.0 * scale, true)
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if pose.get("ring", true):
+		ci.draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, Color(Palette.TEAM[faction], 0.9 * alpha), 3.0 * scale, true)
 	var size: float = UNIT_SIZE * scale
-	var rect: Rect2 = Rect2(pos.x - size / 2.0, pos.y + 4 * scale - size * FEET, size, size)
+	var flip: float = -1.0 if pose.get("flip", false) else 1.0
+	# The sprite is drawn about the feet so tilt and squash pivot there.
+	ci.draw_set_transform(pos + Vector2(0, 4 * scale - lift), pose.get("tilt", 0.0),
+		Vector2(flip * pose.get("sx", 1.0), pose.get("sy", 1.0)))
+	var rect: Rect2 = Rect2(-size / 2.0, -size * FEET, size, size)
 	var tint: Color = Color(1, 1 - 0.55 * flash, 1 - 0.55 * flash, alpha)
 	ci.draw_texture_rect(tex(UNIT_SPRITES[kind][faction]), rect, false, tint)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## Just the sprite, centred in a box (HUD icons and portraits).
@@ -172,7 +181,11 @@ static func node(ci: CanvasItem, c: Vector2, kind: String, fullness: float, t: f
 			var sp: Vector3 = spots[i]
 			var sz: float = cell * 1.25 * sp.z
 			var foot: Vector2 = c + Vector2(sp.x, sp.y)
-			ci.draw_texture_rect(tex("tree_pine"), Rect2(foot - Vector2(sz * 0.5, sz * 0.84), Vector2(sz, sz)), false, Color(1, 1, 1, alpha))
+			# Sway in the wind: shear the tree about its foot.
+			var sway: float = sin(t * 1.6 + foot.x * 0.045 + foot.y * 0.031) * 0.05
+			ci.draw_set_transform_matrix(Transform2D(Vector2(1, 0), Vector2(sway, 1), foot))
+			ci.draw_texture_rect(tex("tree_pine"), Rect2(Vector2(-sz * 0.5, -sz * 0.84), Vector2(sz, sz)), false, Color(1, 1, 1, alpha))
+		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	else:
 		var size: float = cell * (1.6 if fullness > 0.4 else 1.25)
 		ci.draw_texture_rect(tex("gold_ore" if fullness > 0.4 else "gold_ore_small"),

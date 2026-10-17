@@ -2,13 +2,19 @@
 ## (presentation layer; reads the simulation, never changes it):
 ## remembered resource nodes, own and visible buildings, ghosts of enemy
 ## buildings in fog, own and visible units (sorted by height so lower ones
-## overlap upper ones), and short combat effects.
+## overlap upper ones). Units are animated from what they are doing: a
+## hop while walking, chopping while gathering, hammering while building, a
+## lunge or cast when they attack, and slow breathing when idle. Rubble and
+## fallen units from Effects are drawn under everything.
 class_name WorldLayer
 extends Node2D
 
 const C: float = Consts.PIXELS_PER_CELL
 
 var game: Game
+## Per unit: walk-cycle phase and last drawn feet position (animation only).
+var _walk: Dictionary = {}
+var _last: Dictionary = {}
 
 
 func _draw() -> void:
@@ -18,6 +24,7 @@ func _draw() -> void:
 	var f: String = game.faction
 	var t: float = game.time
 	var mem: Dictionary = sim.fog.memory[f]
+	game.effects.draw_ground(self)
 
 	# Resource nodes, as the player remembers them (all of them when spectating).
 	var nodes: Dictionary = mem
@@ -74,8 +81,6 @@ func _draw() -> void:
 	for e: Entity in shown:
 		_draw_unit(e, sim, spread.get(e.id, Vector2.ZERO))
 
-	_draw_effects()
-
 
 ## Units may share a cell (D-04). Tokens standing on exactly the same spot
 ## are fanned out a little so each one can be seen (drawing only).
@@ -99,52 +104,80 @@ func _spread(units: Array[Entity]) -> Dictionary:
 func _draw_unit(e: Entity, sim: Simulation, offset: Vector2 = Vector2.ZERO) -> void:
 	# The unit's position is its cell centre; its feet are drawn a little below.
 	var feet: Vector2 = game.draw_pos(e) + offset + Vector2(0, 8)
+	var pose: Dictionary = _pose(e, feet)
+	var body: Vector2 = feet + pose.get("shift", Vector2.ZERO)
 	var r: float = Art.unit_radius(e.kind)
 	var selected: bool = game.selection.selected.has(e.id)
 	var inspected: bool = game.selection.inspected == e.id
 	if selected or inspected or e.id == game.hover_id:
-		var pulse: float = 0.8 + 0.2 * sin(game.time * 5.0)
-		var col: Color = Color(1, 0.95, 0.6, pulse) if selected else Color(1, 1, 1, 0.55)
-		draw_set_transform(feet + Vector2(0, 3), 0.0, Vector2(1.0, 0.5))
-		draw_arc(Vector2.ZERO, r + 6.0, 0.0, TAU, 40, Color(0, 0, 0, 0.35), 4.5, true)
-		draw_arc(Vector2.ZERO, r + 6.0, 0.0, TAU, 40, col, 2.5, true)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	Art.unit(self, feet, e.kind, e.faction, 1.0, 1.0, game.flash(e.id))
-	var head: float = feet.y - 30.0
+		_selection_ring(feet, r + 6.0, selected)
+	Art.unit(self, body, e.kind, e.faction, 1.0, 1.0, game.flash(e.id), pose)
+	var head: float = feet.y - 32.0
 	if e.carry > 0:
-		var cp: Vector2 = Vector2(feet.x + 9, head + 4)
-		draw_circle(cp, 5.0, Color(0.2, 0.13, 0.07), true, -1.0, true)
-		draw_circle(cp, 3.8, Palette.resource(e.carry_type), true, -1.0, true)
+		var cp: Vector2 = Vector2(body.x + (-10.0 if pose.flip else 10.0), head + 8 - pose.get("lift", 0.0))
+		Art.icon(self, cp, e.carry_type, 0.36)
 	var max_hp: int = sim.stats[e.kind].health
 	if e.hp < max_hp or selected:
 		var ratio: float = float(e.hp) / max_hp
 		Art.bar(self, Rect2(feet.x - 12, head - 6, 24, 4), ratio, Palette.health(ratio))
 
 
-func _draw_effects() -> void:
-	var font: Font = UiTheme.font("bold")
-	for fx: Dictionary in game.fx:
-		var age: float = game.time - fx.t0
-		var k: float = clampf(age / fx.life, 0.0, 1.0)
-		match fx.type:
-			"tracer":
-				var a: Vector2 = fx.a
-				var b: Vector2 = fx.b
-				var head: Vector2 = a.lerp(b, minf(k * 1.4, 1.0))
-				var tail: Vector2 = a.lerp(b, maxf(k * 1.4 - 0.35, 0.0))
-				draw_line(tail, head, Color(Palette.TEAM_LIGHT[fx.faction], 1.0 - k), 2.0, true)
-			"slash":
-				var c: Vector2 = fx.b
-				draw_arc(c, 9.0 + 6.0 * k, -2.4, -0.6, 10, Color(1, 1, 1, 0.9 * (1.0 - k)), 2.2, true)
-			"puff":
-				draw_arc(fx.a, 6.0 + 22.0 * k, 0.0, TAU, 32, Color(fx.color, 0.7 * (1.0 - k)), 3.0 * (1.0 - k) + 0.5, true)
-				draw_circle(fx.a, 10.0 * (1.0 - k), Color(fx.color, 0.25 * (1.0 - k)), true, -1.0, true)
-			"float":
-				var p: Vector2 = fx.a + Vector2(0, -24.0 * k)
-				var s: String = fx.text
-				var w: float = font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-				draw_string_outline(font, p - Vector2(w / 2.0, 0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.7 * (1.0 - k)))
-				draw_string(font, p - Vector2(w / 2.0, 0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(fx.color, 1.0 - k))
+## How to draw a unit this frame, from what it is doing.
+func _pose(e: Entity, feet: Vector2) -> Dictionary:
+	var t: float = game.time
+	var last: Vector2 = _last.get(e.id, feet)
+	_last[e.id] = feet
+	var moved: Vector2 = feet - last
+	var flip: bool = game.facing.get(e.id, e.faction == "ai")
+	if absf(moved.x) > 0.05:
+		flip = moved.x < 0.0
+	var info: Dictionary = game.attack_info.get(e.id, {})
+	var since: float = t - info.t if not info.is_empty() else 99.0
+	if since < 0.6 and absf(info.dir.x) > 0.1:
+		flip = info.dir.x < 0.0
+	game.facing[e.id] = flip
+	var sgn: float = -1.0 if flip else 1.0
+	var pose: Dictionary = {"flip": flip}
+	if moved.length() > 0.02:
+		var ph: float = _walk.get(e.id, float(e.id)) + moved.length() * 0.3
+		_walk[e.id] = ph
+		var step: float = absf(sin(ph))
+		pose.lift = step * 3.5
+		pose.tilt = sin(ph) * 0.07
+		pose.sy = 0.96 + 0.08 * step
+		pose.sx = 1.04 - 0.06 * step
+	elif e.phase == "gathering" or e.phase == "building":
+		# Chop or hammer: wind up, then strike.
+		var k: float = fmod(t * (2.2 if e.phase == "gathering" else 3.0) + e.id * 0.37, 1.0)
+		var swing: float = sin(k * TAU) if k < 0.5 else sin(k * TAU) * 0.4
+		pose.tilt = -0.22 * swing * sgn
+		pose.sy = 1.0 - 0.04 * maxf(-swing, 0.0)
+	else:
+		var b: float = sin(t * 2.3 + e.id * 1.7)
+		pose.sy = 1.0 + 0.022 * b
+		pose.sx = 1.0 - 0.012 * b
+	if since < 0.32:
+		var a: float = sin(since / 0.32 * PI)
+		if e.kind == "melee":
+			pose.shift = info.dir * 7.0 * a
+			pose.tilt = 0.32 * a * sgn
+		else:
+			pose.lift = 3.0 * a
+			pose.sy = 1.0 + 0.08 * a
+			pose.shift = -info.dir * 2.0 * a
+	return pose
+
+
+## A gold (selected) or white (hovered) dashed ring that slowly turns.
+func _selection_ring(feet: Vector2, r: float, selected: bool) -> void:
+	var col: Color = Color(1.0, 0.86, 0.35, 0.95) if selected else Color(1, 1, 1, 0.6)
+	draw_set_transform(feet + Vector2(0, 3), 0.0, Vector2(1.0, 0.5))
+	draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, Color(0, 0, 0, 0.3), 5.0, true)
+	var spin: float = game.time * 1.4
+	for i: int in 6:
+		var a0: float = spin + i * TAU / 6.0
+		draw_arc(Vector2.ZERO, r, a0, a0 + TAU / 6.0 * 0.62, 8, col, 2.6, true)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _cell_center(c: Vector2i) -> Vector2:
