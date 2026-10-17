@@ -1,6 +1,6 @@
 # Strategy Experiment: Aggressive vs Balanced vs EconomyFirst
 
-*SPEC section 16; AC-71 and AC-72. Run on 2026-10-17 with Godot 4.7.2, headless.*
+*SPEC section 16; AC-71 and AC-72. Run on 2026-10-17 with Godot 4.7.2, headless; re-run the same day under the spacing rules of decision D-42 (units no longer stop on one cell). The numbers below are from the re-run; the earlier run gave the same ranking.*
 
 ## Set-up
 
@@ -22,21 +22,21 @@ The informative quantity is how often each **start position** wins, counting eac
 
 | | Seeds |
 | --- | --- |
-| Player start won | 44 |
-| AI start won | 48 |
-| Timeout (no winner in 30 minutes) | 8 |
-| **Player-start win rate** | **44 / 92 = 0.478, 95 % Wilson CI [0.379, 0.579]** |
+| Player start won | 45 |
+| AI start won | 51 |
+| Timeout (no winner in 30 minutes) | 4 |
+| **Player-start win rate** | **45 / 96 = 0.469, 95 % Wilson CI [0.372, 0.568]** |
 
-The interval contains 0.5: **no start-position bias was detected**, so the comparisons below can be trusted. The other three pairings agree: in each, the player start won 47–50 % of decisive matches, every interval containing 0.5.
+The interval contains 0.5: **no start-position bias was detected**, so the comparisons below can be trusted. In the other pairings the player start won 46.5 % (Aggressive vs Balanced) and 50.0 % (Aggressive vs EconomyFirst) of decisive matches, both intervals containing 0.5; in **EconomyFirst vs Balanced it won 41.9 %, interval [0.351, 0.490], which does not contain 0.5** (about p = 0.025 for that one pairing). With four such checks, one result this low is not unusual by chance (it would not pass a Bonferroni correction, threshold 0.0125), so it is reported, not treated as proven bias. A possible cause worth testing: the spacing rules of D-42 break ties in row-major order, which is not mirror-symmetric between the two start corners.
 
 ## Results (AC-72)
 
 | Pairing (A vs B) | A wins / B wins | Timeouts | A win rate, 95 % CI | Paired seeds: A both / split / B both | Mean duration | Mean first attack | Mean resources A / B | Mean units lost A / B |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Aggressive vs Balanced | 168 / 28 | 4 | **0.857** [0.801, 0.899] | 72 / 26 / 2 | 208 s | 52 s | 1526 / 1596 | 6.9 / 20.7 |
-| EconomyFirst vs Balanced | 44 / 144 | 12 | **0.234** [0.179, 0.300] | 8 / 37 / 55 | 323 s | 71 s | 2099 / 2106 | 25.9 / 12.5 |
-| Aggressive vs EconomyFirst | 190 / 7 | 3 | **0.964** [0.928, 0.983] | 91 / 8 / 1 | 214 s | 52 s | 1607 / 1774 | 6.9 / 28.5 |
-| *Balanced vs Balanced* | *92 / 92* | *16* | *0.500 (by construction)* | *0 / 100 / 0* | *348 s* | *64 s* | *2013 / 2013* | *18.6 / 18.6* |
+| Aggressive vs Balanced | 182 / 16 | 2 | **0.919** [0.873, 0.950] | 83 / 16 / 1 | 183 s | 52 s | 1481 / 1530 | 5.4 / 20.9 |
+| EconomyFirst vs Balanced | 49 / 142 | 9 | **0.257** [0.200, 0.323] | 7 / 43 / 50 | 304 s | 70 s | 2108 / 2091 | 25.7 / 12.0 |
+| Aggressive vs EconomyFirst | 194 / 4 | 2 | **0.980** [0.949, 0.992] | 95 / 5 / 0 | 204 s | 52 s | 1602 / 1770 | 6.9 / 28.5 |
+| *Balanced vs Balanced* | *96 / 96* | *8* | *0.500 (by construction)* | *0 / 100 / 0* | *298 s* | *65 s* | *2024 / 2024* | *18.4 / 18.4* |
 
 No match ended in a draw. Every sign test on the paired seeds gives p < 0.0001.
 
@@ -44,9 +44,10 @@ No match ended in a draw. Every sign test on the paired seeds gives p < 0.0001.
 
 ## Interpretation
 
-- **Early pressure wins here.** Aggressive attacks with 3 soldiers and makes its first attack about 52 s in; the other policies are still building their economy. It wins *while losing far fewer units* (6.9 against 20.7 and 28.5). The likely reason (not measured directly) is that its attacks arrive before the defender has an army, so the defender's soldiers join the fight one by one as they are trained.
-- **Economy did not convert into strength.** EconomyFirst gathers as much as or more than its opponents (2,099 vs 2,106 against Balanced; 1,774 vs 1,607 against Aggressive) but waits for 10 soldiers before attacking, and loses most of its army defending in the meantime. Gathering more did not help because the matches end in 3.5–5.5 minutes, before a larger economy pays off.
-- **Matches are short and decisive.** Mean durations are 3.5–6 minutes of game time; only 19 of the 600 comparison matches reached the 30-minute limit.
+- **Early pressure wins here.** Aggressive attacks with 3 soldiers and makes its first attack about 52 s in; the other policies are still building their economy. It wins *while losing far fewer units* (5.4 against 20.9 and 6.9 against 28.5). The likely reason (not measured directly) is that its attacks arrive before the defender has an army, so the defender's soldiers join the fight one by one as they are trained.
+- **Economy did not convert into strength.** EconomyFirst gathers as much as or more than its opponents (2,108 vs 2,091 against Balanced; 1,770 vs 1,602 against Aggressive) but waits for 10 soldiers before attacking, and loses most of its army defending in the meantime. Gathering more did not help because the matches end in 3.5–5.5 minutes, before a larger economy pays off.
+- **Matches are short and decisive.** Mean durations are 3–5 minutes of game time; only 13 of the 600 comparison matches reached the 30-minute limit.
+- **Spacing (D-42) sharpened the result.** With soldiers fighting from separate cells, Aggressive's win rates rose (0.857 → 0.919 against Balanced, 0.964 → 0.980 against EconomyFirst); the ranking did not change.
 
 ## What the experiment cannot show
 

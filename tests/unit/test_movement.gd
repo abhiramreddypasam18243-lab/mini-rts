@@ -19,18 +19,77 @@ func test_ac_25_worker_15_steps_in_100_ticks_melee_in_120() -> void:
 		assert_eq(sim.entity(id).order_type, "idle")
 
 
-func test_ac_27_two_units_share_a_destination_cell() -> void:
+func test_ac_27_two_units_sent_to_one_cell_stand_side_by_side() -> void:
+	# AC-27 as changed by D-42: both arrive, in different cells. The unit
+	# nearer the goal (a: 4² + 2² = 20; b: 4² + 2² = 20, tie, lower id) takes
+	# the goal (8, 6); b takes the ring-1 cell nearest to itself, (9, 7)
+	# (3² + 1² = 10; next is (9, 6) at 3² + 2² = 13).
 	var sim: Simulation = TestMaps.sim(TestMaps.open(20, 12))
 	var a: int = sim.spawn_unit("worker", "player", Vector2i(4, 4))
 	var b: int = sim.spawn_unit("ranged", "player", Vector2i(12, 8))
 	assert_eq(sim.submit(TestMaps.move("player", [a, b], Vector2i(8, 6))), "ok")
 	for t: int in 200:
 		sim.step()
-	var goal: Vector2i = MapGrid.cell_center(Vector2i(8, 6))
-	assert_eq(sim.entity(a).pos, goal)
-	assert_eq(sim.entity(b).pos, goal)
+	assert_eq(sim.entity(a).pos, MapGrid.cell_center(Vector2i(8, 6)))
+	assert_eq(sim.entity(b).pos, MapGrid.cell_center(Vector2i(9, 7)))
 	assert_eq(sim.entity(a).order_type, "idle")
 	assert_eq(sim.entity(b).order_type, "idle")
+
+
+func test_d42_group_of_nine_fills_the_goal_and_its_ring() -> void:
+	var sim: Simulation = TestMaps.sim(TestMaps.open(24, 16))
+	var ids: Array[int] = []
+	for i: int in 9:
+		# Workers: soldiers would leave to attack the enemy HQ of the test map.
+		ids.append(sim.spawn_unit("worker", "player", Vector2i(5 + i % 3, 5 + i / 3)))
+	assert_eq(sim.submit(TestMaps.move("player", ids, Vector2i(14, 9))), "ok")
+	for t: int in 400:
+		sim.step()
+	var cells: Dictionary = {}
+	for id: int in ids:
+		var c: Vector2i = sim.entity(id).unit_cell()
+		cells[c] = true
+		assert_lte(maxi(absi(c.x - 14), absi(c.y - 9)), 1, "within one ring of the goal")
+	assert_eq(cells.size(), 9, "nine units, nine different cells")
+
+
+func test_d42_units_on_one_cell_step_apart() -> void:
+	var sim: Simulation = TestMaps.sim(TestMaps.open(16, 10))
+	var ids: Array[int] = []
+	for i: int in 3:
+		ids.append(sim.spawn_unit("worker", "player", Vector2i(4, 5)))
+	# Within two step-aside rounds (Spacing.INTERVAL ticks each) plus the
+	# walk of one cell (1,000 / 150 = 7 ticks), all three stand apart.
+	for t: int in 2 * Spacing.INTERVAL + 10:
+		sim.step()
+	var cells: Dictionary = {}
+	for id: int in ids:
+		var e: Entity = sim.entity(id)
+		cells[e.unit_cell()] = true
+		assert_eq(e.pos, MapGrid.cell_center(e.unit_cell()), "standing on a cell centre")
+	assert_eq(cells.size(), 3)
+	assert_eq(sim.entity(ids[0]).unit_cell(), Vector2i(4, 5), "the lowest id keeps the cell")
+
+
+func test_d42_melee_attackers_surround_their_target() -> void:
+	var sim: Simulation = TestMaps.sim(TestMaps.open(20, 12))
+	var target: int = sim.spawn_unit("melee", "ai", Vector2i(10, 6))
+	var attackers: Array[int] = []
+	for i: int in 3:
+		attackers.append(sim.spawn_unit("melee", "player", Vector2i(5, 5 + i)))
+	sim.update_fog()
+	assert_eq(sim.submit(Commands.attack("player", attackers, target)), "ok")
+	for t: int in 120:
+		sim.step()
+		if sim.entity(target) == null:
+			break
+	var cells: Dictionary = {}
+	for id: int in attackers:
+		var e: Entity = sim.entity(id)
+		var c: Vector2i = e.unit_cell()
+		assert_ne(c, Vector2i(10, 6), "never on the target's cell")
+		cells[c] = true
+	assert_eq(cells.size(), 3, "three attackers, three different cells")
 
 
 func test_ac_28_unreachable_destination_one_message() -> void:

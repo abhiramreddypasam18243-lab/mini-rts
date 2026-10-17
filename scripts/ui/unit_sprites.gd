@@ -17,9 +17,11 @@ const UP: int = 0
 const LEFT: int = 1
 const DOWN: int = 2
 const RIGHT: int = 3
-## Drawn so one sprite pixel is one screen pixel at the game's zoom (crisp
-## pixel art): a character is about 50 screen pixels tall.
-const SCALE: float = 1.0 / 1.35
+## Drawn so one sprite pixel is one screen pixel at the game's zoom
+## (Game.ZOOM, 1.6; crisp pixel art): a character is about 50 screen pixels
+## tall, slightly less than one cell, so soldiers in neighbouring cells do
+## not overlap.
+const SCALE: float = 1.0 / 1.6
 ## Where the feet are in a 64-px frame.
 const FEET: Vector2 = Vector2(32, 59)
 

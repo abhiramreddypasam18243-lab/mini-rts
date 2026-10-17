@@ -19,7 +19,7 @@ const DRAG_THRESHOLD: float = 6.0
 const TOP_PAD: float = 70.0
 const BOTTOM_PAD: float = 190.0
 ## The world is drawn zoomed in so the sprites read well (screen pixels per world pixel).
-const ZOOM: float = 1.35
+const ZOOM: float = 1.6
 
 var settings: Dictionary = {}
 var faction: String = "player"

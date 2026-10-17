@@ -57,6 +57,10 @@ var cooldown: int = 0
 ## True if the attack order was auto-acquired (dropped when the target
 ## leaves the soldier's vision), false if the player or AI ordered it.
 var auto: bool = false
+## True while an attacking soldier steps aside to a free cell (D-42).
+var stepping: bool = false
+## The cell the unit target stood on when the attack path was planned.
+var target_cell: Vector2i = Vector2i(-1, -1)
 
 # --- buildings ------------------------------------------------------------
 var complete: bool = true
@@ -109,6 +113,8 @@ func set_idle() -> void:
 	timer = 0
 	dropoff_id = 0
 	auto = false
+	stepping = false
+	target_cell = Vector2i(-1, -1)
 
 
 ## The smallest Chebyshev distance from `c` to this entity's footprint:
@@ -134,6 +140,9 @@ func add_to_hash(h: StateHasher) -> void:
 	h.add_int(order_cell.x)
 	h.add_int(order_cell.y)
 	h.add_int(path_i)
+	h.add_int(1 if stepping else 0)
+	h.add_int(target_cell.x)
+	h.add_int(target_cell.y)
 	h.add_int(path.size())
 	for c: Vector2i in path:
 		h.add_int(c.x)

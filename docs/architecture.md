@@ -51,6 +51,7 @@ flowchart TB
 | Unit and building stats (AC-05) | `unit_stats.gd` + `data/units.json` | `UnitStats.load_file()` |
 | A* pathfinding, nearest-goal BFS (5.2, AC-12 to AC-18) | `pathfinder.gd` | `find_path()`, `find_path_to_any()` |
 | Movement along paths, re-planning (AC-19, AC-25) | `movement.gd`, `simulation.gd` | `Movement.advance()`, `_replan_blocked_paths()` |
+| Spacing: formations, melee slots, stepping apart (D-42, AC-27) | `spacing.gd`, `simulation.gd` | `Spacing.formation()`, `Spacing.melee_slot()`, `Spacing.step_aside()` |
 | The one resource transaction, the ledger (5.3, AC-32, AC-33) | `resource_manager.gd` | `spend()`, `refund()`, `balanced()` |
 | Harvesting, drop-off, depletion (5.3, AC-29 to AC-31) | `simulation.gd` | `_tick_harvest()`, `_start_dropoff()`, `_find_replacement()` |
 | Placement, construction (5.4, AC-36 to AC-38) | `simulation.gd` | `placement_check()`, `_cmd_build()`, `_tick_buildings()` |

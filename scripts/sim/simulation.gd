@@ -134,6 +134,8 @@ func step() -> void:
 			_tick_build(e)
 		elif e.order_type == "attack":
 			_tick_attack(e)
+	if tick % Spacing.INTERVAL == 0:
+		Spacing.step_aside(self)
 	_tick_buildings()
 	_remove_dead()
 	_check_match_end()
@@ -447,12 +449,17 @@ func _in_vision(e: Entity, t: Entity) -> bool:
 ## In attack range: distance from the attacker's position to the nearest cell
 ## centre of the target's footprint, compared as squared integers.
 func _in_range(a: Entity, t: Entity) -> bool:
+	return in_range_at(a, t, a.pos)
+
+
+## As _in_range, with the attacker standing at `p` (milli-cells).
+func in_range_at(a: Entity, t: Entity, p: Vector2i) -> bool:
 	var r: int = stats[a.kind].range
 	var cells: Array[Vector2i] = t.footprint()
 	if t.is_unit():
 		cells = [t.unit_cell()]
 	for c: Vector2i in cells:
-		var d: Vector2i = MapGrid.cell_center(c) - a.pos
+		var d: Vector2i = MapGrid.cell_center(c) - p
 		if d.x * d.x + d.y * d.y <= r * r:
 			return true
 	return false
@@ -500,17 +507,41 @@ func _tick_attack(e: Entity) -> void:
 	if t == null:
 		e.set_idle()
 		return
+	if e.stepping:
+		# Stepping aside (D-42): finish the step, still attacking meanwhile.
+		if Movement.advance(e, stats[e.kind].speed):
+			e.stepping = false
+			e.path.clear()
+			e.path_i = 0
+		return
 	if _in_range(e, t):
 		e.path.clear()
 		e.path_i = 0
 		return
-	var goal: Vector2i = t.unit_cell() if t.is_unit() else t.cell
-	if e.path.is_empty() or e.path_i >= e.path.size() or e.order_cell != goal:
+	# A melee soldier heads for a free cell next to a unit target (D-42);
+	# it re-plans when the target moves to another cell.
+	var tc: Vector2i = t.unit_cell() if t.is_unit() else t.cell
+	if e.path.is_empty() or e.path_i >= e.path.size() or e.target_cell != tc:
 		var ok: bool
+		var goal: Vector2i = tc
 		if t.is_unit():
-			ok = _set_path(e, goal)
+			if e.kind == "melee":
+				goal = Spacing.melee_slot(self, e, t)
+			ok = _set_path(e, goal) or (goal != tc and _set_path(e, tc))
 		else:
-			var r: Dictionary = Pathfinder.find_path_to_any(map.width, map.height, solid, e.unit_cell(), _touching_mask([t], solid))
+			# A building: walk to a touching cell no other unit holds, if any.
+			var mask: PackedByteArray = _touching_mask([t], solid)
+			var free_mask: PackedByteArray = mask.duplicate()
+			var held: Dictionary = Spacing.held_cells(self, {e.id: true})
+			var any_free: bool = false
+			for c: Vector2i in held:
+				if map.in_bounds(c):
+					free_mask[c.y * map.width + c.x] = 0
+			for v: int in free_mask:
+				if v == 1:
+					any_free = true
+					break
+			var r: Dictionary = Pathfinder.find_path_to_any(map.width, map.height, solid, e.unit_cell(), free_mask if any_free else mask)
 			ok = not (r.path as Array).is_empty()
 			if ok:
 				e.path = r.path
@@ -520,6 +551,7 @@ func _tick_attack(e: Entity) -> void:
 			_message(e.faction, "no_path", e.id)
 			return
 		e.order_cell = goal
+		e.target_cell = tc
 	Movement.advance(e, stats[e.kind].speed)
 
 
@@ -738,10 +770,15 @@ func _cmd_move(ids: Array[int], raw_cell: Variant) -> String:
 	for id: int in ids:
 		if not (entities[id] as Entity).is_unit():
 			return "invalid_target"
+	# D-42: the group spreads over distinct cells around the goal.
+	var units: Array[Entity] = []
+	for id: int in ids:
+		units.append(entities[id])
+	var slots: Dictionary = Spacing.formation(self, units, cell)
 	var any_ok: bool = false
 	for id: int in ids:
 		var e: Entity = entities[id]
-		if _set_path(e, cell):
+		if _set_path(e, slots[id]) or (slots[id] != cell and _set_path(e, cell)):
 			e.order_type = "move"
 			e.order_target = 0
 			e.order_cell = cell

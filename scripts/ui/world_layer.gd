@@ -27,6 +27,8 @@ const SHOOT_TIME: float = 0.42
 ## Units closer than this (world px) push apart on screen, at most MAX_OFF.
 const PERSONAL: float = 17.0
 const MAX_OFF: float = 11.0
+## How far a melee fighter is drawn back from its enemy (world px).
+const STANCE: float = 7.0
 
 
 func _draw() -> void:
@@ -103,7 +105,23 @@ func _draw_world() -> void:
 ## Where a unit's feet are drawn: its position (the cell centre) a little
 ## lower, plus its separation offset.
 func _feet(e: Entity) -> Vector2:
-	return game.draw_pos(e) + _off.get(e.id, Vector2.ZERO) + Vector2(0, 8)
+	return game.draw_pos(e) + _off.get(e.id, Vector2.ZERO) + _stance(e) + Vector2(0, 8)
+
+
+## A soldier fighting in melee stands back a little from its enemy (drawing
+## only): the simulation puts melee fighters in neighbouring cells (D-42),
+## and the sprites are a bit taller than a cell, so this keeps a visible gap
+## between the two lines.
+func _stance(e: Entity) -> Vector2:
+	if e.order_type != "attack" or e.kind != "melee":
+		return Vector2.ZERO
+	var info: Dictionary = game.attack_info.get(e.id, {})
+	if info.is_empty():
+		return Vector2.ZERO
+	var since: float = game.time - float(info.t)
+	# Eased in over 0.15 s after a blow, out over the last 0.5 s.
+	var w: float = minf(since / 0.15, 1.0) if since < 2.0 else clampf((2.5 - since) / 0.5, 0.0, 1.0)
+	return -(info.dir as Vector2) * STANCE * w
 
 
 ## Units may share a cell (D-04). On screen, units closer than PERSONAL push
@@ -151,7 +169,7 @@ func _draw_unit(e: Entity, sim: Simulation) -> void:
 	if selected or inspected or e.id == game.hover_id:
 		_selection_ring(feet, r + 5.0, selected)
 	Art.unit(self, feet, e.kind, e.faction, a.anim, a.dir, a.frame, 1.0, game.flash(e.id))
-	var head: float = feet.y - 40.0
+	var head: float = feet.y - 35.0
 	if e.carry > 0:
 		Art.icon(self, Vector2(feet.x + 10.0, head + 8.0), e.carry_type, 0.36)
 	var max_hp: int = sim.stats[e.kind].health

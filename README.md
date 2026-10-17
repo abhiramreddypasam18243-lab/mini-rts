@@ -208,11 +208,11 @@ Policies are the same machine with different numbers:
 
 | Pairing (A vs B) | A win rate (decisive matches) | 95 % Wilson interval |
 | --- | --- | --- |
-| Aggressive vs Balanced | 0.857 | [0.801, 0.899] |
-| EconomyFirst vs Balanced | 0.234 | [0.179, 0.300] |
-| Aggressive vs EconomyFirst | 0.964 | [0.928, 0.983] |
+| Aggressive vs Balanced | 0.919 | [0.873, 0.950] |
+| EconomyFirst vs Balanced | 0.257 | [0.200, 0.323] |
+| Aggressive vs EconomyFirst | 0.980 | [0.949, 0.992] |
 
-**Under these rules and maps: Aggressive > Balanced > EconomyFirst.** The start positions are fair: in Balanced vs Balanced the player start won 44 of 92 decided seeds (interval [0.379, 0.579] contains 0.5). This does not show that rushing is better in general: other maps, stats or a human opponent could change the order.
+**Under these rules and maps: Aggressive > Balanced > EconomyFirst** (re-run under the spacing rules of D-42). The start positions pass the fairness check: in Balanced vs Balanced the player start won 45 of 96 decided seeds (interval [0.372, 0.568] contains 0.5); one other pairing showed a mild player-start disadvantage, discussed in the report. This does not show that rushing is better in general: other maps, stats or a human opponent could change the order.
 
 ## Tests
 
@@ -223,7 +223,7 @@ Policies are the same machine with different numbers:
 
 Test names follow the acceptance criteria (for example `test_ac_13_wall_with_gap`). [`docs/test-plan.md`](docs/test-plan.md) lists every acceptance criterion with its test or manual check; [`docs/measurements.md`](docs/measurements.md) has the measured performance numbers.
 
-**Frame rate (AC-77).** A built-in benchmark puts 80 units on the map (40 per side), lets them march and fight with every effect on, and measures 15 seconds: run `MiniRTS.exe -- --bench`, or add `?bench` to the web address. On a laptop with an RTX 4050 the desktop build averaged **85 FPS** (target 60) and the web build in Edge **70 to 73 FPS** (target 30); details in [`docs/playtest.md`](docs/playtest.md).
+**Frame rate (AC-77).** A built-in benchmark puts 80 units on the map (40 per side), lets them march and fight with every effect on, and measures 15 seconds: run `MiniRTS.exe -- --bench`, or add `?bench` to the web address. On a laptop with an RTX 4050 the desktop build averaged **207 FPS** (target 60) and the web build in Edge **66 to 67 FPS** (target 30); details in [`docs/playtest.md`](docs/playtest.md).
 
 ## Deployment
 
@@ -241,7 +241,7 @@ Test names follow the acceptance criteria (for example `test_ac_13_wall_with_gap
 These are deliberate v1 simplifications (SPEC section 2 and the decisions log):
 
 - **Pathfinding ignores fog of war:** units path over the true terrain, also through unexplored ground (decision D-15). Decisions about targets still use only what is seen.
-- **Units share cells:** units do not block or push each other (D-04); tokens on the same spot are just drawn slightly apart.
+- **Units share cells only while walking:** units pass through each other on the way (no blocking, so no traffic jams), but they never stop on the same cell (D-42): a group spreads into formation, knights take free cells around their enemy, and units that end up together step apart.
 - **No line of sight:** vision is a circle; walls do not block it.
 - **Finite resource nodes:** nodes run out and disappear (D-05); a long match can exhaust the map.
 - **Four-way movement only**, at cell centres; no diagonal moves or path smoothing.
