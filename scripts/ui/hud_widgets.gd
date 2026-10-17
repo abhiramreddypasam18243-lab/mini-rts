@@ -44,6 +44,12 @@ class CommandButton extends Button:
 		var c: Vector2 = Vector2(30, size.y / 2.0)
 		if kind == "barracks":
 			draw_texture_rect(Art.tex("barracks"), Rect2(c - Vector2(22, 24), Vector2(44, 44)), false, Color(1, 1, 1, a))
+		elif kind == "attack_move":
+			# Crossed swords.
+			for d: Vector2 in [Vector2(1, 1), Vector2(1, -1)]:
+				draw_line(c - d * 13.0, c + d * 13.0, Color(0.25, 0.16, 0.08, a), 6.0, true)
+				draw_line(c - d * 13.0, c + d * 13.0, Color(0.85, 0.87, 0.9, a), 3.0, true)
+				draw_line(c - d * 13.0 + Vector2(d.y, -d.x) * 5.0, c - d * 13.0 - Vector2(d.y, -d.x) * 5.0, Color(Palette.ACCENT, a), 3.0, true)
 		else:
 			Art.unit_icon(self, c, kind, faction, 36.0, a)
 		var font: Font = UiTheme.font("bold")

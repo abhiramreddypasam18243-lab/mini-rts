@@ -26,10 +26,15 @@ const COMMAND_SUBJECT: Dictionary = {
 	"move": "unit_ids",
 	"harvest": "unit_ids",
 	"attack": "unit_ids",
+	"attack_move": "unit_ids",
 	"build": "worker_id",
 	"train": "building_id",
 	"cancel_train": "building_id",
 }
+## Orders that may be queued with "queue": true (D-44), and how many.
+const QUEUEABLE: Array[String] = ["move", "attack_move", "attack", "harvest"]
+const MAX_ORDERS: int = 8
+const NO_CELL: Vector2i = Vector2i(-1, -1)
 ## Which units each building trains (SPEC 4).
 const TRAINS: Dictionary = {"hq": ["worker"], "barracks": ["melee", "ranged"]}
 ## A replacement node must be within 10 cells of the exhausted one
@@ -119,15 +124,17 @@ func step() -> void:
 	if _solid_changed:
 		_replan_blocked_paths()
 		_solid_changed = false
+	_run_orders()
 	_auto_acquire()
 	_resolve_combat()
 	for id: int in entities.keys():
 		var e: Entity = entities.get(id)
 		if e == null or not e.is_unit():
 			continue
-		if e.order_type == "move":
+		if e.order_type == "move" or e.order_type == "attack_move":
 			if Movement.advance(e, stats[e.kind].speed):
 				e.set_idle()
+				e.am_cell = NO_CELL  # an attack-move that arrived is over
 		elif e.order_type == "harvest":
 			_tick_harvest(e)
 		elif e.order_type == "build":
@@ -417,7 +424,8 @@ func _auto_acquire() -> void:
 			continue
 		if e.order_type == "attack" and e.auto and not _in_vision(e, entity(e.order_target)):
 			e.set_idle()
-		if e.order_type != "idle":
+		# Idle soldiers, and soldiers on an attack-move (D-44), look for enemies.
+		if e.order_type != "idle" and e.order_type != "attack_move":
 			continue
 		var best: Entity = null
 		var best_d: int = 0
@@ -735,9 +743,26 @@ func _apply(cmd: Dictionary) -> String:
 			return "not_owner"
 	if name == "cancel_train" and (not JsonUtil.is_whole(args.get("index")) or int(args.index) < 0):
 		return "invalid_amount"
+	if name in QUEUEABLE and args.get("queue", false) == true:
+		return _queue_order(name, ids, args)
+	var result: String = _dispatch(name, ids, args)
+	# A plain (not queued) order replaces everything the units were going to
+	# do, as D-14 says: their queue is cleared, and an attack-move ends.
+	if result == "ok" and COMMAND_SUBJECT[name] == "unit_ids":
+		for id: int in ids:
+			var e: Entity = entities[id]
+			e.orders.clear()
+			if name != "attack_move":
+				e.am_cell = NO_CELL
+	return result
+
+
+func _dispatch(name: String, ids: Array[int], args: Dictionary) -> String:
 	match name:
 		"move":
 			return _cmd_move(ids, args.get("cell"))
+		"attack_move":
+			return _cmd_attack_move(ids, args.get("cell"))
 		"harvest":
 			return _cmd_harvest(ids, args.get("node_id"))
 		"attack":
@@ -749,6 +774,104 @@ func _apply(cmd: Dictionary) -> String:
 		"cancel_train":
 			return _cmd_cancel_train(entities[ids[0]], int(args.index))
 	return "invalid_target"
+
+
+## Queues an order for later (D-44). It is checked now as far as it can be
+## (a cell, or an existing node / enemy), and fully when it runs; nothing
+## changes if any unit's queue is full.
+func _queue_order(name: String, ids: Array[int], args: Dictionary) -> String:
+	var entry: Dictionary = {"command": name}
+	if name == "move" or name == "attack_move":
+		var cell: Variant = JsonUtil.to_cell(args.get("cell"))
+		if cell == null:
+			return "invalid_target"
+		entry.cell = cell
+	else:
+		var key: String = "target_id" if name == "attack" else "node_id"
+		if not JsonUtil.is_whole(args.get(key)):
+			return "invalid_target"
+		var t: Entity = entity(int(args.get(key)))
+		if t == null:
+			return "unknown_entity"
+		if (name == "harvest" and not t.is_node()) or (name == "attack" and (t.is_node() or t.faction == entities[ids[0]].faction)):
+			return "invalid_target"
+		entry.target = t.id
+	for id: int in ids:
+		if (entities[id] as Entity).orders.size() >= MAX_ORDERS:
+			return "queue_full"
+	for id: int in ids:
+		(entities[id] as Entity).orders.append(entry.duplicate())
+	return "ok"
+
+
+## At the start of a tick, each idle unit takes up its next order: first an
+## interrupted attack-move (it fought something on the way), else the next
+## queued order. An order that cannot run any more (its target died, no
+## path) is dropped and the next one is tried (D-44).
+func _run_orders() -> void:
+	for id: int in entities.keys():
+		var e: Entity = entities.get(id)
+		if e == null or not e.is_unit() or e.order_type != "idle" or e.path_i < e.path.size():
+			continue
+		if e.am_cell != NO_CELL:
+			if _start_attack_move(e, e.am_cell):
+				continue
+			e.am_cell = NO_CELL
+		while not e.orders.is_empty():
+			var o: Dictionary = e.orders.pop_front()
+			var one: Array[int] = [e.id]
+			var r: String
+			match o.command:
+				"move":
+					r = _cmd_move(one, [o.cell.x, o.cell.y])
+				"attack_move":
+					r = _cmd_attack_move(one, [o.cell.x, o.cell.y])
+				"attack":
+					r = _cmd_attack(one, o.target) if entities.has(o.target) else "unknown_entity"
+				"harvest":
+					r = _cmd_harvest(one, o.target) if entities.has(o.target) else "unknown_entity"
+			if r == "ok":
+				break
+
+
+## Attack-move (D-44): like move (with the same formation), but soldiers
+## fight enemies they meet on the way and then carry on; workers just move.
+func _cmd_attack_move(ids: Array[int], raw_cell: Variant) -> String:
+	var cell: Variant = JsonUtil.to_cell(raw_cell)
+	if cell == null:
+		return "invalid_target"
+	for id: int in ids:
+		if not (entities[id] as Entity).is_unit():
+			return "invalid_target"
+	var units: Array[Entity] = []
+	for id: int in ids:
+		units.append(entities[id])
+	var slots: Dictionary = Spacing.formation(self, units, cell)
+	var any_ok: bool = false
+	for e: Entity in units:
+		if _start_attack_move(e, slots[e.id]) or (slots[e.id] != cell and _start_attack_move(e, cell)):
+			any_ok = true
+		else:
+			e.set_idle()
+			e.am_cell = NO_CELL
+			_message(e.faction, "no_path", e.id)
+	return "ok" if any_ok else "no_path"
+
+
+func _start_attack_move(e: Entity, dest: Vector2i) -> bool:
+	if not _set_path(e, dest):
+		return false
+	var soldier: bool = e.is_soldier()
+	e.order_type = "attack_move" if soldier else "move"
+	e.order_target = 0
+	e.order_cell = dest
+	e.phase = ""
+	e.timer = 0
+	e.dropoff_id = 0
+	e.auto = false
+	e.stepping = false
+	e.am_cell = dest if soldier else NO_CELL
+	return true
 
 
 ## The acting ids, de-duplicated in their given order; [] if malformed.
@@ -967,6 +1090,10 @@ func destroy_entity(id: int) -> void:
 		var e: Entity = entities[oid]
 		if not e.is_unit():
 			continue
+		# Queued orders naming the dead entity are dropped (D-44).
+		for i: int in range(e.orders.size() - 1, -1, -1):
+			if int(e.orders[i].get("target", 0)) == id:
+				e.orders.remove_at(i)
 		if e.dropoff_id == id:
 			e.dropoff_id = 0
 			if e.phase == "to_dropoff":

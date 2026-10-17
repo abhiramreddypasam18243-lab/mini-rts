@@ -112,6 +112,8 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | `F3` | Frames per second, unit count and the AI's current state |
 | `M` (or the Sound button) | Sound and music on / off (remembered) |
 | Minimap (bottom right) | Left click or drag: move the camera there · right click: order the selected units there |
+| `F`, then click (or the Attack-move button) | Attack-move: the selected soldiers walk there and fight any enemy they meet on the way |
+| Hold `Shift` while ordering | Queue the order after the current ones (for example Shift-click three points to walk a route); a normal order clears the queue |
 
 Disabled buttons show the reason on hover (for example *Need 60 wood · 20 gold*). Messages fade after 3 seconds.
 

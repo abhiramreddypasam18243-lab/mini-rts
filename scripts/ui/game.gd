@@ -32,6 +32,8 @@ var time: float = 0.0
 var fx: Array[Dictionary] = []
 var hover_id: int = 0
 var placing: bool = false
+## True after F: the next left click is an attack-move destination (D-44).
+var aiming: bool = false
 var dragging: bool = false
 var drag_from: Vector2 = Vector2.ZERO
 var hud: Hud
@@ -463,6 +465,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				if placing:
 					_try_place()
 					return
+				if aiming:
+					attack_move_to(mouse)
+					return
 				_pressed = true
 				dragging = false
 				_press_screen = mb.position
@@ -475,8 +480,9 @@ func _unhandled_input(event: InputEvent) -> void:
 					selection.click(sim, faction, _to_milli(mouse))
 				dragging = false
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
-			if placing:
+			if placing or aiming:
 				placing = false
+				aiming = false
 				return
 			_right_click(mouse)
 	elif event is InputEventMouseMotion:
@@ -486,6 +492,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		match (event as InputEventKey).keycode:
 			KEY_B:
 				start_placing()
+			KEY_F:
+				start_aiming()
 			KEY_Q:
 				train("worker")
 			KEY_W:
@@ -495,8 +503,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_F3:
 				hud.toggle_fps()
 			KEY_ESCAPE:
-				if placing:
+				if placing or aiming:
 					placing = false
+					aiming = false
 				else:
 					selection.clear()
 
@@ -522,12 +531,60 @@ func look_at_world(world: Vector2) -> void:
 ## The context order of a right click at a world position (minimap).
 func order_at(world: Vector2) -> void:
 	if not demo:
-		_right_click(world)
+		if aiming:
+			attack_move_to(world)
+		else:
+			_right_click(world)
+
+
+## True while Shift is held: orders are queued instead of replacing (D-44).
+func queueing() -> bool:
+	return Input.is_key_pressed(KEY_SHIFT)
+
+
+## The selected own units (soldiers and workers).
+func selected_units() -> Array[int]:
+	var out: Array[int] = []
+	for id: int in selection.selected:
+		var e: Entity = sim.entity(id)
+		if e != null and e.is_unit() and e.faction == faction:
+			out.append(id)
+	return out
+
+
+## F: arm attack-move; the next left click (on the map or the minimap) is
+## the destination (D-44).
+func start_aiming() -> void:
+	if demo:
+		return
+	if selected_units().is_empty():
+		messages.add("Select units first", time, "warn")
+		return
+	placing = false
+	aiming = true
+
+
+## Attack-move the selection to a world position (Shift: queued). Stays armed
+## while Shift is held, so several waypoints can be clicked in a row.
+func attack_move_to(world: Vector2) -> void:
+	var ids: Array[int] = selected_units()
+	aiming = queueing()
+	if ids.is_empty():
+		aiming = false
+		return
+	var cell: Vector2i = Vector2i(floori(world.x / C), floori(world.y / C))
+	var r: String = issue(Commands.attack_move(faction, ids, cell, queueing()))
+	if r == "ok":
+		Sound.play("order", -9.0, 0.05)
+		_add_fx({"type": "marker", "a": world, "color": Palette.BAD, "life": 0.7, "order": "attack"})
 
 
 func _right_click(mouse: Vector2) -> void:
 	var cmds: Array[Dictionary] = selection.context_commands(sim, faction, _to_milli(mouse))
 	for cmd: Dictionary in cmds:
+		# Shift queues move, gather and attack orders (D-44).
+		if queueing() and cmd.command in Simulation.QUEUEABLE:
+			cmd.args["queue"] = true
 		var r: String = issue(cmd)
 		if r == "ok":
 			Sound.play("order", -9.0, 0.05)

@@ -413,10 +413,12 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 		_hint.text = "Click a queued unit to cancel it (full refund)." if b.complete else "Soldiers can be trained once construction finishes."
 	elif not sel.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker").is_empty():
 		_add_button("barracks", "Build barracks", "B", func() -> void: game.start_placing())
-		_hint.text = "Right-click: move · gather from wood or gold. B, then click: place a barracks." \
+		_add_button("attack_move", "Attack-move", "F", func() -> void: game.start_aiming())
+		_hint.text = "Right-click: move · gather from wood or gold. B: place a barracks. Shift: queue orders." \
 			if not game.placing else "Click to place the barracks · right-click or Esc to cancel."
 	elif not units.is_empty():
-		_hint.text = "Right-click the ground to move, or a visible enemy to attack."
+		_add_button("attack_move", "Attack-move", "F", func() -> void: game.start_aiming())
+		_hint.text = "Right-click: move, or attack a visible enemy. F, then click: attack-move (fight on the way). Hold Shift to queue orders."
 	else:
 		_hint.text = "Drag to box-select · right-click to command · WASD or screen edges to pan · Esc clears."
 
@@ -427,7 +429,7 @@ func _add_button(kind: String, title: String, hotkey: String, action: Callable) 
 	b.title = title
 	b.hotkey = hotkey
 	b.faction = game.faction
-	b.cost = HudModel.cost_of(game.sim, kind)
+	b.cost = HudModel.cost_of(game.sim, kind) if game.sim.stats.has(kind) else {"wood": 0, "gold": 0}
 	b.pressed.connect(action)
 	_actions.add_child(b)
 	_buttons[kind] = b

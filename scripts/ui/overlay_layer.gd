@@ -12,9 +12,12 @@ var game: Game
 func _draw() -> void:
 	if game == null or game.sim == null:
 		return
+	_waypoints()
 	for fx: Dictionary in game.fx:
 		if fx.type == "marker":
 			_marker(fx)
+	if game.aiming:
+		_aim_cursor()
 
 	if game.dragging:
 		var r: Rect2 = Rect2(game.drag_from, Vector2.ZERO).expand(get_global_mouse_position())
@@ -77,3 +80,70 @@ func _marker(fx: Dictionary) -> void:
 			draw_colored_polygon(pts, Color(col, fade))
 			pts.append(pts[0])
 			draw_polyline(pts, Color(0, 0, 0, 0.55 * fade), 1.5, true)
+
+
+## The route of each selected unit (D-44): its current destination, then
+## its queued orders, as dashed lines with a dot at every waypoint (white:
+## move, red: attack-move or attack, gold: gather).
+func _waypoints() -> void:
+	var colours: Dictionary = {"move": Color(1, 0.96, 0.8), "attack_move": Color(1.0, 0.45, 0.35),
+		"attack": Color(1.0, 0.3, 0.25), "harvest": Palette.GOLD}
+	for id: int in game.selected_units():
+		var e: Entity = game.sim.entity(id)
+		var points: Array[Array] = []
+		if e.order_type == "move" or e.order_type == "attack_move":
+			points.append([_cell_centre(e.order_cell), e.order_type])
+		elif e.am_cell != Simulation.NO_CELL:
+			points.append([_cell_centre(e.am_cell), "attack_move"])
+		for o: Dictionary in e.orders:
+			if o.has("cell"):
+				points.append([_cell_centre(o.cell), o.command])
+			else:
+				var t: Entity = game.sim.entity(o.target)
+				if t != null:
+					points.append([_entity_centre(t), o.command])
+		if points.is_empty():
+			continue
+		var from: Vector2 = game.draw_pos(e)
+		for p: Array in points:
+			var col: Color = colours.get(p[1], Color.WHITE)
+			_dashed(from, p[0], Color(col, 0.75))
+			draw_circle(p[0], 4.0, Color(0, 0, 0, 0.5), true, -1.0, true)
+			draw_circle(p[0], 3.0, col, true, -1.0, true)
+			from = p[0]
+
+
+func _dashed(a: Vector2, b: Vector2, col: Color) -> void:
+	var length: float = a.distance_to(b)
+	if length < 1.0:
+		return
+	var d: Vector2 = (b - a) / length
+	var t: float = fmod(game.time * 20.0, 10.0)
+	while t < length:
+		draw_line(a + d * t, a + d * minf(t + 6.0, length), col, 1.6, true)
+		t += 10.0
+
+
+func _cell_centre(c: Vector2i) -> Vector2:
+	return (Vector2(c) + Vector2(0.5, 0.5)) * C
+
+
+func _entity_centre(t: Entity) -> Vector2:
+	return game.draw_pos(t) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
+
+
+## While aiming an attack-move: crossed swords at the mouse and a hint.
+func _aim_cursor() -> void:
+	var m: Vector2 = get_global_mouse_position()
+	var col: Color = Color(1.0, 0.4, 0.3)
+	draw_set_transform(m + Vector2(0, 4), 0.0, Vector2(1.0, 0.5))
+	draw_arc(Vector2.ZERO, 14.0, 0.0, TAU, 32, Color(col, 0.8), 2.0, true)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	for d: Vector2 in [Vector2(1, 1), Vector2(1, -1)]:
+		draw_line(m - d * 8.0 - Vector2(0, 8), m + d * 8.0 - Vector2(0, 8), Color(0, 0, 0, 0.6), 4.0, true)
+		draw_line(m - d * 8.0 - Vector2(0, 8), m + d * 8.0 - Vector2(0, 8), col, 2.2, true)
+	var text: String = "Attack-move: click a destination  (Shift: more waypoints · right-click or Esc: cancel)"
+	var font: Font = UiTheme.font("semibold")
+	var tp: Vector2 = m + Vector2(18, 28)
+	draw_string_outline(font, tp, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.8))
+	draw_string(font, tp, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 0.9, 0.85))

@@ -12,7 +12,7 @@ const UNIT_KINDS: Array[String] = ["worker", "melee", "ranged"]
 const BUILDING_KINDS: Array[String] = ["hq", "barracks"]
 const NODE_KINDS: Array[String] = ["wood", "gold"]
 const KIND_CODE: Dictionary = {"worker": 1, "melee": 2, "ranged": 3, "hq": 4, "barracks": 5, "wood": 6, "gold": 7}
-const ORDER_CODE: Dictionary = {"idle": 0, "move": 1, "harvest": 2, "build": 3, "attack": 4}
+const ORDER_CODE: Dictionary = {"idle": 0, "move": 1, "harvest": 2, "build": 3, "attack": 4, "attack_move": 5}
 const FACTION_CODE: Dictionary = {"": 0, "player": 1, "ai": 2}
 
 var id: int
@@ -61,6 +61,13 @@ var auto: bool = false
 var stepping: bool = false
 ## The cell the unit target stood on when the attack path was planned.
 var target_cell: Vector2i = Vector2i(-1, -1)
+# --- attack-move and queued orders (build step 11, decision D-44) ----------
+## Where an attack-move is heading; kept while the soldier fights something
+## on the way, so it can carry on. (-1, -1) = none.
+var am_cell: Vector2i = Vector2i(-1, -1)
+## Orders queued with Shift, run in turn when the current one ends:
+## each {"command": String, "cell": Vector2i or "target": int}.
+var orders: Array[Dictionary] = []
 
 # --- buildings ------------------------------------------------------------
 var complete: bool = true
@@ -141,6 +148,14 @@ func add_to_hash(h: StateHasher) -> void:
 	h.add_int(order_cell.y)
 	h.add_int(path_i)
 	h.add_int(1 if stepping else 0)
+	h.add_int(am_cell.x)
+	h.add_int(am_cell.y)
+	h.add_int(orders.size())
+	for o: Dictionary in orders:
+		h.add_int(ORDER_CODE[o.command])
+		h.add_int((o.get("cell", Vector2i.ZERO) as Vector2i).x)
+		h.add_int((o.get("cell", Vector2i.ZERO) as Vector2i).y)
+		h.add_int(int(o.get("target", 0)))
 	h.add_int(target_cell.x)
 	h.add_int(target_cell.y)
 	h.add_int(path.size())

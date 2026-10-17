@@ -288,3 +288,21 @@ Playing back a replay while the viewer can still issue commands would change the
 **One thing that could go wrong**
 The camera frame and the click mapping depend on the zoom. If the zoom changes (as it did from 1.35 to 1.6 in D-42) and only one of them is updated, clicks land beside where the frame says. Both use `Game.view_rect()` / `to_world()` from the same numbers, and a test clicks the minimap's centre and checks the camera ends up at the map's centre.
 
+---
+
+## Step 11 (stretch): attack-move and Shift-queued orders (decision D-44)
+
+**What was built**
+- A new command, `attack_move(unit_ids, cell)`, and an optional `queue: true` flag on move, attack-move, attack and gather orders.
+- In the simulation: soldiers on an attack-move scan for enemies every tick like idle soldiers do; when they fight, `am_cell` remembers where they were going, so they carry on afterwards. Each unit has a small queue (`orders`, at most 8); at the start of each tick an idle unit resumes an interrupted attack-move, or else takes its next queued order.
+- In the game: `F` then click (also on the minimap) attack-moves the selection; holding Shift queues any order; dashed lines show each selected unit's route.
+
+**Why it is designed this way**
+- *A plain order still replaces everything* (D-14). Only an order that explicitly says `queue` waits, so every earlier test and the AI behave exactly as before.
+- *Queued orders are ordinary commands.* They are checked twice: as far as possible when given (is the cell a cell, does the target exist), and fully when they run (is the target still visible, is there a path). An order that cannot run any more is skipped, never half-applied.
+- *Dead targets leave the queue at once*, in the same place that clears current orders, so "every order refers to a living entity" (AC-06, AC-48) also holds for queued orders.
+- *Replays need nothing new.* The queue flag is part of the command's arguments, which the replay already records; the simulation is deterministic, so playback queues the same orders at the same ticks (a test runs a match twice and compares the state hash).
+
+**One thing that could go wrong**
+An attack-move soldier that loses sight of its target and goes idle could also be picked up by the "step aside" spacing rule (D-42) or by a queued order. Order matters: at the start of a tick an interrupted attack-move is resumed *before* the queue is read, and spacing only moves units that are still idle later in the tick, so the soldier always carries on with its attack-move first.
+
