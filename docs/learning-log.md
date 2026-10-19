@@ -324,3 +324,17 @@ An attack-move soldier that loses sight of its target and goes idle could also b
 **One thing that could go wrong**
 Edge panning reads the mouse position. On a phone the "mouse" stays where the finger last touched, so a tap near the screen edge would pan the map forever. Edge panning is switched off in touch mode.
 
+---
+
+## Fix: the game closing on iPhones (decision D-46)
+
+**What happened**
+On an iPhone, Safari showed "A problem repeatedly occurred". iOS closes a web page that uses too much memory and reloads it; when that keeps happening it gives up with that message. The emulated phone on a laptop did not show it, because a laptop browser has far more memory.
+
+**What was measured and changed**
+- A match drawn at an iPhone's real resolution (2532 x 1170, three screen pixels per point) used about 180 MB of graphics memory; the pre-drawn ground alone was 33 MB.
+- Phones now render at normal density (844 x 390), the ground is pre-drawn at 1x, the full-screen colour grade is skipped, and the ground's thousands of drawing commands are freed once drawn. A match now uses about 70 MB.
+
+**One thing that could go wrong**
+Testing on a desktop browser that pretends to be a phone checks the layout and the controls, not the phone's limits: memory, speed and graphics drivers. Only a real phone can confirm those.
+

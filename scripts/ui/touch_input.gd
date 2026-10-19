@@ -45,3 +45,4 @@ static func saw_touch() -> void:
 static func apply_layout(tree: SceneTree) -> void:
 	if enabled():
 		tree.root.content_scale_size = MIN_SIZE
+		print("Touch mode: window %s (phones render at normal density, D-46)" % [DisplayServer.window_get_size()])

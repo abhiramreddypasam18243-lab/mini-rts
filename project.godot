@@ -17,6 +17,8 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+window/dpi/allow_hidpi.web_android=false
+window/dpi/allow_hidpi.web_ios=false
 
 [rendering]
 

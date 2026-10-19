@@ -92,7 +92,8 @@ func setup(p_map: MapGrid) -> void:
 func _bake_ground() -> void:
 	if _bake != null:
 		_bake.queue_free()
-	var k: float = minf(Game.ZOOM, 4096.0 / maxf(_board.size.x, _board.size.y))
+	# Phones (D-46): half the memory, at the cost of slightly softer grass.
+	var k: float = minf(1.0 if TouchInput.enabled() else Game.ZOOM, 4096.0 / maxf(_board.size.x, _board.size.y))
 	_bake = SubViewport.new()
 	_bake.size = Vector2i(ceili(_board.size.x * k), ceili(_board.size.y * k))
 	_bake.transparent_bg = false
@@ -105,6 +106,16 @@ func _bake_ground() -> void:
 	add_child(_bake)
 	# The transform can be set only once the viewport is in the tree.
 	_bake.canvas_transform = Transform2D(0.0, Vector2(k, k), 0.0, -_board.position * k)
+	_free_after_bake.call_deferred(base)
+
+
+## Once the ground has been drawn into the viewport, its thousands of drawing
+## commands (roads, flowers) are not needed any more: free them (D-46).
+func _free_after_bake(base: Node) -> void:
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	if is_instance_valid(base):
+		base.queue_free()
 
 
 func _draw() -> void:

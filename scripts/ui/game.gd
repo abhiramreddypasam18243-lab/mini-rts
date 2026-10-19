@@ -146,7 +146,9 @@ func _ready() -> void:
 	var hq: Entity = sim.entity(sim.hq_of(faction))
 	camera.position = (Vector2(hq.cell) + Vector2(hq.size) / 2.0) * C
 	_clamp_camera()
-	add_child(PostFx.new())
+	# The colour grade copies the whole screen every frame; phones skip it (D-46).
+	if not touch:
+		add_child(PostFx.new())
 	hud = Hud.new()
 	hud.game = self
 	add_child(hud)
