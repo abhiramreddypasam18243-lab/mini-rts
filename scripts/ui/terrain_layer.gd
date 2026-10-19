@@ -2,8 +2,9 @@
 ## nothing per frame (presentation layer). Walkable ground is grass tiles
 ## with a painted colour wash, worn dirt roads between the two bases and to
 ## their nearest wood and gold, dirt clearings around each HQ, flowers and
-## grass tufts. Blocked cells are rock outcrops or forest (chosen by a stable
-## hash), and a forest border surrounds the map. Trees live on a child layer
+## grass tufts. Blocked cells are forest, rock outcrops or ponds (chosen by a
+## stable hash of 3 x 3 blocks; all equally impassable, so the rules do not
+## change), and a forest border surrounds the map. Trees live on a child layer
 ## whose shader sways them in the wind; `make_clouds()` gives a layer of
 ## drifting cloud shadows. Kenney CC0 sprites (decisions D-38, D-39).
 class_name TerrainLayer
@@ -43,10 +44,32 @@ void fragment() {
 	COLOR = mix(sun, shade, c);
 }
 """
+## Ponds: a moving sparkle drawn over the water (D-48).
+const WATER_SHADER: String = """
+shader_type canvas_item;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+varying vec2 world;
+void vertex() { world = VERTEX; }
+void fragment() {
+	vec2 p = world / 24.0;
+	float a = noise(p + vec2(TIME * 0.35, TIME * 0.2));
+	float b = noise(p * 1.7 - vec2(TIME * 0.25, -TIME * 0.3));
+	float ripple = smoothstep(0.66, 0.78, a * 0.6 + b * 0.5) * (1.0 - smoothstep(0.78, 0.86, a * 0.6 + b * 0.5));
+	float glint = smoothstep(0.86, 0.95, noise(p * 3.1 + vec2(TIME * 0.6, 0.0)));
+	COLOR = vec4(vec3(0.85, 0.95, 1.0), COLOR.a * (ripple * 0.16 + glint * 0.45));
+}
+"""
 const FLOWERS: Array[Color] = [Color("fff6e0"), Color("ffd84a"), Color("ff9fc4"), Color("c7a6ff"), Color("8fd3ff")]
 
 var map: MapGrid
 var _trees: Node2D
+var _water: Node2D
 ## The ground (grass, roads, flowers, rocks) is drawn once into this
 ## viewport and then shown as one texture, so it costs one quad per frame.
 var _bake: SubViewport
@@ -76,6 +99,16 @@ func setup(p_map: MapGrid) -> void:
 	var mat: ShaderMaterial = ShaderMaterial.new()
 	mat.shader = sh
 	_trees.material = mat
+	if _water != null:
+		_water.queue_free()
+	_water = WaterDraw.new()
+	_water.terrain = self
+	var wsh: Shader = Shader.new()
+	wsh.code = WATER_SHADER
+	var wmat: ShaderMaterial = ShaderMaterial.new()
+	wmat.shader = wsh
+	_water.material = wmat
+	add_child(_water)
 	add_child(_trees)
 	for cy: int in range(-BORDER, map.height + BORDER, CHUNK):
 		for cx: int in range(-BORDER, map.width + BORDER, CHUNK):
@@ -154,27 +187,44 @@ func _draw_base(ci: CanvasItem) -> void:
 		for x: int in range(-BORDER, map.width + BORDER):
 			ci.draw_texture_rect(grass_a if noise(x, y) < 0.6 else grass_b, Rect2(Vector2(x, y) * C, Vector2(C, C)), false, Color(0.9, 0.94, 0.86))
 	_draw_wash(ci)
+	_draw_edges(ci)
 	_draw_worn_ground(ci)
 	_draw_details(ci)
+	_draw_water(ci)
 	_draw_rocks(ci)
 
 
-## Soft patches of dry, sunlit and lush grass, so the field is not one green.
+## Soft patches of dry, sunlit and lush grass, so the field is not one
+## green: one value per 3 x 3 cells, smoothed by the linear filter into broad
+## gradients, plus a finer layer for texture (D-48: stronger, larger).
 func _draw_wash(ci: CanvasItem) -> void:
-	var w: int = (map.width + BORDER * 2) / 2 + 1
-	var h: int = (map.height + BORDER * 2) / 2 + 1
+	var w: int = (map.width + BORDER * 2) / 3 + 2
+	var h: int = (map.height + BORDER * 2) / 3 + 2
 	var img: Image = Image.create(w, h, false, Image.FORMAT_RGBA8)
 	for y: int in h:
 		for x: int in w:
-			var n: float = (noise(x / 3, y / 3, 70) * 0.6 + noise(x, y, 71) * 0.4)
+			var n: float = noise(x / 2, y / 2, 70) * 0.55 + noise(x, y, 71) * 0.45
 			var col: Color = Color(0, 0, 0, 0)
-			if n > 0.62:
-				col = Color(0.92, 0.86, 0.45, (n - 0.62) * 0.9)
-			elif n < 0.34:
-				col = Color(0.02, 0.24, 0.12, (0.34 - n) * 0.9)
+			if n > 0.58:
+				col = Color(0.88, 0.8, 0.42, (n - 0.58) * 1.1)
+			elif n < 0.4:
+				col = Color(0.0, 0.18, 0.1, (0.4 - n) * 0.8)
 			img.set_pixel(x, y, col)
 	_wash_tex = ImageTexture.create_from_image(img)
-	ci.draw_texture_rect(_wash_tex, Rect2(Vector2(-BORDER, -BORDER) * C, Vector2(w, h) * C * 2.0), false)
+	ci.draw_texture_rect(_wash_tex, Rect2(Vector2(-BORDER, -BORDER) * C, Vector2(w, h) * C * 3.0), false)
+
+
+## Grass next to forest, rock or water is shaded (and forests get a dark
+## undergrowth), so obstacles sit in the ground instead of on top of it.
+func _draw_edges(ci: CanvasItem) -> void:
+	for y: int in range(-BORDER, map.height + BORDER):
+		for x: int in range(-BORDER, map.width + BORDER):
+			var c: Vector2i = Vector2i(x, y)
+			var centre: Vector2 = (Vector2(c) + Vector2(0.5, 0.5)) * C
+			if is_forest(c):
+				ci.draw_texture_rect(Art.disc(), Rect2(centre - Vector2(C, C) * 0.95, Vector2(C, C) * 1.9), false, Color(0.02, 0.16, 0.06, 0.55))
+			elif is_rock(c):
+				ci.draw_texture_rect(Art.disc(), Rect2(centre - Vector2(C, C) * 0.9, Vector2(C, C) * 1.8), false, Color(0.12, 0.14, 0.08, 0.28))
 
 
 # --- roads and clearings -------------------------------------------------------
@@ -339,6 +389,43 @@ func _draw_details(ci: CanvasItem) -> void:
 				ci.draw_texture_rect(Art.tex(name), Rect2(sp - Vector2(10, 10), Vector2(20, 20)), false, Color(1, 1, 1, 0.92))
 
 
+## Ponds: each water cell is a rounded blob joined to its water neighbours
+## by bars, so neighbouring cells merge into one body of water: a sandy
+## shore, the water, then darker deep water where all four sides are water.
+func _draw_water(ci: CanvasItem) -> void:
+	water_shape(ci, 0.8, Color("c9b27a"), false)
+	water_shape(ci, 0.68, Color("6aa5b6"), false)
+	water_shape(ci, 0.6, Color("4b8fb3"), false)
+	water_shape(ci, 0.42, Color("2f6b95"), true)
+
+
+## Draws the union of a disc of `r` cells per water cell and a bar of the
+## same width to each water neighbour (`deep`: interior cells only).
+func water_shape(ci: CanvasItem, r: float, col: Color, deep: bool) -> void:
+	for y: int in map.height:
+		for x: int in map.width:
+			var c: Vector2i = Vector2i(x, y)
+			if not is_water(c) or (deep and not _interior_water(c)):
+				continue
+			var centre: Vector2 = (Vector2(c) + Vector2(0.5, 0.5)) * C
+			ci.draw_circle(centre, C * r, col, true, -1.0, true)
+			for d: Vector2i in [Vector2i.RIGHT, Vector2i.DOWN]:
+				var n: Vector2i = c + d
+				if is_water(n) and (not deep or _interior_water(n)):
+					var other: Vector2 = (Vector2(n) + Vector2(0.5, 0.5)) * C
+					# Bars a little narrower than the discs: rounded corners
+					# and a gently wavy shore.
+					var half: Vector2 = Vector2(C * r, C * r) * 0.78
+					ci.draw_rect(Rect2(centre - half, Vector2.ZERO).expand(other + half), col)
+
+
+func _interior_water(c: Vector2i) -> bool:
+	for d: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		if not is_water(c + d):
+			return false
+	return true
+
+
 ## Blocked cells in rock groups get rocks with a soft shadow; forest cells get
 ## tree shadows here (the trees themselves sway on the child layer).
 func _draw_rocks(ci: CanvasItem) -> void:
@@ -357,9 +444,21 @@ func _draw_rocks(ci: CanvasItem) -> void:
 				ci.draw_set_transform(r.get_center() + Vector2(2, 9), 0.0, Vector2(1.0, 0.45))
 				ci.draw_circle(Vector2.ZERO, C * 0.6, Color(0, 0.05, 0, 0.25), true, -1.0, true)
 				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				# Varied size, offset and mirroring, so a rock field does not
+				# look stamped (D-48); pebbles scattered around.
 				var name: String = ["rock_cluster", "rock_pair", "rock_big"][int(noise(x, y, 3) * 3.0) % 3]
-				var s: float = C * 1.6
-				ci.draw_texture_rect(Art.tex(name), Rect2(r.get_center() - Vector2(s, s) * 0.5 - Vector2(0, 3), Vector2(s, s)), false)
+				var s: float = C * (1.3 + 0.55 * noise(x, y, 4))
+				var off: Vector2 = Vector2(noise(x, y, 12) - 0.5, noise(x, y, 13) - 0.5) * 8.0
+				var flip: float = -1.0 if noise(x, y, 14) < 0.5 else 1.0
+				var tone: float = 0.88 + 0.16 * noise(x, y, 15)
+				ci.draw_set_transform(r.get_center() + off - Vector2(0, 3), 0.0, Vector2(flip, 1.0))
+				ci.draw_texture_rect(Art.tex(name), Rect2(-Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(tone, tone, tone * 0.97))
+				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				for k: int in 2:
+					if noise(x, y, 16 + k) < 0.5:
+						var pp: Vector2 = r.get_center() + Vector2(noise(x, y, 18 + k) - 0.5, noise(x, y, 20 + k) - 0.5) * C * 1.6
+						ci.draw_circle(pp, 1.8, Color(0.42, 0.4, 0.36, 0.85), true, -1.0, true)
+						ci.draw_circle(pp - Vector2(0.5, 0.5), 0.9, Color(0.85, 0.83, 0.78, 0.8), true, -1.0, true)
 
 
 ## True on roads and base clearings (the minimap draws them as dirt).
@@ -367,26 +466,36 @@ func is_worn(c: Vector2i) -> bool:
 	return _worn.has(c)
 
 
+## What a blocked cell looks like, by a stable hash of its 3 x 3 block:
+## forest (45 %), rock (35 %) or a pond (20 %). All are equally impassable.
+func _kind(c: Vector2i) -> float:
+	return noise(c.x / 3, c.y / 3, 41)
+
+
 ## Forest: a blocked cell in a forest group, or any cell of the outer border.
 func is_forest(c: Vector2i) -> bool:
 	if not map.in_bounds(c):
 		return true
-	return not map.is_walkable(c) and noise(c.x / 3, c.y / 3, 41) < 0.5
+	return not map.is_walkable(c) and _kind(c) < 0.45
 
 
 func is_rock(c: Vector2i) -> bool:
-	return map.in_bounds(c) and not map.is_walkable(c) and noise(c.x / 3, c.y / 3, 41) >= 0.5
+	return map.in_bounds(c) and not map.is_walkable(c) and _kind(c) >= 0.45 and _kind(c) < 0.8
+
+
+func is_water(c: Vector2i) -> bool:
+	return map.in_bounds(c) and not map.is_walkable(c) and _kind(c) >= 0.8
 
 
 ## The trees standing in a forest cell: up to three, stable per cell.
 func trees_in(c: Vector2i) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var r: Vector2 = Vector2(c) * C
-	var n: int = 3 if map.in_bounds(c) else 2 + int(noise(c.x, c.y, 9) < 0.5)
+	var n: int = 4 if map.in_bounds(c) else 3
 	for k: int in n:
-		var name: String = ["tree_pine", "tree_tall", "tree_pine_small"][int(noise(c.x, c.y, 10 + k) * 3.0) % 3]
-		var size: float = C * (1.05 + noise(c.x, c.y, 20 + k) * 0.4)
-		var foot: Vector2 = r + Vector2(0.2 + 0.6 * noise(c.x, c.y, 30 + k), 0.45 + 0.45 * float(k) / 2.0) * C
+		var name: String = ["tree_pine", "tree_tall", "tree_pine", "tree_pine_small"][int(noise(c.x, c.y, 10 + k) * 4.0) % 4]
+		var size: float = C * (1.1 + noise(c.x, c.y, 20 + k) * 0.45)
+		var foot: Vector2 = r + Vector2(0.1 + 0.8 * noise(c.x, c.y, 30 + k), 0.3 + 0.65 * float(k) / float(n - 1)) * C
 		out.append({"name": name, "size": size, "foot": foot})
 	return out
 
@@ -418,6 +527,18 @@ class TreeDraw extends Node2D:
 					var s: float = t.size
 					var shade: float = 0.86 + 0.14 * TerrainLayer.noise(x, y, 33)
 					draw_texture_rect(Art.tex(t.name), Rect2(t.foot - Vector2(s * 0.5, s * 0.82), Vector2(s, s)), false, Color(shade, shade, shade))
+
+
+## The ponds' moving sparkle: one disc per water cell, coloured by the
+## shader (D-48).
+class WaterDraw extends Node2D:
+	var terrain: TerrainLayer
+
+	func _draw() -> void:
+		var m: MapGrid = terrain.map
+		if m == null:
+			return
+		terrain.water_shape(self, 0.6, Color.WHITE, false)
 
 
 ## One rectangle whose shader draws moving cloud shadows.

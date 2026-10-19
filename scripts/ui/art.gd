@@ -83,44 +83,121 @@ static func unit_icon(ci: CanvasItem, centre: Vector2, kind: String, faction: St
 	UnitSprites.icon(ci, centre, kind, faction, height, alpha)
 
 
-## A building on its footprint `rect`: a dirt plot with a team-coloured edge,
-## the sprite standing on it, and a team banner. While under construction it
-## is faded with scaffold stripes and a progress bar; a ghost is greyed out.
+## A building on its footprint `rect` (D-48): a paved stone base with a
+## team-coloured trim, then the building made of several Kenney pieces. The
+## HQ is a keep with two corner towers behind a gated wall; the barracks has
+## an armoury rack. Under construction it rises from the base as `progress`
+## grows, inside wooden scaffolding; a ghost is greyed out.
 static func building(ci: CanvasItem, rect: Rect2, kind: String, faction: String, t: float,
 		complete: bool = true, progress: float = 1.0, ghost: bool = false, flash: float = 0.0) -> void:
 	var team: Color = Palette.TEAM[faction]
-	var plot: Rect2 = rect.grow(-2.0)
-	# A soft shadow and a team-coloured outline on the grass.
-	ci.draw_style_box(_box("plot_shadow", Color(0, 0, 0, 0.18), 10), Rect2(plot.position + Vector2(0, 3), plot.size))
-	ci.draw_style_box(_box("plot_edge_%s_%s" % [faction, ghost], Color(team, 0.12 if not ghost else 0.05), 8,
-		Color(team, 0.85 if not ghost else 0.35), 3), plot)
-	var a: float = 1.0
+	_plinth(ci, rect, team, ghost)
 	var tint: Color = Color(1, 1, 1)
 	if ghost:
-		tint = Color(0.62, 0.62, 0.66)
-		a = 0.6
-	elif not complete:
-		a = 0.55
-	if flash > 0.0:
+		tint = Color(0.62, 0.62, 0.66, 0.6)
+	elif flash > 0.0:
 		tint = Color(1, 1 - 0.5 * flash, 1 - 0.5 * flash)
-	var s: Texture2D = tex("castle" if kind == "hq" else "barracks")
-	var sprite: Rect2
+	# The part of the building already built: everything below clip_y.
+	var top: float = rect.position.y - rect.size.y * 0.3
+	var clip_y: float = -INF
+	if not complete and not ghost:
+		var f: float = clampf(progress, 0.0, 1.0)
+		clip_y = lerpf(rect.end.y, top, 0.15 + 0.85 * f)
+		tint.a = 0.9
+	for part: Array in _parts(kind, rect):
+		draw_fit(ci, part[0], part[1], tint, clip_y)
+	if not complete and not ghost:
+		_scaffold(ci, rect, clip_y)
+		bar(ci, Rect2(rect.position.x + 8, rect.end.y - 7, rect.size.x - 16, 5), progress, Palette.ACCENT)
+	elif not ghost:
+		var flag: Vector2 = Vector2(rect.end.x - 10, rect.position.y - 20) if kind == "hq" else Vector2(rect.end.x - 10, rect.position.y - 6)
+		banner(ci, flag, team, t)
+
+
+## The pieces of a building, back to front: [sprite, target rect].
+static func _parts(kind: String, r: Rect2) -> Array:
+	var x: float = r.position.x
+	var y: float = r.position.y
+	var w: float = r.size.x
 	if kind == "hq":
-		# The castle fills the top 76 / 128 of its canvas: scale it to the
-		# footprint's width and stand it on the plot.
-		# Its visible part is centred on the footprint.
-		var w: float = rect.size.x * 128.0 / 120.0 * 1.08
-		var visible_h: float = w * 76.0 / 128.0
-		sprite = Rect2(rect.get_center().x - w / 2.0, rect.get_center().y - visible_h / 2.0 - 2.0, w, w)
-	else:
-		var w2: float = rect.size.x * 128.0 / 112.0 * 1.04
-		sprite = Rect2(rect.get_center().x - w2 / 2.0, rect.end.y - w2 * 124.0 / 128.0 + 1.0, w2, w2)
-	ci.draw_texture_rect(s, sprite, false, Color(tint, a))
-	if not complete:
-		hatch(ci, plot.grow(-3.0), Color(0.36, 0.24, 0.14, 0.45), 8.0)
-		bar(ci, Rect2(plot.position.x + 6, plot.end.y - 8, plot.size.x - 12, 5), progress, Palette.ACCENT)
+		return [
+			["tower", Rect2(x - 4, y - 22, w * 0.34, w * 0.5)],
+			["tower", Rect2(r.end.x - w * 0.34 + 4, y - 22, w * 0.34, w * 0.5)],
+			["keep", Rect2(x + w * 0.15, y - 18, w * 0.7, w * 0.8)],
+			["gate", Rect2(x - 2, y + w * 0.56, w + 4, w * 0.46)],
+		]
+	return [
+		["barracks", Rect2(x - 2, y - w * 0.22, w + 4, w * 1.18)],
+		["armoury", Rect2(r.end.x - w * 0.42, r.end.y - w * 0.3, w * 0.5, w * 0.36)],
+	]
+
+
+## A paved stone base slightly larger than the footprint, with a soft
+## shadow, a few joints, and a team-coloured trim.
+static func _plinth(ci: CanvasItem, rect: Rect2, team: Color, ghost: bool) -> void:
+	var base: Rect2 = rect.grow(3.0)
+	ci.draw_style_box(_box("plinth_shadow", Color(0, 0, 0, 0.22), 9), Rect2(base.position + Vector2(2, 4), base.size))
+	ci.draw_style_box(_box("plinth_%s" % ghost, Color("9a8f7c") if not ghost else Color(0.6, 0.6, 0.6, 0.35), 8,
+		Color("6b604f") if not ghost else Color(0.4, 0.4, 0.4, 0.35), 2), base)
 	if not ghost:
-		banner(ci, Vector2(rect.end.x - 6, rect.position.y + 4), team, t)
+		var joint: Color = Color(0.36, 0.32, 0.26, 0.35)
+		var step: float = 12.0
+		var yy: float = base.position.y + step
+		var row: int = 0
+		while yy < base.end.y - 3:
+			ci.draw_line(Vector2(base.position.x + 3, yy), Vector2(base.end.x - 3, yy), joint, 1.0)
+			var xx: float = base.position.x + (8.0 if row % 2 == 0 else 14.0)
+			while xx < base.end.x - 3:
+				ci.draw_line(Vector2(xx, yy - step + 1), Vector2(xx, yy - 1), joint, 1.0)
+				xx += 14.0
+			yy += step
+			row += 1
+	ci.draw_style_box(_box("plinth_trim_%s_%s" % [team.to_html(), ghost], Color(0, 0, 0, 0), 7,
+		Color(team, 0.9 if not ghost else 0.35), 2), base.grow(-3.0))
+
+
+## Wooden scaffolding around a building site, with a plank at the height
+## reached so far.
+static func _scaffold(ci: CanvasItem, rect: Rect2, clip_y: float) -> void:
+	var wood: Color = Color("8a5a2b")
+	var dark: Color = Color("5a3a1c")
+	var top: float = minf(clip_y, rect.end.y) - 6.0
+	for px: float in [rect.position.x + 3, rect.get_center().x, rect.end.x - 3]:
+		ci.draw_line(Vector2(px, rect.end.y), Vector2(px, top), dark, 3.0)
+		ci.draw_line(Vector2(px, rect.end.y), Vector2(px, top), wood, 1.6)
+	ci.draw_line(Vector2(rect.position.x, top + 3), Vector2(rect.end.x, top + 3), dark, 4.0)
+	ci.draw_line(Vector2(rect.position.x, top + 3), Vector2(rect.end.x, top + 3), Color("b98a4e"), 2.4)
+	ci.draw_line(Vector2(rect.position.x + 3, rect.end.y - 2), Vector2(rect.get_center().x, top + 4), Color(wood, 0.8), 1.5)
+
+
+static var _bounds: Dictionary = {}
+
+
+## The part of a sprite that is not transparent (in its own pixels).
+static func used_rect(name: String) -> Rect2:
+	if not _bounds.has(name):
+		var img: Image = tex(name).get_image()
+		if img == null:
+			_bounds[name] = Rect2(Vector2.ZERO, tex(name).get_size())
+		else:
+			if img.is_compressed():
+				img.decompress()
+			_bounds[name] = Rect2(img.get_used_rect())
+	return _bounds[name]
+
+
+## Draws a sprite so its visible part fills `target`; only the part below
+## `clip_y` (world y) is drawn (a building rising during construction).
+static func draw_fit(ci: CanvasItem, name: String, target: Rect2, tint: Color = Color.WHITE, clip_y: float = -INF) -> void:
+	var src: Rect2 = used_rect(name)
+	var dst: Rect2 = target
+	if clip_y > dst.position.y:
+		if clip_y >= dst.end.y:
+			return
+		var cut: float = (clip_y - dst.position.y) / dst.size.y
+		src = Rect2(src.position.x, src.position.y + src.size.y * cut, src.size.x, src.size.y * (1.0 - cut))
+		dst = Rect2(dst.position.x, clip_y, dst.size.x, dst.end.y - clip_y)
+	ci.draw_texture_rect_region(tex(name), dst, src, tint)
 
 
 ## A small flag on a pole, waving.
@@ -151,10 +228,10 @@ static func hatch(ci: CanvasItem, r: Rect2, col: Color, gap: float = 7.0) -> voi
 
 ## A small bar with a dark rim (world health and progress bars).
 static func bar(ci: CanvasItem, r: Rect2, ratio: float, col: Color) -> void:
-	ci.draw_rect(r.grow(1.0), Color(0.12, 0.08, 0.05, 0.85))
+	ci.draw_rect(r.grow(1.0), Color(0.12, 0.08, 0.05, 0.85 * col.a))
 	if ratio > 0.0:
 		ci.draw_rect(Rect2(r.position, Vector2(maxf(r.size.x * clampf(ratio, 0.0, 1.0), 2.0), r.size.y)), col)
-		ci.draw_rect(Rect2(r.position + Vector2(1, 0.5), Vector2(maxf(r.size.x * ratio - 2.0, 0.0), maxf(r.size.y * 0.35, 1.0))), Color(1, 1, 1, 0.25))
+		ci.draw_rect(Rect2(r.position + Vector2(1, 0.5), Vector2(maxf(r.size.x * ratio - 2.0, 0.0), maxf(r.size.y * 0.35, 1.0))), Color(1, 1, 1, 0.25 * col.a))
 
 
 ## A UI-pack bar (HUD): back, then the coloured fill, three slices each.

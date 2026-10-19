@@ -170,7 +170,7 @@ func _build_bottom_panel() -> void:
 	_bottom = panel
 	_slide_in.call_deferred(panel, 220.0, 0.2)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	panel.custom_minimum_size = Vector2(860, 150)
+	panel.custom_minimum_size = Vector2(840, 138)
 	panel.offset_bottom = -14
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -184,21 +184,30 @@ func _build_bottom_panel() -> void:
 	row.add_child(card_frame)
 	_card = VBoxContainer.new()
 	card_frame.add_child(_card)
+	# A carved divider between the details and the commands (D-48).
 	var sep: ColorRect = ColorRect.new()
-	sep.color = Color(0, 0, 0, 0)
-	sep.custom_minimum_size = Vector2(1, 0)
+	sep.color = Color(0.22, 0.13, 0.06, 0.55)
+	sep.custom_minimum_size = Vector2(2, 0)
 	row.add_child(sep)
 	_actions_box = VBoxContainer.new()
 	_actions_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_actions_box.add_theme_constant_override("separation", 8)
+	_actions_box.add_theme_constant_override("separation", 6)
 	row.add_child(_actions_box)
+	var heading: Label = UiTheme.label("COMMANDS", 12, "title", Color(Palette.MUTED, 0.8))
+	heading.add_theme_font_override("font", UiTheme.spaced("title", 3))
+	heading.visible = not game.demo
+	_actions_box.add_child(heading)
 	_actions = HBoxContainer.new()
 	_actions.add_theme_constant_override("separation", 10)
 	_actions_box.add_child(_actions)
 	_queue = HBoxContainer.new()
 	_queue.add_theme_constant_override("separation", 6)
 	_actions_box.add_child(_queue)
-	_hint = UiTheme.label("", 15, "regular", Palette.MUTED)
+	# The hint sits at the bottom of the panel as a tip line.
+	var fill: Control = Control.new()
+	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_actions_box.add_child(fill)
+	_hint = UiTheme.label("", 14, "regular", Color(Palette.MUTED, 0.85))
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_actions_box.add_child(_hint)
 
@@ -574,9 +583,13 @@ func _update_card(sim: Simulation, f: String) -> void:
 func _refresh_messages() -> void:
 	var entries: Array[Dictionary] = game.messages.entries(game.time)
 	while _messages.get_child_count() < entries.size():
-		var l: Label = UiTheme.label("", 17, "bold")
-		l.add_theme_constant_override("outline_size", 6)
-		l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+		var l: Label = UiTheme.label("", 16, "bold")
+		l.add_theme_constant_override("outline_size", 4)
+		l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+		# A soft dark backing so messages read over any ground (D-48).
+		var back: StyleBoxFlat = UiTheme.box(Color(0.12, 0.07, 0.03, 0.62), 6, Color(0.55, 0.38, 0.2, 0.5), 1, Vector2(10, 3))
+		l.add_theme_stylebox_override("normal", back)
+		l.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		_messages.add_child(l)
 	while _messages.get_child_count() > entries.size():
 		var c: Node = _messages.get_child(0)

@@ -14,6 +14,7 @@ const SIDE: float = 176.0
 const GRASS: Color = Color("5b9a3f")
 const FOREST: Color = Color("2f5f2b")
 const ROCK: Color = Color("8e8b7f")
+const WATER: Color = Color("3d7fa6")
 const ROAD: Color = Color("b8925c")
 const UNEXPLORED: Color = Color(0.04, 0.05, 0.08, 0.82)
 const EXPLORED: Color = Color(0.04, 0.05, 0.08, 0.5)
@@ -67,7 +68,11 @@ func _build_terrain() -> void:
 			var c: Vector2i = Vector2i(x, y)
 			var col: Color = GRASS
 			if not m.is_walkable(c):
-				col = FOREST if t != null and t.is_forest(c) else ROCK
+				col = ROCK
+				if t != null and t.is_forest(c):
+					col = FOREST
+				elif t != null and t.is_water(c):
+					col = WATER
 			elif t != null and t.is_worn(c):
 				col = ROAD
 			# A faint checker so the grass is not one flat colour.

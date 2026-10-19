@@ -341,6 +341,9 @@ func _ambient_effects(delta: float) -> void:
 			var rect: Rect2 = Rect2(Vector2(e.cell) * C, Vector2(e.size) * C)
 			var ratio: float = float(e.hp) / sim.stats[e.kind].health
 			var roof: Vector2 = rect.get_center() + Vector2(r.randf_range(-0.3, 0.3) * rect.size.x, -rect.size.y * 0.3)
+			# A healthy, finished HQ has a gently smoking chimney (D-48).
+			if e.kind == "hq" and e.complete and ratio >= 0.65 and r.randf() < delta * 1.4:
+				effects.smoke(rect.get_center() + Vector2(10, -rect.size.y * 0.55), 0.45, 0.0)
 			if ratio < 0.65 and r.randf() < delta * (3.0 + 6.0 * (0.65 - ratio)):
 				effects.smoke(roof, 0.9, 1.0 - ratio)
 			if ratio < 0.35 and r.randf() < delta * 14.0:
