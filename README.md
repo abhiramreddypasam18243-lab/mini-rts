@@ -7,7 +7,7 @@ A small, complete real-time strategy game in **Godot 4.7.2**. Gather wood and go
 
 **On Streamlit:** the same game in a Streamlit page: `streamlit/streamlit_app.py` (deploy on [share.streamlit.io](https://share.streamlit.io): this repository, branch `main`, main file `streamlit/streamlit_app.py`). Run it locally with `pip install -r streamlit/requirements.txt` and `streamlit run streamlit/streamlit_app.py`.
 
-**On phones and tablets:** open the same link in Chrome or Safari and turn the phone sideways. Touch controls switch on by themselves: **tap** a unit to select it, **tap** the ground, a tree, gold or an enemy to send it there, **drag** to move the map, and use the buttons on the right for **Box select**, **All soldiers**, **Attack-move**, **Queue** and **Cancel**. To build, select a worker, tap *Build barracks*, tap where it should go, then tap that spot again. *Add to Home Screen* installs it as a full-screen app.
+**On phones and tablets (best effort, not a supported platform, D-47):** on an iPhone only the tutorial map runs; the random 48 × 48 map uses more memory than iOS allows a web page. Open the same link in Chrome or Safari and turn the phone sideways. Touch controls switch on by themselves: **tap** a unit to select it, **tap** the ground, a tree, gold or an enemy to send it there, **drag** to move the map, and use the buttons on the right for **Box select**, **All soldiers**, **Attack-move**, **Queue** and **Cancel**. To build, select a worker, tap *Build barracks*, tap where it should go, then tap that spot again. *Add to Home Screen* installs it as a full-screen app.
 
 **As an app:**
 - **Install the web app:** open the link in Chrome or Edge and click the *Install* icon in the address bar (or *⋮ → Install Mini RTS*). It opens in its own window with its own icon and works offline after the first load.
@@ -242,6 +242,8 @@ Test names follow the acceptance criteria (for example `test_ac_13_wall_with_gap
 - **Windows build:** the `Windows Desktop` preset embeds the game data in a single `MiniRTS.exe` (Compatibility renderer), published as a GitHub Release.
 
 ## Known limitations and simplifications
+
+- **Desktop only (D-47):** the game is supported in desktop browsers and as the Windows app. Phones are best effort: on an iPhone the random map closes the page (too much memory for iOS); the tutorial map works.
 
 These are deliberate v1 simplifications (SPEC section 2 and the decisions log):
 
