@@ -15,7 +15,7 @@ const MAX_PARTICLES: int = 1600
 var parts: Array[Dictionary] = []
 ## Ground marks under everything (rubble, scorch): p, size, rot, t0, life.
 var decals: Array[Dictionary] = []
-## Fallen units (they play the LPC fall animation, then fade): p, kind, faction, t0.
+## Fallen units (they play their death animation, then fade): p, kind, faction, t0.
 var corpses: Array[Dictionary] = []
 ## Arrows in flight: a, b, t0, life, target, damage, faction.
 var arrows: Array[Dictionary] = []

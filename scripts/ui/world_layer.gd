@@ -2,7 +2,7 @@
 ## (presentation layer; reads the simulation, never changes it):
 ## remembered resource nodes, own and visible buildings, ghosts of enemy
 ## buildings in fog, own and visible units (sorted by height so lower ones
-## overlap upper ones). Units play LPC animations (D-41) chosen from what
+## overlap upper ones). Units play their animations (D-41, D-50) chosen from what
 ## they are doing: walking, chopping wood, mining gold, hammering at a
 ## building site, a sword swing or a bow shot when they attack, standing
 ## ready when idle. Units close together are pushed apart a little on

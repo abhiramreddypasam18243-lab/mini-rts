@@ -35,6 +35,8 @@ func _run() -> void:
 		await _render_buildings(out)
 	elif args.size() > 2 and args[2] == "props":
 		await _render_props(out)
+	elif args.size() > 2 and args[2] == "units":
+		await _render_units(out, args.slice(3))
 	elif args.size() > 2 and args[2] == "boxes":
 		for name: String in args.slice(3):
 			var m: Node3D = model(name)
@@ -377,3 +379,169 @@ func _render_props(out: String) -> void:
 	var f: FileAccess = FileAccess.open(out.path_join("props.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(meta, "  "))
 	f.close()
+
+
+# --- units (decision D-50) -------------------------------------------------------
+
+## Unit kinds: the KayKit character, the meshes kept (weapons, shields), the
+## meshes painted in the team colour, and the animations to render:
+## sheet name -> [KayKit animation, frames].
+const UNITS: Dictionary = {
+	"worker": {"model": "kay/Barbarian", "keep": ["1H_Axe"], "team": ["Barbarian_Cape"],
+		"anims": {"idle": ["Idle", 1], "walk": ["Walking_A", 8], "chop": ["1H_Melee_Attack_Chop", 8], "hurt": ["Death_A", 8]}},
+	"melee": {"model": "kay/Knight", "keep": ["1H_Sword", "Badge_Shield"], "team": ["Knight_Cape", "Badge_Shield"],
+		"anims": {"idle": ["Idle", 1], "walk": ["Walking_A", 8], "slash": ["1H_Melee_Attack_Slice_Diagonal", 8], "hurt": ["Death_A", 8]}},
+	"ranged": {"model": "kay/Rogue_Hooded", "keep": ["2H_Crossbow"], "team": ["Rogue_Cape"],
+		"anims": {"idle": ["2H_Ranged_Aiming", 1], "walk": ["Walking_A", 8], "shoot": ["2H_Ranged_Shoot", 8], "hurt": ["Death_A", 8]}},
+}
+## Weapon and accessory meshes (everything else is the body).
+const GEAR: Array[String] = ["1H_Sword_Offhand", "Badge_Shield", "Rectangle_Shield", "Round_Shield", "Spike_Shield", "1H_Sword",
+	"2H_Sword", "1H_Axe_Offhand", "Barbarian_Round_Shield", "1H_Axe", "2H_Axe", "Mug", "Knife_Offhand", "1H_Crossbow",
+	"2H_Crossbow", "Knife", "Throwable"]
+const UNIT_FRAME: int = 96
+const UNIT_ORTHO: float = 3.4
+const DIRS: int = 8
+
+
+## Renders every unit sheet: rows are the 8 directions (row k faces
+## k * 45 degrees clockwise from facing the camera: S, SE, E, NE, N, NW, W,
+## SW), columns the frames. Writes units.json with the sheets' layout.
+func _render_units(out: String, only: PackedStringArray) -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	var meta: Dictionary = {}
+	var p: float = deg_to_rad(PITCH)
+	var up: Vector3 = Vector3(0, cos(p), -sin(p))
+	var look: Vector3 = Vector3(0, 0.95, 0)
+	var ppu: float = UNIT_FRAME / UNIT_ORTHO
+	var origin_px: Vector2 = Vector2(UNIT_FRAME, UNIT_FRAME) / 2.0 + Vector2(0, look.dot(up)) * ppu
+	meta["_frame"] = {"size": UNIT_FRAME, "ppu": ppu, "origin": [origin_px.x, origin_px.y], "dirs": DIRS}
+	for kind: String in UNITS:
+		if not only.is_empty() and not only.has(kind):
+			continue
+		for team: String in TEAM:
+			var spec: Dictionary = UNITS[kind]
+			var studio: Dictionary = await _studio(spec, team, look)
+			for anim: String in spec.anims:
+				var a: Array = spec.anims[anim]
+				var frames: int = a[1]
+				var sheet: Image = Image.create(UNIT_FRAME * frames, UNIT_FRAME * DIRS, false, Image.FORMAT_RGBA8)
+				var player: AnimationPlayer = studio.player
+				var length: float = player.get_animation(a[0]).length
+				for d: int in DIRS:
+					studio.body.rotation.y = d * TAU / DIRS
+					for f: int in frames:
+						# Loops sample evenly; one-shot animations end on their last pose.
+						var t: float = length * float(f) / float(frames if anim == "walk" else maxi(frames - 1, 1))
+						if frames == 1:
+							t = 0.0
+						var img: Image = await _shoot(studio, a[0], t)
+						sheet.blend_rect(img, Rect2i(0, 0, UNIT_FRAME, UNIT_FRAME), Vector2i(f * UNIT_FRAME, d * UNIT_FRAME))
+				var name: String = "%s_%s_%s" % [kind, team, anim]
+				sheet.save_png(out.path_join(name + ".png"))
+				meta[name] = {"frames": frames}
+				print("saved ", name)
+			studio.vp.queue_free()
+	var path: String = out.path_join("units.json")
+	if FileAccess.file_exists(path):
+		var old: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if old is Dictionary:
+			(old as Dictionary).merge(meta, true)
+			meta = old
+	var fo: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	fo.store_string(JSON.stringify(meta, "  "))
+	fo.close()
+
+
+## One lit scene for a unit: viewport, lights, camera and the character.
+func _studio(spec: Dictionary, team: String, look: Vector3) -> Dictionary:
+	var vp: SubViewport = SubViewport.new()
+	vp.size = Vector2i(UNIT_FRAME, UNIT_FRAME)
+	vp.transparent_bg = true
+	vp.own_world_3d = true
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(vp)
+	var env: WorldEnvironment = WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.background_mode = Environment.BG_CLEAR_COLOR
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.environment.ambient_light_color = Color(0.72, 0.78, 0.9)
+	env.environment.ambient_light_energy = AMBIENT + 0.1
+	env.environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	vp.add_child(env)
+	var sun: DirectionalLight3D = DirectionalLight3D.new()
+	sun.rotation_degrees = SUN
+	sun.light_energy = SUN_ENERGY
+	sun.light_color = Color(1.0, 0.95, 0.85)
+	vp.add_child(sun)
+	var fill: DirectionalLight3D = DirectionalLight3D.new()
+	fill.rotation_degrees = Vector3(-25.0, SUN.y + 150.0, 0.0)
+	fill.light_energy = 0.3
+	fill.light_color = Color(0.75, 0.82, 1.0)
+	vp.add_child(fill)
+	var holder: Node3D = Node3D.new()
+	vp.add_child(holder)
+	var body: Node3D = model(spec.model)
+	holder.add_child(body)
+	for c: Node in body.find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = c
+		if GEAR.has(String(mi.name)) and not (spec.keep as Array).has(String(mi.name)):
+			mi.visible = false
+		elif (spec.team as Array).has(String(mi.name)):
+			var m: StandardMaterial3D = StandardMaterial3D.new()
+			m.albedo_color = TEAM[team]
+			m.roughness = 0.85
+			mi.material_override = m
+	var cam: Camera3D = Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = UNIT_ORTHO
+	cam.rotation_degrees = Vector3(-PITCH, 0, 0)
+	cam.position = look + Vector3(0, sin(deg_to_rad(PITCH)), cos(deg_to_rad(PITCH))) * 30.0
+	vp.add_child(cam)
+	cam.current = true
+	var player: AnimationPlayer = body.find_children("*", "AnimationPlayer", true, false)[0]
+	for i: int in 3:
+		await process_frame
+	return {"vp": vp, "holder": holder, "body": body, "player": player, "sun": sun}
+
+
+## One frame: the posed character, then its flattened black shadow.
+func _shoot(studio: Dictionary, anim: String, t: float) -> Image:
+	var player: AnimationPlayer = studio.player
+	var holder: Node3D = studio.holder
+	player.play(anim)
+	player.seek(t, true)
+	player.pause()
+	holder.transform = Transform3D.IDENTITY
+	_set_black(holder, false)
+	for i: int in 3:
+		await process_frame
+	var alone: Image = (studio.vp as SubViewport).get_texture().get_image()
+	var l: Vector3 = -(Basis.from_euler((studio.sun as DirectionalLight3D).rotation_degrees * PI / 180.0).z)
+	holder.transform = Transform3D(Basis(Vector3(1, 0, 0), Vector3(-l.x / l.y, 0.001, -l.z / l.y), Vector3(0, 0, 1)), Vector3(0, 0.002, 0))
+	_set_black(holder, true)
+	for i: int in 3:
+		await process_frame
+	var mask: Image = (studio.vp as SubViewport).get_texture().get_image()
+	holder.transform = Transform3D.IDENTITY
+	_set_black(holder, false)
+	return _with_shadow(alone, mask)
+
+
+var _black: StandardMaterial3D
+var _saved: Dictionary = {}
+
+
+func _set_black(n: Node3D, on: bool) -> void:
+	if _black == null:
+		_black = StandardMaterial3D.new()
+		_black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_black.albedo_color = Color.BLACK
+		_black.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for c: Node in n.find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = c
+		if on:
+			_saved[mi.get_instance_id()] = mi.material_override
+			mi.material_override = _black
+		elif _saved.has(mi.get_instance_id()):
+			mi.material_override = _saved[mi.get_instance_id()]

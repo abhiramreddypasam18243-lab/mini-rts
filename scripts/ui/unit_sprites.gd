@@ -1,31 +1,43 @@
-## Animated unit sprites (presentation layer, decision D-41): sheets built
-## by tools/make_units.gd from Liberated Pixel Cup parts (credits in
-## assets/lpc/CREDITS.md). Each sheet holds one animation in four rows
-## (up, left, down, right; "hurt" has one row). Frames are 64 px, or
-## 128 px for wide weapon swings, with the character centred.
+## Unit sprites (presentation layer, decision D-50): pre-rendered 3D
+## characters from Kay Lousberg's CC0 KayKit Adventurers pack (Barbarian
+## worker, Knight, hooded Rogue with a crossbow), rendered by
+## tools/render_3d.gd in 8 directions with their own soft shadows, like the
+## units of Age of Empires II. Each sheet is one animation: rows are the 8
+## directions (row k faces k * 45 degrees clockwise from facing the camera:
+## S, SE, E, NE, N, NW, W, SW), columns the frames. The callers still speak
+## the frame counts of the earlier 2D sheets (D-41); `draw` maps them.
 class_name UnitSprites
 extends RefCounted
 
-const DIR: String = "res://assets/lpc/"
+const DIR: String = "res://assets/units3d/"
 const TEAM: Dictionary = {"player": "blue", "ai": "red"}
-## Animation -> [frames, rows, frame size].
+## Frame counts the callers use (the earlier sheets): walk frame 0 is
+## standing, 1 to 8 the cycle; a shot's useful frames are 4 to 12.
 const SPEC: Dictionary = {
-	"walk": [9, 4, 64], "chop": [6, 4, 128], "mine": [6, 4, 128], "hammer": [6, 4, 128],
-	"slash": [6, 4, 128], "shoot": [13, 4, 64], "hurt": [6, 1, 64],
+	"walk": [9], "chop": [6], "mine": [6], "hammer": [6], "slash": [6], "shoot": [13], "hurt": [6],
 }
-const UP: int = 0
-const LEFT: int = 1
-const DOWN: int = 2
-const RIGHT: int = 3
-## Drawn so one sprite pixel is one screen pixel at the game's zoom
-## (Game.ZOOM, 1.6; crisp pixel art): a character is about 50 screen pixels
-## tall, slightly less than one cell, so soldiers in neighbouring cells do
-## not overlap.
+const DIRS: int = 8
+const DOWN: int = 0
+const RIGHT: int = 2
+const UP: int = 4
+const LEFT: int = 6
+## The game's default scale (kept from D-42: units are drawn at this scale
+## in the world; 1.0 draws them 1.6 times larger, as the menu does).
 const SCALE: float = 1.0 / 1.6
-## Where the feet are in a 64-px frame.
-const FEET: Vector2 = Vector2(32, 59)
+## World pixels per 3D unit (a 3D character is about 1.6 units tall, so
+## about 26 world pixels: a little less than a cell, so neighbours do not
+## overlap).
+const WORLD_PER_UNIT: float = 15.0
 
 static var _tex: Dictionary = {}
+static var _meta: Dictionary = {}
+
+
+static func meta() -> Dictionary:
+	if _meta.is_empty():
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(DIR + "units.json"))
+		_meta = d if d is Dictionary else {"_frame": {"size": 96, "ppu": 28.2, "origin": [48, 64.5], "dirs": 8}}
+	return _meta
 
 
 static func tex(kind: String, faction: String, anim: String) -> Texture2D:
@@ -40,9 +52,13 @@ static func tex(kind: String, faction: String, anim: String) -> Texture2D:
 static func preload_all() -> void:
 	for kind: String in ["worker", "melee", "ranged"]:
 		for faction: String in TEAM:
-			for anim: String in SPEC:
-				if has(kind, anim):
-					tex(kind, faction, anim)
+			for anim: String in ["idle", "walk", "hurt", _attack(kind)]:
+				tex(kind, faction, anim)
+
+
+## The attack (or work) sheet of a unit kind.
+static func _attack(kind: String) -> String:
+	return {"worker": "chop", "melee": "slash", "ranged": "shoot"}[kind]
 
 
 ## True when this unit kind has this animation.
@@ -59,30 +75,47 @@ static func has(kind: String, anim: String) -> bool:
 	return false
 
 
-## The sheet row facing along `v` (dominant axis), or `fallback` if v is ~0.
+## The direction (0 to 7) facing along `v` (screen), or `fallback` if v is ~0.
 static func dir_of(v: Vector2, fallback: int) -> int:
 	if v.length_squared() < 0.0001:
 		return fallback
-	if absf(v.x) > absf(v.y):
-		return RIGHT if v.x > 0.0 else LEFT
-	return DOWN if v.y > 0.0 else UP
+	return posmod(int(round(atan2(v.x, v.y) / (PI / 4.0))), DIRS)
+
+
+## Maps a caller's animation and frame to a sheet and a frame of it.
+static func _resolve(kind: String, anim: String, frame: int) -> Array:
+	match anim:
+		"walk":
+			if frame <= 0:
+				return ["idle", 0]
+			return ["walk", (frame - 1) % 8]
+		"chop", "mine", "hammer":
+			return ["chop", clampi(frame * 8 / 6, 0, 7)]
+		"slash":
+			return ["slash", clampi(frame * 8 / 6, 0, 7)]
+		"shoot":
+			return ["shoot", clampi((frame - 4) * 8 / 9, 0, 7)]
+		"hurt":
+			return ["hurt", clampi(frame * 8 / 6, 0, 7)]
+	return ["idle", 0]
 
 
 ## Draws one frame with the character's feet at `feet`.
 static func draw(ci: CanvasItem, feet: Vector2, kind: String, faction: String, anim: String, dir: int,
 		frame: int, scale: float = SCALE, modulate: Color = Color.WHITE) -> void:
-	var s: Array = SPEC[anim]
-	var size: int = s[2]
-	var row: int = dir if s[1] == 4 else 0
-	var f: int = clampi(frame, 0, s[0] - 1)
-	var anchor: Vector2 = FEET + Vector2(size - 64, size - 64) / 2.0
-	var dst: Rect2 = Rect2(feet - anchor * scale, Vector2(size, size) * scale)
-	ci.draw_texture_rect_region(tex(kind, faction, anim), dst, Rect2(f * size, row * size, size, size), modulate)
+	var r: Array = _resolve(kind, anim, frame)
+	var f: Dictionary = meta()._frame
+	var size: float = f.size
+	var k: float = WORLD_PER_UNIT / float(f.ppu) * (scale / SCALE)
+	var origin: Vector2 = Vector2(f.origin[0], f.origin[1])
+	var dst: Rect2 = Rect2(feet - origin * k, Vector2(size, size) * k)
+	var row: int = posmod(dir, DIRS)
+	ci.draw_texture_rect_region(tex(kind, faction, r[0]), dst, Rect2(r[1] * size, row * size, size, size), modulate)
 
 
-## The standing character facing down, its body about `height` tall,
+## The standing character facing the viewer, its body about `height` tall,
 ## centred on `centre` (HUD icons and portraits).
 static func icon(ci: CanvasItem, centre: Vector2, kind: String, faction: String, height: float, alpha: float = 1.0) -> void:
-	# The figure spans roughly y 12 to 60 of its 64-px frame.
-	var scale: float = height / 48.0
-	draw(ci, centre + Vector2(0, 24.0 * scale), kind, faction, "walk", DOWN, 0, scale, Color(1, 1, 1, alpha))
+	# A character is about 1.6 units tall.
+	var scale: float = height / (1.6 * WORLD_PER_UNIT) * SCALE
+	draw(ci, centre + Vector2(0, height * 0.5), kind, faction, "walk", DOWN, 0, scale, Color(1, 1, 1, alpha))

@@ -62,7 +62,56 @@ void fragment() {
 	float b = noise(p * 1.7 - vec2(TIME * 0.25, -TIME * 0.3));
 	float ripple = smoothstep(0.66, 0.78, a * 0.6 + b * 0.5) * (1.0 - smoothstep(0.78, 0.86, a * 0.6 + b * 0.5));
 	float glint = smoothstep(0.86, 0.95, noise(p * 3.1 + vec2(TIME * 0.6, 0.0)));
-	COLOR = vec4(vec3(0.85, 0.95, 1.0), COLOR.a * (ripple * 0.16 + glint * 0.45));
+	COLOR = vec4(vec3(0.85, 0.95, 1.0), COLOR.a * (ripple * 0.08 + glint * 0.22));
+}
+"""
+## The ground (D-50): CC0 photo textures (ambientCG) blended per pixel when
+## the ground is pre-drawn: fine grass, patches of thin grass and earth
+## where a slow noise is high, bare earth on roads and base clearings
+## (from a mask with noisy edges), then a gentle colour grade.
+const GROUND_SHADER: String = """
+shader_type canvas_item;
+uniform sampler2D grass : source_color, repeat_enable, filter_linear_mipmap;
+uniform sampler2D patchy : source_color, repeat_enable, filter_linear_mipmap;
+uniform sampler2D dirt : source_color, repeat_enable, filter_linear_mipmap;
+uniform sampler2D worn : filter_linear;
+uniform vec2 origin;
+uniform vec2 size;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p) {
+	float v = 0.0;
+	float a = 0.5;
+	for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; }
+	return v;
+}
+void fragment() {
+	vec2 w = origin + UV * size;
+	vec3 g = texture(grass, w / 160.0).rgb;
+	vec3 g2 = texture(grass, w / 230.0 + vec2(0.37, 0.61)).rgb;
+	g = mix(g, g2, 0.45);
+	vec3 pt = texture(patchy, w / 210.0).rgb;
+	vec3 d = texture(dirt, w / 150.0).rgb;
+	float n = fbm(w / 300.0);
+	vec3 col = mix(g, pt, smoothstep(0.56, 0.72, n) * 0.85);
+	// Broad light and shade so the field is not flat.
+	col *= 0.9 + 0.22 * fbm(w / 520.0 + vec2(7.1, 3.3));
+	float m = texture(worn, UV).r;
+	float edge = (fbm(w / 22.0) - 0.5) * 0.45;
+	float dw = smoothstep(0.42, 0.58, m + edge);
+	// A darker rim where the earth meets the grass.
+	float rim = smoothstep(0.3, 0.45, m + edge) * (1.0 - dw);
+	col = mix(col, col * 0.78, rim * 0.6);
+	col = mix(col, d * vec3(1.02, 0.98, 0.92), dw);
+	// Grade: a little less saturated, warmer, as in AoE II.
+	float l = dot(col, vec3(0.299, 0.587, 0.114));
+	col = mix(vec3(l), col, 1.0) * vec3(0.97, 1.03, 0.9);
+	COLOR = vec4(col, 1.0);
 }
 """
 const FLOWERS: Array[Color] = [Color("fff6e0"), Color("ffd84a"), Color("ff9fc4"), Color("c7a6ff"), Color("8fd3ff")]
@@ -132,6 +181,20 @@ func _bake_ground() -> void:
 	_bake.transparent_bg = false
 	_bake.disable_3d = true
 	_bake.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var ground: GroundDraw = GroundDraw.new()
+	ground.rect = _board
+	var gsh: Shader = Shader.new()
+	gsh.code = GROUND_SHADER
+	var gmat: ShaderMaterial = ShaderMaterial.new()
+	gmat.shader = gsh
+	gmat.set_shader_parameter("grass", load("res://assets/textures/grass.jpg"))
+	gmat.set_shader_parameter("patchy", load("res://assets/textures/grass_patchy.jpg"))
+	gmat.set_shader_parameter("dirt", load("res://assets/textures/dirt.jpg"))
+	gmat.set_shader_parameter("worn", _worn_mask())
+	gmat.set_shader_parameter("origin", _board.position)
+	gmat.set_shader_parameter("size", _board.size)
+	ground.material = gmat
+	_bake.add_child(ground)
 	var base: BaseDraw = BaseDraw.new()
 	base.terrain = self
 	base.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
@@ -144,6 +207,40 @@ func _bake_ground() -> void:
 
 ## Once the ground has been drawn into the viewport, its thousands of drawing
 ## commands (roads, flowers) are not needed any more: free them (D-46).
+## Where the ground is bare earth: roads (stamped along their smooth curves)
+## and base clearings, 4 pixels per cell over the whole board.
+var _mask_tex: ImageTexture
+
+
+func _worn_mask() -> ImageTexture:
+	var k: float = 4.0 / C
+	var w: int = int(_board.size.x * k)
+	var h: int = int(_board.size.y * k)
+	var img: Image = Image.create(w, h, false, Image.FORMAT_L8)
+	var stamp: Callable = func(world: Vector2, radius: float) -> void:
+		var c: Vector2 = (world - _board.position) * k
+		var r: float = radius * k
+		for y: int in range(maxi(0, int(c.y - r - 1)), mini(h, int(c.y + r + 2))):
+			for x: int in range(maxi(0, int(c.x - r - 1)), mini(w, int(c.x + r + 2))):
+				var dd: float = Vector2(x + 0.5, y + 0.5).distance_to(c)
+				var v: float = clampf(1.0 - (dd - r) / 1.5, 0.0, 1.0)
+				if v > img.get_pixel(x, y).r:
+					img.set_pixel(x, y, Color(v, v, v))
+	for r: Dictionary in _roads:
+		var pts: PackedVector2Array = r.pts
+		for i: int in range(0, pts.size(), 2):
+			stamp.call(pts[i], r.w * 0.95)
+	for f: String in ["player", "ai"]:
+		if map.starts.has(f):
+			var c2: Vector2 = (Vector2(map.starts[f]) + Vector2(1.5, 1.5)) * C
+			for a: int in 16:
+				var off: Vector2 = Vector2.from_angle(a * TAU / 16.0) * C * (1.1 + 0.4 * noise(a, int(c2.x), 90))
+				stamp.call(c2 + off, C * 1.5)
+			stamp.call(c2, C * 2.2)
+	_mask_tex = ImageTexture.create_from_image(img)
+	return _mask_tex
+
+
 func _free_after_bake(base: Node) -> void:
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
@@ -181,14 +278,8 @@ func _walk(c: Vector2i) -> bool:
 func _draw_base(ci: CanvasItem) -> void:
 	if map == null:
 		return
-	var grass_a: Texture2D = Art.tex("grass_a")
-	var grass_b: Texture2D = Art.tex("grass_b")
-	for y: int in range(-BORDER, map.height + BORDER):
-		for x: int in range(-BORDER, map.width + BORDER):
-			ci.draw_texture_rect(grass_a if noise(x, y) < 0.6 else grass_b, Rect2(Vector2(x, y) * C, Vector2(C, C)), false, Color(0.9, 0.94, 0.86))
-	_draw_wash(ci)
+	# Grass and earth come from the ground shader (D-50).
 	_draw_edges(ci)
-	_draw_worn_ground(ci)
 	_draw_details(ci)
 	_draw_water(ci)
 	_draw_rocks(ci)
@@ -367,7 +458,7 @@ func _draw_details(ci: CanvasItem) -> void:
 				continue
 			var base: Vector2 = Vector2(x, y) * C
 			# Grass tufts.
-			if noise(x, y, 60) < 0.32:
+			if noise(x, y, 60) < 0.08:
 				var p: Vector2 = base + Vector2(noise(x, y, 61), noise(x, y, 62)) * C
 				var col: Color = Color(0.05, 0.36, 0.14, 0.55)
 				for b: int in 3:
@@ -393,10 +484,12 @@ func _draw_details(ci: CanvasItem) -> void:
 ## by bars, so neighbouring cells merge into one body of water: a sandy
 ## shore, the water, then darker deep water where all four sides are water.
 func _draw_water(ci: CanvasItem) -> void:
-	water_shape(ci, 0.8, Color("c9b27a"), false)
-	water_shape(ci, 0.68, Color("6aa5b6"), false)
-	water_shape(ci, 0.6, Color("4b8fb3"), false)
-	water_shape(ci, 0.42, Color("2f6b95"), true)
+	# Natural water (D-50): a muddy bank, shallow green-blue, deep blue.
+	# Kept inside the water cells, so units beside a pond are on dry land.
+	water_shape(ci, 0.62, Color(0.42, 0.36, 0.24, 0.9), false)
+	water_shape(ci, 0.55, Color("5d7f6f"), false)
+	water_shape(ci, 0.48, Color("3d6878"), false)
+	water_shape(ci, 0.34, Color("2c5064"), true)
 
 
 ## Draws the union of a disc of `r` cells per water cell and a bar of the
@@ -527,7 +620,20 @@ class WaterDraw extends Node2D:
 		var m: MapGrid = terrain.map
 		if m == null:
 			return
-		terrain.water_shape(self, 0.6, Color.WHITE, false)
+		terrain.water_shape(self, 0.47, Color.WHITE, false)
+
+
+## One rectangle covering the board, coloured by the ground shader.
+class GroundDraw extends Node2D:
+	var rect: Rect2
+	var _white: ImageTexture
+
+	func _draw() -> void:
+		if _white == null:
+			var img: Image = Image.create(2, 2, false, Image.FORMAT_RGBA8)
+			img.fill(Color.WHITE)
+			_white = ImageTexture.create_from_image(img)
+		draw_texture_rect(_white, rect, false)
 
 
 ## One rectangle whose shader draws moving cloud shadows.

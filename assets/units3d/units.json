@@ -1,0 +1,83 @@
+{
+  "_frame": {
+    "dirs": 8,
+    "origin": [
+      48.0,
+      64.5142135620117
+    ],
+    "ppu": 28.2352941176471,
+    "size": 96
+  },
+  "melee_blue_hurt": {
+    "frames": 8
+  },
+  "melee_blue_idle": {
+    "frames": 1
+  },
+  "melee_blue_slash": {
+    "frames": 8
+  },
+  "melee_blue_walk": {
+    "frames": 8
+  },
+  "melee_red_hurt": {
+    "frames": 8
+  },
+  "melee_red_idle": {
+    "frames": 1
+  },
+  "melee_red_slash": {
+    "frames": 8
+  },
+  "melee_red_walk": {
+    "frames": 8
+  },
+  "ranged_blue_hurt": {
+    "frames": 8
+  },
+  "ranged_blue_idle": {
+    "frames": 1
+  },
+  "ranged_blue_shoot": {
+    "frames": 8
+  },
+  "ranged_blue_walk": {
+    "frames": 8
+  },
+  "ranged_red_hurt": {
+    "frames": 8
+  },
+  "ranged_red_idle": {
+    "frames": 1
+  },
+  "ranged_red_shoot": {
+    "frames": 8
+  },
+  "ranged_red_walk": {
+    "frames": 8
+  },
+  "worker_blue_chop": {
+    "frames": 8
+  },
+  "worker_blue_hurt": {
+    "frames": 8
+  },
+  "worker_blue_idle": {
+    "frames": 1
+  },
+  "worker_blue_walk": {
+    "frames": 8
+  },
+  "worker_red_chop": {
+    "frames": 8
+  },
+  "worker_red_hurt": {
+    "frames": 8
+  },
+  "worker_red_idle": {
+    "frames": 1
+  },
+  "worker_red_walk": {
+    "frames": 8
+  }
+}

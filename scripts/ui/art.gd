@@ -1,5 +1,5 @@
 ## The game's art (presentation layer): buildings and scenery from Kenney's
-## CC0 "Medieval RTS" pack (decision D-38), animated LPC units (D-41,
+## CC0 "Medieval RTS" pack (decision D-38), pre-rendered 3D units (D-50,
 ## UnitSprites), plus team rings, shadows, banners, bars and
 ## effects drawn in code. Each function draws onto the CanvasItem it is
 ## given, from inside that item's _draw(), so the map, the HUD and the menu
@@ -104,7 +104,7 @@ static func unit_radius(kind: String) -> float:
 
 
 ## A unit, animated (decision D-41): a team-coloured ring on the ground,
-## then the LPC sprite frame (which carries its own shadow). `flash` tints
+## then the unit's sprite frame (which carries its own shadow). `flash` tints
 ## it red when hit; `alpha` fades it.
 static func unit(ci: CanvasItem, feet: Vector2, kind: String, faction: String, anim: String, dir: int, frame: int,
 		alpha: float = 1.0, flash: float = 0.0, scale: float = UnitSprites.SCALE, ring_on: bool = true) -> void:

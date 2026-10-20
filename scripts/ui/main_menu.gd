@@ -25,7 +25,6 @@ var _cam: Vector2 = Vector2.ZERO
 var _next_clash: float = 0.0
 var _units: Array[Dictionary] = []
 var _credits: Control
-const LPC_CREDITS: String = "res://assets/lpc/CREDITS.md"
 ## A bright band that sweeps across the gold title now and then.
 const SHINE_SHADER: String = """
 shader_type canvas_item;
@@ -141,7 +140,7 @@ func _ready() -> void:
 	help_button.pressed.connect(func() -> void: _help.visible = not _help.visible)
 	credits_button.pressed.connect(show_credits)
 
-	var footer: Label = UiTheme.label("Godot 4.7.2  ·  art by Kenney (CC0) and LPC artists (CC-BY-SA 3.0, see Credits)", 14, "semibold", Palette.TEXT)
+	var footer: Label = UiTheme.label("Godot 4.7.2  ·  art by Kenney, Kay Lousberg and ambientCG (CC0)  ·  see Credits", 14, "semibold", Palette.TEXT)
 	footer.add_theme_constant_override("outline_size", 6)
 	footer.add_theme_color_override("font_outline_color", Color(0.12, 0.07, 0.03, 0.9))
 	footer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -210,27 +209,13 @@ func _build_help() -> PanelContainer:
 	return p
 
 
-## Opens the credits (the LPC licence asks for every artist to be named).
+## Opens the credits.
 func show_credits() -> void:
 	_credits.visible = true
 
 
 func is_credits_showing() -> bool:
 	return _credits.visible
-
-
-## Every LPC artist, read from assets/lpc/CREDITS.md (one name each).
-static func lpc_artists() -> PackedStringArray:
-	var names: PackedStringArray = PackedStringArray()
-	for line: String in FileAccess.get_file_as_string(LPC_CREDITS).split("\n"):
-		if not line.begins_with("| `"):
-			continue
-		for n: String in line.split("|")[2].split(","):
-			var name: String = n.strip_edges()
-			if name != "" and not names.has(name):
-				names.append(name)
-	names.sort()
-	return names
 
 
 func _build_credits() -> Control:
@@ -275,11 +260,12 @@ func _build_credits() -> Control:
 
 ## The credits, as BBCode.
 static func credits_text() -> String:
-	var t: String = "[b]Units (animated characters)[/b]\n"
-	t += "Liberated Pixel Cup (LPC) art, assembled with the Universal LPC Spritesheet Character Generator; "
-	t += "licensed CC-BY-SA 3.0 (parts also GPL 3.0 / OGA-BY 3.0 / CC-BY 4.0). Recoloured for the two teams. Artists: "
-	t += ", ".join(lpc_artists()) + ". Full list with sources: assets/lpc/CREDITS.md.\n\n"
-	t += "[b]Buildings, scenery, interface and effects[/b]\n"
+	var t: String = "[b]Units[/b]\n"
+	t += "KayKit Character Pack: Adventurers by Kay Lousberg (kaylousberg.com). CC0. "
+	t += "Rendered in 8 directions with Godot's 3D engine (tools/render_3d.gd).\n\n"
+	t += "[b]Buildings, trees and rocks[/b]\nKenney (kenney.nl): Castle Kit, Fantasy Town Kit, Nature Kit (3D, rendered as sprites). CC0.\n\n"
+	t += "[b]Ground[/b]\nambientCG (ambientcg.com): Grass004, Ground037, Ground054. CC0.\n\n"
+	t += "[b]Scenery, interface and effects[/b]\n"
 	t += "Kenney (kenney.nl): Medieval RTS, UI Pack: RPG Expansion, Particle Pack. CC0.\n\n"
 	t += "[b]Sound and music[/b]\n"
 	t += "Sound effects: Kenney (kenney.nl): Impact Sounds, RPG Audio, Interface Sounds. CC0. "
