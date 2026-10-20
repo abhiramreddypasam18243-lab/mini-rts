@@ -24,6 +24,10 @@
 ##      (BUILD ends when a barracks exists, or after 600 ticks)
 ##   6. otherwise                                              -> ECONOMY
 ##
+## Underneath ECONOMY, RECOVER and ATTACK, once a barracks stands (D-51):
+## farms when food runs short, one guard tower, a stable for cavalry, and
+## Forging then Armour at a barracks while an army exists.
+##
 ## Roles: workers gather and build; soldiers form the ARMY, except one SCOUT
 ## while no enemy building is known. Every command is recorded against the
 ## units it names, and a unit already named is skipped, so in one decision
@@ -42,6 +46,9 @@ const THREAT_BUILDING_SQ: int = 36
 const DEFEND_HOLD: int = 100
 const BUILD_TIMEOUT: int = 600
 const STUCK_TICKS: int = 200
+## D-51: a guard tower is built from this tick on; workers per farm.
+const TOWER_TICK: int = 1500
+const FARMERS_PER_FARM: int = 2
 ## Army soldiers engage visible enemy units within 7 cells on their way.
 const ENGAGE_SQ: int = 49
 ## Fog grid values (Fog.UNEXPLORED / EXPLORED / VISIBLE).
@@ -71,6 +78,10 @@ var _workers: Array[Dictionary] = []
 var _soldiers: Array[Dictionary] = []
 var _army: Array[Dictionary] = []
 var _barracks: Array[Dictionary] = []
+## D-51: own farms, towers and stables (finished or not).
+var _farms: Array[Dictionary] = []
+var _towers: Array[Dictionary] = []
+var _stables: Array[Dictionary] = []
 var _threats: Array[Dictionary] = []
 var _target: Dictionary = {}
 var _node_kind: Dictionary = {}
@@ -89,11 +100,20 @@ func _read(obs: Observation) -> void:
 	_workers = []
 	_soldiers = []
 	_barracks = []
+	_farms = []
+	_towers = []
+	_stables = []
 	for b: Dictionary in obs.own_buildings:
 		if b.kind == "hq" and _hq.is_empty():
 			_hq = b
 		elif b.kind == "barracks":
 			_barracks.append(b)
+		elif b.kind == "farm":
+			_farms.append(b)
+		elif b.kind == "tower":
+			_towers.append(b)
+		elif b.kind == "stable":
+			_stables.append(b)
 	for u: Dictionary in obs.own_units:
 		if u.kind == "worker":
 			_workers.append(u)
@@ -201,6 +221,9 @@ func decide(obs: Observation) -> Array[Dictionary]:
 			_do_defend(out, used)
 		ATTACK:
 			_do_attack(out, used)
+	if state != DEFEND and state != BUILD:
+		_do_expand(out, used, res)
+	_do_research(out, res)
 	if state != DEFEND and state != ATTACK:
 		_do_rally(out, used)
 	_do_scout(out, used)
@@ -254,12 +277,69 @@ func _do_build(out: Array[Dictionary], used: Dictionary, res: Dictionary) -> voi
 	_issue(out, used, Commands.build(faction, builder.id, "barracks", site))
 
 
-## The first valid barracks site found by scanning rings outward from the HQ,
-## each ring in row-major order. A site must lie on walkable, explored
+## D-51: at most one new building per decision, and only one of each kind
+## under construction at a time: a farm when the farms with food (or being
+## built) are fewer than one per 5 workers, one guard tower from tick 1500,
+## then a stable once a farm exists. All wait for a finished barracks.
+func _do_expand(out: Array[Dictionary], used: Dictionary, res: Dictionary) -> void:
+	if _hq.is_empty() or not _barracks.any(func(b: Dictionary) -> bool: return b.complete):
+		return
+	var kind: String = ""
+	var live_farms: int = _farms.filter(func(f: Dictionary) -> bool: return not f.complete or f.amount > 0).size()
+	if live_farms < _workers.size() / 5 and _farms.all(func(f: Dictionary) -> bool: return f.complete):
+		kind = "farm"
+	elif _towers.is_empty() and _obs.tick >= TOWER_TICK:
+		kind = "tower"
+	elif _stables.is_empty() and not _farms.is_empty():
+		kind = "stable"
+	if kind == "" or not _affordable(res, kind):
+		return
+	var free: Array[Dictionary] = _free(used, _workers)
+	if free.is_empty():
+		return
+	var site: Variant = _find_site(kind)
+	if site == null:
+		return
+	var builder: Dictionary = _nearest(site, free)
+	_spend(res, kind)
+	_issue(out, used, Commands.build(faction, builder.id, kind, site))
+
+
+## D-51: Forging, then Armour, at a finished barracks with a free queue slot,
+## once the army has 3 soldiers.
+func _do_research(out: Array[Dictionary], res: Dictionary) -> void:
+	if _soldiers.size() < 3:
+		return
+	for up: String in ["forging", "armour"]:
+		if _obs.upgrades.has(up) or _researching(up):
+			continue
+		if not _affordable_cost(res, _upgrade_cost(up)):
+			return
+		for b: Dictionary in _barracks:
+			if b.complete and b.queue.size() < 2:
+				_spend_cost(res, _upgrade_cost(up))
+				out.append(Commands.research(faction, b.id, up))
+				return
+		return
+
+
+func _researching(up: String) -> bool:
+	for b: Dictionary in _barracks:
+		if _queued(b, up) > 0:
+			return true
+	return false
+
+
+func _upgrade_cost(up: String) -> Dictionary:
+	var u: Dictionary = Consts.UPGRADES[up]
+	return {"wood": u.wood, "gold": u.gold, "food": u.food}
+
+
+## The valid site nearest the HQ (see below for the order). A site must lie on walkable, explored
 ## ground, keep one free cell from our buildings and from resource nodes,
 ## and be clear of every unit the AI can see.
-func _find_site() -> Variant:
-	var size: Vector2i = _obs.stats["barracks"].footprint
+func _find_site(kind: String = "barracks") -> Variant:
+	var size: Vector2i = _obs.stats[kind].footprint
 	var blocked: Dictionary = {}
 	for b: Dictionary in _obs.own_buildings:
 		for y: int in range(b.cell.y - 1, b.cell.y + b.size.y + 1):
@@ -275,14 +355,41 @@ func _find_site() -> Variant:
 				blocked[Vector2i(x, y)] = true
 	for u: Dictionary in _obs.own_units + _obs.enemy_units:
 		blocked[u.cell] = true
-	var c: Vector2i = _hq.cell
-	for d: int in range(2, 12):
-		for y: int in range(c.y - d, c.y + _hq.size.y + d):
-			for x: int in range(c.x - d, c.x + _hq.size.x + d):
-				var on_ring: bool = y == c.y - d or y == c.y + _hq.size.y - 1 + d or x == c.x - d or x == c.x + _hq.size.x - 1 + d
-				if on_ring and _site_ok(Vector2i(x, y), size, blocked):
-					return Vector2i(x, y)
-	return null
+	# The site whose centre is nearest the HQ (Chebyshev, in half cells),
+	# ties broken row-major in the AI's own frame: flipped for a start in the
+	# bottom-right half, so both start corners choose mirror-image sites on
+	# the point-symmetric maps (D-51; plain row-major order made the start
+	# positions unequal).
+	var f: int = _flip()
+	var hc2: Vector2i = _hq.cell * 2 + _hq.size
+	var best: Variant = null
+	var best_key: Vector3i = Vector3i.ZERO
+	for y: int in range(_hq.cell.y - 13, _hq.cell.y + _hq.size.y + 13):
+		for x: int in range(_hq.cell.x - 13, _hq.cell.x + _hq.size.x + 13):
+			var a: Vector2i = Vector2i(x, y)
+			var k: Vector2i = (a * 2 + size - hc2) * f
+			var key: Vector3i = Vector3i(maxi(absi(k.x), absi(k.y)), k.y, k.x)
+			if key.x > 26 or (best != null and not _less(key, best_key)):
+				continue
+			if _site_ok(a, size, blocked):
+				best = a
+				best_key = key
+	return best
+
+
+static func _less(a: Vector3i, b: Vector3i) -> bool:
+	return a.x < b.x or a.x == b.x and (a.y < b.y or a.y == b.y and a.z < b.z)
+
+
+## +1 for a start in the top-left half of the map, -1 in the bottom-right
+## half: scans run in this AI's own frame, so mirrored starts act alike.
+func _flip() -> int:
+	if _hq.is_empty():
+		return 1
+	var hc2: Vector2i = _hq.cell * 2 + _hq.size
+	if hc2.x != _obs.width:
+		return 1 if hc2.x < _obs.width else -1
+	return 1 if hc2.y < _obs.height else -1
 
 
 func _site_ok(anchor: Vector2i, size: Vector2i, blocked: Dictionary) -> bool:
@@ -394,14 +501,25 @@ func _scout_goals() -> Array[Vector2i]:
 ## Idle workers gather from the nearest remembered node, keeping roughly
 ## 2 workers on wood for each on gold.
 func _do_gather(out: Array[Dictionary], used: Dictionary) -> void:
-	if _obs.nodes.is_empty():
+	if _obs.nodes.is_empty() and _farms.is_empty():
 		return
-	var on: Dictionary = {"wood": 0, "gold": 0}
+	var on: Dictionary = {"wood": 0, "gold": 0, "food": 0}
+	var farms: Array[Dictionary] = _farms.filter(func(f: Dictionary) -> bool: return f.complete and f.amount > 0)
+	var farm_ids: Dictionary = {}
+	for f: Dictionary in farms:
+		farm_ids[f.id] = true
 	for w: Dictionary in _workers:
 		if w.order_type == "harvest" and _node_kind.has(w.order_target):
 			on[_node_kind[w.order_target]] += 1
+		elif w.order_type == "harvest" and farm_ids.has(w.order_target):
+			on.food += 1
 	for w: Dictionary in _free(used, _workers):
 		if w.order_type != "idle":
+			continue
+		# D-51: up to 2 workers on each farm with food.
+		if on.food < FARMERS_PER_FARM * farms.size():
+			on.food += 1
+			_issue(out, used, Commands.harvest(faction, [w.id], _nearest(w.cell, farms).id))
 			continue
 		var want: String = "gold" if on.gold * 2 < on.wood else "wood"
 		var n: Dictionary = _nearest_node(w.cell, want)
@@ -427,7 +545,7 @@ func _do_production(out: Array[Dictionary], res: Dictionary) -> void:
 	for s: Dictionary in _soldiers:
 		if s.kind == "melee":
 			melee += 1
-		else:
+		elif s.kind == "ranged":
 			ranged += 1
 	for b: Dictionary in _barracks:
 		melee += _queued(b, "melee")
@@ -444,6 +562,11 @@ func _do_production(out: Array[Dictionary], res: Dictionary) -> void:
 			melee += 1
 		else:
 			ranged += 1
+	# D-51: cavalry at every finished stable.
+	for b: Dictionary in _stables:
+		if b.complete and b.queue.size() < 2 and _affordable(res, "cavalry"):
+			_spend(res, "cavalry")
+			out.append(Commands.train(faction, b.id, "cavalry"))
 
 
 ## The fallback (SPEC 7.1): idle units or an affordable action, but nothing
@@ -488,18 +611,27 @@ func _explore_cell() -> Variant:
 # --- small helpers ------------------------------------------------------------
 
 func _cost(kind: String) -> Dictionary:
-	return {"wood": _obs.stats[kind].wood, "gold": _obs.stats[kind].gold}
+	return {"wood": _obs.stats[kind].wood, "gold": _obs.stats[kind].gold, "food": _obs.stats[kind].get("food", 0)}
 
 
 func _affordable(res: Dictionary, kind: String) -> bool:
-	var c: Dictionary = _cost(kind)
-	return res.wood >= c.wood and res.gold >= c.gold
+	return _affordable_cost(res, _cost(kind))
 
 
 func _spend(res: Dictionary, kind: String) -> void:
-	var c: Dictionary = _cost(kind)
-	res.wood -= c.wood
-	res.gold -= c.gold
+	_spend_cost(res, _cost(kind))
+
+
+func _affordable_cost(res: Dictionary, c: Dictionary) -> bool:
+	for r: String in c:
+		if int(res.get(r, 0)) < int(c[r]):
+			return false
+	return true
+
+
+func _spend_cost(res: Dictionary, c: Dictionary) -> void:
+	for r: String in c:
+		res[r] = int(res.get(r, 0)) - int(c[r])
 
 
 func _queued(b: Dictionary, kind: String) -> int:
@@ -579,11 +711,12 @@ func _walkable_near(c: Vector2i) -> Variant:
 				taken[Vector2i(x, y)] = true
 	for n: Dictionary in _obs.nodes:
 		taken[n.cell] = true
+	var f: int = _flip()
 	for r: int in 8:
-		for y: int in range(c.y - r, c.y + r + 1):
-			for x: int in range(c.x - r, c.x + r + 1):
-				var p: Vector2i = Vector2i(x, y)
-				if maxi(absi(x - c.x), absi(y - c.y)) == r and _walkable(p) and not taken.has(p):
+		for dy: int in range(-r, r + 1):
+			for dx: int in range(-r, r + 1):
+				var p: Vector2i = c + Vector2i(dx, dy) * f
+				if maxi(absi(dx), absi(dy)) == r and _walkable(p) and not taken.has(p):
 					return p
 	return null
 

@@ -105,10 +105,11 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | Left drag | Box-select your units (up to 24) |
 | Left click on empty ground / `Esc` | Clear the selection (`Esc` also cancels placement) |
 | Right click on ground | Move the selected units |
-| Right click on wood or gold | Selected workers gather from it |
+| Right click on wood, gold or your own finished farm | Selected workers gather from it (a farm gives food) |
 | Right click on a visible enemy | Selected soldiers attack it |
-| `B`, then click | Place a barracks (a worker must be selected; the ghost is green when valid, red with the reason when not) |
-| `Q` / `W` / `E` or the buttons | Train a worker (at the HQ) / melee soldier / ranged soldier (at a finished barracks) |
+| `B` / `N` / `T` / `V`, then click | Place a barracks / farm / guard tower / stable (a worker must be selected; the ghost is green when valid, red with the reason when not) |
+| `Q` / `W` / `E` / `C` or the buttons | Train a worker (at the HQ) / melee soldier / ranged soldier (at a finished barracks) / cavalry (at a finished stable) |
+| `R` / `Y` (barracks selected) | Research Forging (+2 soldier damage) / Armour (soldiers take 2 less per hit) |
 | Click a queued unit | Cancel it (full refund, once) |
 | `WASD` or the screen edges | Pan the camera (`W` trains a melee soldier while a building is selected) |
 | `F3` | Frames per second, unit count and the AI's current state |
@@ -147,15 +148,19 @@ Which module owns which rule is in [`docs/architecture.md`](docs/architecture.md
 
 Final stats (`data/units.json`, the same as SPEC section 4):
 
-| Entity | Wood | Gold | Health | Speed (milli-cells/tick) | Vision (cells) | Damage | Range (milli-cells) | Cooldown (ticks) | Train / build time (ticks) | Footprint |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Worker | 50 | 0 | 40 | 150 | 6 | – | – | – | 160 (8 s) | 1 × 1 |
-| Melee soldier | 60 | 20 | 100 | 125 | 6 | 10 | 1,500 | 20 | 200 (10 s) | 1 × 1 |
-| Ranged soldier | 40 | 50 | 50 | 125 | 7 | 8 | 5,000 | 24 | 240 (12 s) | 1 × 1 |
-| HQ | – | – | 500 | – | 8 | – | – | – | starts built | 3 × 3 |
-| Barracks | 120 | 60 | 300 | – | 5 | – | – | – | 300 (15 s) | 2 × 2 |
+| Entity | Wood | Gold | Food | Health | Speed (milli-cells/tick) | Vision (cells) | Damage | Range (milli-cells) | Cooldown (ticks) | Train / build time (ticks) | Footprint |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Worker | 50 | 0 | 0 | 40 | 150 | 6 | – | – | – | 160 (8 s) | 1 × 1 |
+| Melee soldier | 60 | 20 | 0 | 100 | 125 | 6 | 10 | 1,500 | 20 | 200 (10 s) | 1 × 1 |
+| Ranged soldier | 40 | 50 | 0 | 50 | 125 | 7 | 8 | 5,000 | 24 | 240 (12 s) | 1 × 1 |
+| HQ | – | – | – | 500 | – | 8 | – | – | – | starts built | 3 × 3 |
+| Barracks | 120 | 60 | 0 | 300 | – | 5 | – | – | – | 300 (15 s) | 2 × 2 |
+| Cavalry | 0 | 70 | 60 | 120 | 200 | 6 | 9 | 1,500 | 20 | 260 (13 s) | 1 × 1 |
+| Farm | 80 | 0 | 0 | 200 | – | 3 | – | – | – | 150 (7.5 s) | 2 × 2 |
+| Guard tower | 80 | 60 | 0 | 400 | – | 7 | 6 | 6,000 | 30 | 250 (12.5 s) | 1 × 1 |
+| Stable | 150 | 40 | 0 | 300 | – | 5 | – | – | – | 300 (15 s) | 2 × 2 |
 
-Each side starts with an HQ, 3 workers, 200 wood and 100 gold. Wood nodes hold 500, gold nodes 300; a worker carries 10 per trip and gathers for 40 ticks. Queues hold 5; population cap 40; matches end after 36,000 ticks (30 minutes).
+Each side starts with an HQ, 3 workers, 200 wood, 100 gold and 100 food. A finished farm holds 400 food, gathered like a node by its own side's workers, and disappears when empty. A finished guard tower shoots the nearest enemy unit within 6 cells. At a barracks, **Forging** (80 gold, 100 food, 20 s) gives soldiers +2 damage and **Armour** (100 gold, 100 food, 20 s) makes them take 2 less per hit (never less than 1); each is researched once (decision D-51). Wood nodes hold 500, gold nodes 300; a worker carries 10 per trip and gathers for 40 ticks. Queues hold 5; population cap 40; matches end after 36,000 ticks (30 minutes).
 
 ### Balance log (AC-90)
 
@@ -191,7 +196,7 @@ The AI is a **finite-state machine**. Every 10 ticks it looks at its observation
 | 5 | No barracks, enough workers, a barracks affordable | **BUILD** |
 | 6 | Otherwise | **ECONOMY** |
 
-Then it acts: workers gather (about 2 on wood for each on gold) and the HQ trains workers up to the target; finished barracks train soldiers in the policy's melee : ranged mix; BUILD places a barracks at the first valid spot found by scanning outwards from the HQ; DEFEND sends all soldiers at the nearest threat; ATTACK marches the army to the enemy HQ (or nearest known building) and fights what it meets; RECOVER gathers the army at a rally point. One soldier scouts the possible start positions until an enemy building is found. Each unit gets at most one command per decision, so the states can never give conflicting orders.
+Then it acts: workers gather (2 on each farm with food, the rest about 2 on wood for each on gold) and the HQ trains workers up to the target; finished barracks train soldiers in the policy's melee : ranged mix; BUILD places a barracks at the first valid spot found by scanning outwards from the HQ; DEFEND sends all soldiers at the nearest threat; once a barracks stands it also builds a farm when food runs short (one per 5 workers), a guard tower (from tick 1,500) and a stable, trains cavalry there, and researches Forging then Armour while it has 3 soldiers (D-51); ATTACK marches the army to the enemy HQ (or nearest known building) and fights what it meets; RECOVER gathers the army at a rally point. One soldier scouts the possible start positions until an enemy building is found. Each unit gets at most one command per decision, so the states can never give conflicting orders.
 
 **Worked example (AC-62), Balanced policy (retreat 40 %):** the AI attacked with 6 soldiers; 2 are left. Integers only: `2 × 100 = 200` is less than `40 × 6 = 240`, so row 3 fires → RECOVER. With 3 left, `300 ≥ 240`, so it keeps attacking. Another row: 5 workers, 120 wood, 60 gold and no barracks → row 5 → BUILD.
 
@@ -213,11 +218,11 @@ Policies are the same machine with different numbers:
 
 | Pairing (A vs B) | A win rate (decisive matches) | 95 % Wilson interval |
 | --- | --- | --- |
-| Aggressive vs Balanced | 0.919 | [0.873, 0.950] |
-| EconomyFirst vs Balanced | 0.257 | [0.200, 0.323] |
-| Aggressive vs EconomyFirst | 0.980 | [0.949, 0.992] |
+| Aggressive vs Balanced | 0.869 | [0.815, 0.909] |
+| EconomyFirst vs Balanced | 0.260 | [0.201, 0.329] |
+| Aggressive vs EconomyFirst | 0.948 | [0.907, 0.972] |
 
-**Under these rules and maps: Aggressive > Balanced > EconomyFirst** (re-run under the spacing rules of D-42). The start positions pass the fairness check: in Balanced vs Balanced the player start won 45 of 96 decided seeds (interval [0.372, 0.568] contains 0.5); one other pairing showed a mild player-start disadvantage, discussed in the report. This does not show that rushing is better in general: other maps, stats or a human opponent could change the order.
+**Under these rules and maps: Aggressive > Balanced > EconomyFirst** (re-run under the D-51 rules). The start positions pass the fairness check: in Balanced vs Balanced the player start won 45 of 95 decided seeds (interval [0.376, 0.573] contains 0.5). That check first caught an AI bug (building sites chosen in an order that favoured one corner), fixed before the final run; one pairing shows a mild player-start disadvantage, discussed in the report. This does not show that rushing is better in general: other maps, stats or a human opponent could change the order.
 
 ## Tests
 

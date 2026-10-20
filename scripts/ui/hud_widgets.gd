@@ -8,8 +8,8 @@ extends RefCounted
 static func draw_cost(ci: CanvasItem, pos: Vector2, cost: Dictionary, have: Dictionary, size: int = 15) -> void:
 	var font: Font = UiTheme.font("bold")
 	var x: float = pos.x
-	for r: String in ["wood", "gold"]:
-		if cost[r] <= 0:
+	for r: String in ["wood", "gold", "food"]:
+		if int(cost.get(r, 0)) <= 0:
 			continue
 		Art.icon(ci, Vector2(x + 8, pos.y - 5), r, 0.55)
 		var col: Color = Palette.INK if have.get(r, 0) >= cost[r] else Palette.BAD
@@ -28,7 +28,7 @@ class CommandButton extends Button:
 	var have: Dictionary = {}
 
 	func _init() -> void:
-		custom_minimum_size = Vector2(212, 62)
+		custom_minimum_size = Vector2(156, 54)
 		focus_mode = Control.FOCUS_NONE
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
@@ -41,9 +41,11 @@ class CommandButton extends Button:
 
 	func _draw() -> void:
 		var a: float = 0.5 if disabled else 1.0
-		var c: Vector2 = Vector2(30, size.y / 2.0)
-		if kind == "barracks":
-			draw_texture_rect(Art.tex("barracks"), Rect2(c - Vector2(22, 24), Vector2(44, 44)), false, Color(1, 1, 1, a))
+		var c: Vector2 = Vector2(27, size.y / 2.0)
+		if kind in Simulation.BUILDABLE:
+			Art.draw_fit(self, "%s_%s" % [kind, Art.TEAM_ART[faction]], Rect2(c - Vector2(21, 21), Vector2(42, 42)), Color(1, 1, 1, a))
+		elif Consts.UPGRADES.has(kind):
+			Art.upgrade_icon(self, c, kind, 1.0, a)
 		elif kind == "attack_move":
 			# Crossed swords.
 			for d: Vector2 in [Vector2(1, 1), Vector2(1, -1)]:
@@ -53,8 +55,8 @@ class CommandButton extends Button:
 		else:
 			Art.unit_icon(self, c, kind, faction, 36.0, a)
 		var font: Font = UiTheme.font("bold")
-		draw_string(font, Vector2(58, 27), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(Palette.INK, a))
-		HudWidgets.draw_cost(self, Vector2(58, 48), cost, have, 15)
+		draw_string(font, Vector2(50, 23), title, HORIZONTAL_ALIGNMENT_LEFT, size.x - 74, 14, Color(Palette.INK, a))
+		HudWidgets.draw_cost(self, Vector2(50, 44), cost, have, 13)
 		if hotkey != "":
 			var b: Vector2 = Vector2(size.x - 17, 16)
 			draw_circle(b, 11.0, Color(0.36, 0.24, 0.14, a), true, -1.0, true)
@@ -84,7 +86,10 @@ class QueueSlot extends Button:
 		if kind == "":
 			return
 		draw_texture_rect(UiTheme.tex("buttonSquare_beige"), Rect2(Vector2.ZERO, size), false)
-		Art.unit_icon(self, size / 2.0 - Vector2(0, 3), kind, faction, 30.0)
+		if Consts.UPGRADES.has(kind):
+			Art.upgrade_icon(self, size / 2.0 - Vector2(0, 3), kind, 0.9)
+		else:
+			Art.unit_icon(self, size / 2.0 - Vector2(0, 3), kind, faction, 30.0)
 		if active:
 			Art.bar(self, Rect2(6, size.y - 9, size.x - 12, 4), progress, Palette.GOOD)
 
@@ -107,7 +112,7 @@ class Portrait extends Control:
 				return
 			"wood", "gold":
 				Art.icon(self, c, kind, 1.7)
-			"hq", "barracks":
+			"hq", "barracks", "farm", "tower", "stable":
 				var tint: Color = Color(0.65, 0.65, 0.7) if ghost else Color.WHITE
 				# The pre-rendered 3D building (D-49), fitted to the portrait.
 				Art.draw_fit(self, "%s_%s" % [kind, Art.TEAM_ART[faction]], Rect2(c - Vector2(36, 36), Vector2(72, 72)), tint)

@@ -116,9 +116,9 @@ func test_ac_32_train_melee_then_cannot_afford_second() -> void:
 	var sim: Simulation = Simulation.new(TestMaps.open(16, 10), 1, {"start_workers": 0, "start_wood": 100, "start_gold": 100})
 	var barracks: int = sim.place_building_unchecked("barracks", "player", Vector2i(6, 4), true)
 	assert_eq(sim.submit(Commands.train("player", barracks, "melee")), "ok")
-	assert_eq(sim.resources.player, {"wood": 40, "gold": 80})
+	assert_eq(sim.resources.player, {"wood": 40, "gold": 80, "food": 100})
 	assert_eq(sim.submit(Commands.train("player", barracks, "melee")), "insufficient_resources")
-	assert_eq(sim.resources.player, {"wood": 40, "gold": 80})
+	assert_eq(sim.resources.player, {"wood": 40, "gold": 80, "food": 100})
 	assert_eq(sim.entity(barracks).queue.size(), 1)
 
 

@@ -29,7 +29,9 @@ static func check(sim: Simulation) -> PackedStringArray:
 		if e.is_building():
 			if e.queue.size() > Consts.QUEUE_CAPACITY:
 				problems.append("building %d queue has %d items" % [id, e.queue.size()])
-			population[e.faction] += e.queue.size()
+			for item: Dictionary in e.queue:
+				if not Consts.UPGRADES.has(item.type):
+					population[e.faction] += 1
 		if e.is_unit():
 			population[e.faction] += 1
 
@@ -60,15 +62,16 @@ static func check(sim: Simulation) -> PackedStringArray:
 	# Conservation (AC-07), for each faction and resource:
 	#   removed from nodes == carried + deposited + lost (died carrying)
 	#   stockpile == start + deposited + refunded - spent
-	# and overall: resource missing from nodes == removed by both factions.
-	var carried: Dictionary = {"player": {"wood": 0, "gold": 0}, "ai": {"wood": 0, "gold": 0}}
-	var in_nodes: Dictionary = {"wood": 0, "gold": 0}
+	# and overall: resource missing from nodes and farms == removed by both
+	# factions (farms add food when finished and lose it when destroyed, D-51).
+	var carried: Dictionary = {"player": {"wood": 0, "gold": 0, "food": 0}, "ai": {"wood": 0, "gold": 0, "food": 0}}
+	var in_nodes: Dictionary = {"wood": 0, "gold": 0, "food": 0}
 	for id: int in sim.entities:
 		var e: Entity = sim.entities[id]
 		if e.is_unit() and e.carry > 0:
 			carried[e.faction][e.carry_type] += e.carry
-		elif e.is_node():
-			in_nodes[e.kind] += e.amount
+		elif e.is_node() or e.kind == "farm":
+			in_nodes[e.resource()] += e.amount
 	var b: ResourceManager = sim.bank
 	for r: String in ResourceManager.TYPES:
 		var removed_total: int = 0
@@ -76,8 +79,9 @@ static func check(sim: Simulation) -> PackedStringArray:
 			removed_total += b.removed[f][r]
 			if b.removed[f][r] != carried[f][r] + b.deposited[f][r] + b.lost[f][r]:
 				problems.append("%s %s: removed %d != carried %d + deposited %d + lost %d" % [f, r, b.removed[f][r], carried[f][r], b.deposited[f][r], b.lost[f][r]])
-		if sim.initial_node_total[r] - in_nodes[r] != removed_total:
-			problems.append("%s: nodes lost %d but workers removed %d" % [r, sim.initial_node_total[r] - in_nodes[r], removed_total])
+		var lost_from_nodes: int = sim.initial_node_total[r] + sim.node_added[r] - sim.node_razed[r] - in_nodes[r]
+		if lost_from_nodes != removed_total:
+			problems.append("%s: nodes lost %d but workers removed %d" % [r, lost_from_nodes, removed_total])
 	for f: String in Consts.FACTIONS:
 		if not b.balanced(f):
 			problems.append("%s stockpile does not balance: %s" % [f, b.stock[f]])

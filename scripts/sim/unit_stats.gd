@@ -5,9 +5,9 @@
 class_name UnitStats
 extends RefCounted
 
-const ENTITIES: Array[String] = ["worker", "melee", "ranged", "hq", "barracks"]
+const ENTITIES: Array[String] = ["worker", "melee", "ranged", "cavalry", "hq", "barracks", "farm", "tower", "stable"]
 const FIELDS: Array[String] = [
-	"wood", "gold", "health", "speed", "vision",
+	"wood", "gold", "food", "health", "speed", "vision",
 	"damage", "range", "cooldown", "build_time",
 ]
 

@@ -1,6 +1,6 @@
 ## The in-game HUD (SPEC 9; AC-73, AC-74). Presentation layer: it reads the
 ## simulation through HudModel and sends commands through the Game.
-##   top bar:      wood, gold, population, match clock; Restart and Menu
+##   top bar:      wood, gold, food, population, match clock; Restart and Menu
 ##   bottom panel: details card of the selection, command buttons with
 ##                 costs and disabled reasons, the production queue
 ##   left:         status messages that fade after 3 seconds
@@ -12,10 +12,11 @@ var game: Game
 var root: Control
 var _wood: Label
 var _gold: Label
+var _food: Label
 var _pop: Label
 var _clock: Label
 var _card: VBoxContainer
-var _actions: HBoxContainer
+var _actions: GridContainer
 var _actions_box: VBoxContainer
 var _queue: HBoxContainer
 var _hint: Label
@@ -114,6 +115,8 @@ func _build_top_bar() -> void:
 	_divider(row)
 	_gold = _stat(row, "gold")
 	_divider(row)
+	_food = _stat(row, "food")
+	_divider(row)
 	_pop = _stat(row, "pop")
 	_divider(row)
 	_clock = _stat(row, "clock")
@@ -180,7 +183,7 @@ func _build_bottom_panel() -> void:
 	panel.add_child(row)
 	var card_frame: PanelContainer = PanelContainer.new()
 	card_frame.add_theme_stylebox_override("panel", UiTheme.parchment(Vector2(14, 10)))
-	card_frame.custom_minimum_size = Vector2(350, 0)
+	card_frame.custom_minimum_size = Vector2(280, 0)
 	row.add_child(card_frame)
 	_card = VBoxContainer.new()
 	card_frame.add_child(_card)
@@ -197,8 +200,10 @@ func _build_bottom_panel() -> void:
 	heading.add_theme_font_override("font", UiTheme.spaced("title", 3))
 	heading.visible = not game.demo
 	_actions_box.add_child(heading)
-	_actions = HBoxContainer.new()
-	_actions.add_theme_constant_override("separation", 10)
+	_actions = GridContainer.new()
+	_actions.columns = 3
+	_actions.add_theme_constant_override("h_separation", 8)
+	_actions.add_theme_constant_override("v_separation", 6)
 	_actions_box.add_child(_actions)
 	_queue = HBoxContainer.new()
 	_queue.add_theme_constant_override("separation", 6)
@@ -360,6 +365,7 @@ func refresh() -> void:
 	var res: Dictionary = HudModel.resources(sim, f)
 	_set_counter(_wood, res.wood, _last_res.get("wood", res.wood))
 	_set_counter(_gold, res.gold, _last_res.get("gold", res.gold))
+	_set_counter(_food, res.food, _last_res.get("food", res.food))
 	_last_res = res
 	_pop.text = HudModel.population(sim, f)
 	_clock.text = HudModel.clock_text(sim.tick)
@@ -475,21 +481,31 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 		_hint.text = "Watching a recorded match. Click a unit or building to see its details; WASD pans."
 	elif b != null and b.faction == f:
 		for kind: String in Simulation.TRAINS[b.kind]:
-			var hotkey: String = {"worker": "Q", "melee": "W", "ranged": "E"}[kind]
+			var hotkey: String = {"worker": "Q", "melee": "W", "ranged": "E", "cavalry": "C"}[kind]
 			_add_button(kind, "Train " + HudModel.KIND_NAMES[kind].to_lower().replace(" soldier", ""), hotkey,
 				func() -> void: game.train(kind))
+		if b.kind == "barracks":
+			for up: String in ["forging", "armour"]:
+				if not game.sim.has_upgrade(f, up):
+					_add_button(up, HudModel.KIND_NAMES[up], "R" if up == "forging" else "Y", func() -> void: game.research(up))
 		for i: int in Consts.QUEUE_CAPACITY:
 			var slot: HudWidgets.QueueSlot = HudWidgets.QueueSlot.new()
 			slot.faction = f
 			slot.pressed.connect(func() -> void: game.cancel_train(i))
 			_queue.add_child(slot)
 			_slots.append(slot)
-		_hint.text = "Click a queued unit to cancel it (full refund)." if b.complete else "Soldiers can be trained once construction finishes."
+		_hint.text = "Click a queued item to cancel it (full refund)." if b.complete else "It works once construction finishes."
+		if b.kind == "farm":
+			_hint.text = "Right-click the farm with workers selected to gather food (%d left)." % b.amount if b.complete else "Workers can farm here once it is built."
+		elif b.kind == "tower":
+			_hint.text = "The tower shoots the nearest enemy unit within 6 cells."
 	elif not sel.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker").is_empty():
-		_add_button("barracks", "Build barracks", "B", func() -> void: game.start_placing())
+		for k: Array in [["barracks", "B"], ["farm", "N"], ["tower", "T"], ["stable", "V"]]:
+			var kind: String = k[0]
+			_add_button(kind, "Build " + kind, k[1], func() -> void: game.start_placing(kind))
 		_add_button("attack_move", "Attack-move", "F", func() -> void: game.start_aiming())
-		_hint.text = "Right-click: move · gather from wood or gold. B: place a barracks. Shift: queue orders." \
-			if not game.placing else "Click to place the barracks · right-click or Esc to cancel."
+		_hint.text = "Right-click: move · gather wood, gold or your farm's food. Shift: queue orders." \
+			if not game.placing else "Click to place the %s · right-click or Esc to cancel." % HudModel.KIND_NAMES[game.placing_kind].to_lower()
 	elif not units.is_empty():
 		_add_button("attack_move", "Attack-move", "F", func() -> void: game.start_aiming())
 		_hint.text = "Right-click: move, or attack a visible enemy. F, then click: attack-move (fight on the way). Hold Shift to queue orders."
@@ -518,7 +534,7 @@ func _add_button(kind: String, title: String, hotkey: String, action: Callable) 
 	b.title = title
 	b.hotkey = hotkey
 	b.faction = game.faction
-	b.cost = HudModel.cost_of(game.sim, kind) if game.sim.stats.has(kind) else {"wood": 0, "gold": 0}
+	b.cost = HudModel.cost_of(game.sim, kind) if game.sim.stats.has(kind) or Consts.UPGRADES.has(kind) else {"wood": 0, "gold": 0}
 	b.pressed.connect(action)
 	_actions.add_child(b)
 	_buttons[kind] = b
@@ -556,8 +572,10 @@ func _update_card(sim: Simulation, f: String) -> void:
 	var b: Entity = sel.building(sim)
 	for kind: String in _buttons:
 		var state: Dictionary
-		if kind == "barracks":
-			state = HudModel.build_button(sim, f, sel.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker"))
+		if kind in Simulation.BUILDABLE:
+			state = HudModel.build_button(sim, f, sel.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker"), kind)
+		elif Consts.UPGRADES.has(kind) and b != null:
+			state = HudModel.research_button(sim, b.id, kind)
 		elif b != null:
 			state = HudModel.train_button(sim, b.id, kind)
 		else:
@@ -570,7 +588,8 @@ func _update_card(sim: Simulation, f: String) -> void:
 				var item: Dictionary = b.queue[i]
 				slot.kind = item.type
 				slot.active = i == 0
-				slot.progress = 1.0 - float(item.remaining) / sim.stats[item.type].build_time
+				var total: int = Consts.UPGRADES[item.type].time if Consts.UPGRADES.has(item.type) else sim.stats[item.type].build_time
+				slot.progress = 1.0 - float(item.remaining) / total
 				slot.tooltip_text = "%s · click to cancel (refund %s)" % [HudModel.KIND_NAMES[item.type], HudModel.cost_text(item.cost)]
 				if item.status == "spawn_blocked":
 					slot.tooltip_text = "Waiting: spawn area blocked"

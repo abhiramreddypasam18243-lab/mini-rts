@@ -107,7 +107,10 @@ func _draw_hidden(shown: Array[Entity], sim: Simulation) -> void:
 		if b.is_building():
 			var r: Rect2 = Rect2(Vector2(b.cell) * C, Vector2(b.size) * C)
 			# The building's picture rises above its footprint.
-			covers.append(Rect2(r.position.x - 4, r.position.y - r.size.y * (1.0 if b.kind == "hq" else 0.6), r.size.x + 8, r.size.y * (2.0 if b.kind == "hq" else 1.6)))
+			if b.kind == "farm":
+				continue  # a field hides nobody
+			var rise: float = Art.RISE.get(b.kind, 0.5) + 0.1
+			covers.append(Rect2(r.position.x - 4, r.position.y - r.size.y * rise, r.size.x + 8, r.size.y * (1.0 + rise)))
 	for e: Entity in shown:
 		var feet: Vector2 = _feet(e)
 		for c: Rect2 in covers:
@@ -147,7 +150,7 @@ func _feet(e: Entity) -> Vector2:
 ## and the sprites are a bit taller than a cell, so this keeps a visible gap
 ## between the two lines.
 func _stance(e: Entity) -> Vector2:
-	if e.order_type != "attack" or e.kind != "melee":
+	if e.order_type != "attack" or not e.is_melee():
 		return Vector2.ZERO
 	var info: Dictionary = game.attack_info.get(e.id, {})
 	if info.is_empty():
@@ -232,7 +235,7 @@ func _anim(e: Entity, feet: Vector2) -> Dictionary:
 	var out: Dictionary = {"anim": "walk", "dir": dir, "frame": 0}
 	var info: Dictionary = game.attack_info.get(e.id, {})
 	var since: float = t - info.t if not info.is_empty() else 99.0
-	if e.kind == "melee" and since < SLASH_TIME:
+	if e.is_melee() and since < SLASH_TIME:
 		out.anim = "slash"
 		out.dir = UnitSprites.dir_of(info.dir, dir)
 		out.frame = int(since / SLASH_TIME * 6.0)
@@ -247,7 +250,7 @@ func _anim(e: Entity, feet: Vector2) -> Dictionary:
 		out.dir = UnitSprites.dir_of(moved, dir)
 		out.frame = 1 + int(ph) % 8
 	elif e.phase == "gathering":
-		out.anim = "chop" if e.harvest_type == "wood" else "mine"
+		out.anim = "chop" if e.harvest_type == "wood" or e.harvest_type == "farm" else "mine"
 		var node_p: Vector2 = (Vector2(e.harvest_cell) + Vector2(0.5, 0.5)) * C
 		out.dir = UnitSprites.dir_of(node_p - game.draw_pos(e), dir)
 		out.frame = int(t * 7.0 + e.id * 1.3) % 6

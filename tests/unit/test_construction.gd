@@ -82,8 +82,8 @@ func test_ac_37_valid_placement_pays_once_and_blocks_at_once() -> void:
 	var s: Array = _setup()
 	var sim: Simulation = s[0]
 	assert_eq(sim.submit(Commands.build("player", s[1], "barracks", Vector2i(6, 5))), "ok")
-	assert_eq(sim.resources.player, {"wood": 200 - BARRACKS_WOOD, "gold": 100 - BARRACKS_GOLD})
-	assert_eq(sim.bank.spent.player, {"wood": BARRACKS_WOOD, "gold": BARRACKS_GOLD}, "deducted exactly once")
+	assert_eq(sim.resources.player, {"wood": 200 - BARRACKS_WOOD, "gold": 100 - BARRACKS_GOLD, "food": 100})
+	assert_eq(sim.bank.spent.player, {"wood": BARRACKS_WOOD, "gold": BARRACKS_GOLD, "food": 0}, "deducted exactly once")
 	for c: Vector2i in [Vector2i(6, 5), Vector2i(7, 5), Vector2i(6, 6), Vector2i(7, 6)]:
 		assert_true(sim.is_solid(c), "%s blocks movement from the placement tick" % c)
 	# A straight path along row 5 from (4, 5) to (10, 5) must now go round.
@@ -91,7 +91,7 @@ func test_ac_37_valid_placement_pays_once_and_blocks_at_once() -> void:
 	assert_eq(path.size() - 1, 8, "6 steps straight are blocked; the detour is 8")
 	for _t: int in 300:
 		sim.step()
-	assert_eq(sim.resources.player, {"wood": 200 - BARRACKS_WOOD, "gold": 100 - BARRACKS_GOLD}, "no second charge")
+	assert_eq(sim.resources.player, {"wood": 200 - BARRACKS_WOOD, "gold": 100 - BARRACKS_GOLD, "food": 100}, "no second charge")
 
 
 func test_ac_38_completes_after_exactly_300_ticks() -> void:
@@ -127,7 +127,7 @@ func test_ac_38_progress_pauses_and_resumes() -> void:
 		sim.step()
 	assert_eq(sim.entity(b).progress, 100, "holds while no worker is adjacent")
 	assert_eq(sim.submit(Commands.build("player", w, "barracks", Vector2i(5, 6))), "ok", "resume: no new charge")
-	assert_eq(sim.resources.player, {"wood": 80, "gold": 40})
+	assert_eq(sim.resources.player, {"wood": 80, "gold": 40, "food": 100})
 	var seen: Array[int] = []
 	for _t: int in 400:
 		sim.step()

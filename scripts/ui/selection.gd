@@ -135,6 +135,11 @@ func context_commands(sim: Simulation, faction: String, p: Vector2i) -> Array[Di
 		out.append(Commands.move(faction, mine, cell))
 		return out
 	var t: Entity = sim.entity(id)
+	if t != null and t.kind == "farm" and t.faction == faction and t.complete:
+		var farmers: Array[int] = of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker")
+		if not farmers.is_empty():
+			out.append(Commands.harvest(faction, farmers, id))
+		return out
 	if t == null or t.faction == faction:
 		return out  # a ghost, or a friendly unit or building
 	if t.is_node():

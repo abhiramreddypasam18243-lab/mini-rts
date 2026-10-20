@@ -50,7 +50,7 @@ static func tex(kind: String, faction: String, anim: String) -> Texture2D:
 ## Loads every sheet now (at match start), so the first sword swing or bow
 ## shot of a battle does not stall while its texture loads.
 static func preload_all() -> void:
-	for kind: String in ["worker", "melee", "ranged"]:
+	for kind: String in ["worker", "melee", "ranged", "cavalry"]:
 		for faction: String in TEAM:
 			for anim: String in ["idle", "walk", "hurt", _attack(kind)]:
 				tex(kind, faction, anim)
@@ -58,7 +58,7 @@ static func preload_all() -> void:
 
 ## The attack (or work) sheet of a unit kind.
 static func _attack(kind: String) -> String:
-	return {"worker": "chop", "melee": "slash", "ranged": "shoot"}[kind]
+	return {"worker": "chop", "melee": "slash", "ranged": "shoot", "cavalry": "slash"}[kind]
 
 
 ## True when this unit kind has this animation.
@@ -69,7 +69,7 @@ static func has(kind: String, anim: String) -> bool:
 		"chop", "mine", "hammer":
 			return kind == "worker"
 		"slash":
-			return kind == "melee"
+			return kind == "melee" or kind == "cavalry"
 		"shoot":
 			return kind == "ranged"
 	return false

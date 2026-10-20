@@ -37,6 +37,11 @@ static func cancel_train(faction: String, building_id: int, index: int) -> Dicti
 	return _cmd(faction, "cancel_train", {"building_id": building_id, "index": index})
 
 
+## Research an upgrade at a barracks (D-51): "forging" or "armour".
+static func research(faction: String, building_id: int, upgrade: String) -> Dictionary:
+	return _cmd(faction, "research", {"building_id": building_id, "upgrade": upgrade})
+
+
 ## Adds "queue": true only when queued, so plain commands keep their shape.
 static func _queued(cmd: Dictionary, queue: bool) -> Dictionary:
 	if queue:

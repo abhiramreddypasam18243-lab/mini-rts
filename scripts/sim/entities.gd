@@ -1,17 +1,18 @@
 ## Units, buildings and resource nodes (SPEC 4, 5).
 ## One class with a `kind`, so every entity lives in one id-ordered table and
 ## the simulation can process them in id order (determinism rule).
-##   units:     worker, melee, ranged   (faction "player" or "ai")
-##   buildings: hq, barracks            (faction "player" or "ai")
+##   units:     worker, melee, ranged, cavalry          (faction "player" or "ai")
+##   buildings: hq, barracks, farm, tower, stable       (faction "player" or "ai")
 ##   nodes:     wood, gold              (faction "")
 ## A unit has exactly one current order (SPEC 5.2, decision D-14).
 class_name Entity
 extends RefCounted
 
-const UNIT_KINDS: Array[String] = ["worker", "melee", "ranged"]
-const BUILDING_KINDS: Array[String] = ["hq", "barracks"]
+const UNIT_KINDS: Array[String] = ["worker", "melee", "ranged", "cavalry"]
+const BUILDING_KINDS: Array[String] = ["hq", "barracks", "farm", "tower", "stable"]
 const NODE_KINDS: Array[String] = ["wood", "gold"]
-const KIND_CODE: Dictionary = {"worker": 1, "melee": 2, "ranged": 3, "hq": 4, "barracks": 5, "wood": 6, "gold": 7}
+const KIND_CODE: Dictionary = {"worker": 1, "melee": 2, "ranged": 3, "hq": 4, "barracks": 5, "wood": 6, "gold": 7,
+	"cavalry": 8, "farm": 9, "tower": 10, "stable": 11, "forging": 12, "armour": 13}
 const ORDER_CODE: Dictionary = {"idle": 0, "move": 1, "harvest": 2, "build": 3, "attack": 4, "attack_move": 5}
 const FACTION_CODE: Dictionary = {"": 0, "player": 1, "ai": 2}
 
@@ -24,7 +25,7 @@ var size: Vector2i = Vector2i(1, 1)
 ## Units: position in milli-cells.
 var pos: Vector2i
 var hp: int = 0
-## Nodes: resource left.
+## Nodes and farms: resource left.
 var amount: int = 0
 
 # --- the unit's single current order --------------------------------------
@@ -94,7 +95,22 @@ func is_node() -> bool:
 
 
 func is_soldier() -> bool:
-	return kind == "melee" or kind == "ranged"
+	return kind == "melee" or kind == "ranged" or kind == "cavalry"
+
+
+## Melee soldiers and cavalry fight at arm's length (D-42 slots, D-51).
+func is_melee() -> bool:
+	return kind == "melee" or kind == "cavalry"
+
+
+## Something workers harvest: a node, or a finished farm (D-51).
+func is_harvestable() -> bool:
+	return is_node() or kind == "farm" and complete
+
+
+## The resource a node or farm yields.
+func resource() -> String:
+	return "food" if kind == "farm" else kind
 
 
 func unit_cell() -> Vector2i:

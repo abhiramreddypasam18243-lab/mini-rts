@@ -122,6 +122,29 @@ static func unit_icon(ci: CanvasItem, centre: Vector2, kind: String, faction: St
 	UnitSprites.icon(ci, centre, kind, faction, height, alpha)
 
 
+## Upgrade icons (D-51): Forging is a sword on an anvil, Armour a shield.
+static func upgrade_icon(ci: CanvasItem, c: Vector2, kind: String, s: float = 1.0, alpha: float = 1.0) -> void:
+	var ink: Color = Color(0.22, 0.14, 0.07, alpha)
+	var steel: Color = Color(0.82, 0.85, 0.9, alpha)
+	if kind == "forging":
+		ci.draw_rect(Rect2(c + Vector2(-13, 6) * s, Vector2(26, 7) * s), ink)
+		ci.draw_rect(Rect2(c + Vector2(-8, 12) * s, Vector2(16, 6) * s), ink)
+		ci.draw_line(c + Vector2(-10, 4) * s, c + Vector2(10, -16) * s, ink, 6.0 * s, true)
+		ci.draw_line(c + Vector2(-10, 4) * s, c + Vector2(10, -16) * s, steel, 3.0 * s, true)
+		ci.draw_line(c + Vector2(-12, -2) * s, c + Vector2(-4, 6) * s, Color(Palette.ACCENT, alpha), 3.0 * s, true)
+		ci.draw_circle(c + Vector2(12, -12) * s, 3.0 * s, Color(1.0, 0.7, 0.3, 0.8 * alpha), true, -1.0, true)
+	else:
+		var pts: PackedVector2Array = PackedVector2Array([Vector2(-12, -14), Vector2(12, -14), Vector2(11, 2), Vector2(0, 15), Vector2(-11, 2)])
+		for i: int in pts.size():
+			pts[i] = c + pts[i] * s
+		ci.draw_colored_polygon(pts, ink)
+		var inner: PackedVector2Array = PackedVector2Array()
+		for p: Vector2 in pts:
+			inner.append(c + (p - c) * 0.78)
+		ci.draw_colored_polygon(inner, steel)
+		ci.draw_line(c + Vector2(0, -10) * s, c + Vector2(0, 10) * s, Color(Palette.ACCENT, alpha), 3.0 * s, true)
+
+
 ## A building on its footprint `rect` (D-48): a paved stone base with a
 ## team-coloured trim, then the building made of several Kenney pieces. The
 ## HQ is a keep with two corner towers behind a gated wall; the barracks has
@@ -130,14 +153,15 @@ static func unit_icon(ci: CanvasItem, centre: Vector2, kind: String, faction: St
 static func building(ci: CanvasItem, rect: Rect2, kind: String, faction: String, t: float,
 		complete: bool = true, progress: float = 1.0, ghost: bool = false, flash: float = 0.0) -> void:
 	var team: Color = Palette.TEAM[faction]
-	_plinth(ci, rect, team, ghost)
+	if kind != "farm":
+		_plinth(ci, rect, team, ghost)
 	var tint: Color = Color(1, 1, 1)
 	if ghost:
 		tint = Color(0.62, 0.62, 0.66, 0.6)
 	elif flash > 0.0:
 		tint = Color(1, 1 - 0.5 * flash, 1 - 0.5 * flash)
 	# The part of the building already built: everything below clip_y.
-	var top: float = rect.position.y - rect.size.y * (0.9 if kind == "hq" else 0.5)
+	var top: float = rect.position.y - rect.size.y * RISE.get(kind, 0.5)
 	var clip_y: float = -INF
 	if not complete and not ghost:
 		var f: float = clampf(progress, 0.0, 1.0)
@@ -149,6 +173,11 @@ static func building(ci: CanvasItem, rect: Rect2, kind: String, faction: String,
 	if not complete and not ghost:
 		_scaffold(ci, rect, clip_y)
 		bar(ci, Rect2(rect.position.x + 8, rect.end.y - 7, rect.size.x - 16, 5), progress, Palette.ACCENT)
+
+
+## How far above its footprint a building's picture reaches, in footprint
+## heights (construction rises to there).
+const RISE: Dictionary = {"hq": 0.9, "barracks": 0.5, "stable": 0.5, "farm": 0.1, "tower": 2.6}
 
 
 ## The pieces of a building, back to front: [sprite, target rect].
@@ -327,6 +356,16 @@ static func icon(ci: CanvasItem, c: Vector2, kind: String, s: float = 1.0) -> vo
 		"gold":
 			var size: float = 40.0 * s
 			ci.draw_texture_rect(tex("gold_ore"), Rect2(c - Vector2(size, size) * 0.5 - Vector2(0, 1), Vector2(size, size)), false)
+		"food":
+			# A loaf of bread (D-51).
+			ci.draw_set_transform(c + Vector2(0, 2) * s, -0.15, Vector2(1.0, 0.62))
+			ci.draw_circle(Vector2.ZERO, 12.0 * s, Color("7a4a1e"), true, -1.0, true)
+			ci.draw_circle(Vector2(0, -1.5) * s, 10.5 * s, Color("d08a3c"), true, -1.0, true)
+			ci.draw_circle(Vector2(-2, -4) * s, 5.0 * s, Color("eab36a"), true, -1.0, true)
+			ci.draw_set_transform(Vector2.ZERO)
+			for i: int in 3:
+				var p: Vector2 = c + Vector2(-5 + 5 * i, -1) * s
+				ci.draw_line(p + Vector2(-2, 3) * s, p + Vector2(2, -3) * s, Color("8a5524"), 1.6 * s, true)
 		"pop":
 			unit_icon(ci, c + Vector2(0, 1), "worker", "player", 22.0 * s)
 		"clock":

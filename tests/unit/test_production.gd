@@ -140,7 +140,7 @@ func test_ac_42_destroyed_building_loses_queue_without_refund() -> void:
 	sim.submit(Commands.train("player", b, "melee"))
 	sim.submit(Commands.train("player", b, "melee"))
 	var after_paying: Dictionary = sim.resources.player.duplicate()
-	assert_eq(after_paying, {"wood": 200 - 120, "gold": 100 - 40})
+	assert_eq(after_paying, {"wood": 200 - 120, "gold": 100 - 40, "food": 100})
 	assert_eq(sim.population("player"), 2)
 	sim.destroy_entity(b)
 	assert_eq(sim.resources.player, after_paying, "no refund")

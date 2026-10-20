@@ -262,6 +262,7 @@ func _build_credits() -> Control:
 static func credits_text() -> String:
 	var t: String = "[b]Units[/b]\n"
 	t += "KayKit Character Pack: Adventurers by Kay Lousberg (kaylousberg.com). CC0. "
+	t += "Cavalry horse: Farm Animals pack by Quaternius (quaternius.com). CC0. "
 	t += "Rendered in 8 directions with Godot's 3D engine (tools/render_3d.gd).\n\n"
 	t += "[b]Buildings, trees and rocks[/b]\nKenney (kenney.nl): Castle Kit, Fantasy Town Kit, Nature Kit (3D, rendered as sprites). CC0.\n\n"
 	t += "[b]Ground[/b]\nambientCG (ambientcg.com): Grass004, Ground037, Ground054. CC0.\n\n"

@@ -338,3 +338,25 @@ On an iPhone, Safari showed "A problem repeatedly occurred". iOS closes a web pa
 **One thing that could go wrong**
 Testing on a desktop browser that pretends to be a phone checks the layout and the controls, not the phone's limits: memory, speed and graphics drivers. Only a real phone can confirm those.
 
+
+---
+
+## More gameplay: food, farms, guard tower, cavalry, upgrades (decision D-51)
+
+**What was built**
+- **Food**, a third resource (start 100). A worker builds a **farm** like a barracks; a finished farm holds 400 food that its own side's workers gather like a node (10 per trip), and it disappears when empty.
+- A **guard tower** shoots the nearest enemy unit within 6 cells for 6 damage every 30 ticks.
+- A **stable** trains **cavalry**: the fastest unit (4 cells/s), 120 health, paid in gold and food.
+- **Forging** (+2 soldier damage) and **Armour** (−2 damage taken per hit, never below 1), researched once at a barracks.
+- The AI builds all of these and uses them; the strategy experiment was re-run on the new rules.
+- Art: the farm, tower and stable are rendered from Kenney's 3D kits; cavalry is the KayKit knight seated on Quaternius's CC0 horse, with the knight's sitting legs combined with the sword swing.
+
+**Why it is designed this way**
+- *Nothing old changed.* Existing units cost no food, and a cost lists food only when it is above 0, so all 96 earlier acceptance criteria keep their numbers.
+- *A farm is a building that also acts like a node.* Harvesting asks `is_harvestable()` (a node, or a finished farm), so the harvest, drop-off and replacement code is shared instead of copied.
+- *Conservation still holds.* Food enters the world when a farm is finished (`node_added`) and leaves it when a farm is destroyed with food left (`node_razed`); the invariant checks `start + added − razed − left == removed by workers`.
+- *Research uses the production queue*, so paying, refunding on cancel and the queue limit all reuse the code tested for training. Research items do not count towards the population.
+- *A tower is a building with a target.* It reuses the combat step: the same cooldown, the same "damage after everyone has chosen" rule.
+
+**One thing that could go wrong**
+The AI's extra buildings cost resources it used to spend on soldiers, so a policy can become weaker without any rule being wrong. That is why the experiment was re-run instead of assuming the old results still hold.

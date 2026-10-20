@@ -46,7 +46,7 @@ Build a complete, finishable mini RTS in Godot 4 that demonstrates grid navigati
 - **Asset and licence rules:** L1 to L3 (section 3).
 - **Deployment:** D1 to D7 (section 10).
 - **Non-functional:** determinism, performance, code quality (section 14).
-- **Acceptance criteria:** AC-01 to AC-96 (section 12), mapped to the guide's twelve criteria in section 13.
+- **Acceptance criteria:** AC-01 to AC-96 (section 12), mapped to the guide's twelve criteria in section 13.  Stretch: AC-97 to AC-101 (D-51).
 
 ## 2. Goals, Scope and Non-Goals
 
@@ -90,19 +90,25 @@ Build a complete, finishable mini RTS in Godot 4 that demonstrates grid navigati
 
 **Unit and building stats (initial)**
 
-| Entity | Wood | Gold | Health | Speed (milli-cells per tick) | Vision (cells) | Damage | Range (milli-cells) | Cooldown (ticks) | Train or build time (ticks) | Footprint |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Worker | 50 | 0 | 40 | 150 (3.0 cells/s) | 6 | none | none | none | 160 (8 s) | 1 × 1 |
-| Melee soldier | 60 | 20 | 100 | 125 (2.5 cells/s) | 6 | 10 | 1,500 | 20 (1.0 s) | 200 (10 s) | 1 × 1 |
-| Ranged soldier | 40 | 50 | 50 | 125 | 7 | 8 | 5,000 | 24 (1.2 s) | 240 (12 s) | 1 × 1 |
-| HQ | none | none | 500 | none | 8 | none | none | none | starts built | 3 × 3 |
-| Barracks | 120 | 60 | 300 | none | 5 | none | none | none | 300 (15 s) | 2 × 2 |
+| Entity | Wood | Gold | Food (D-51) | Health | Speed (milli-cells per tick) | Vision (cells) | Damage | Range (milli-cells) | Cooldown (ticks) | Train or build time (ticks) | Footprint |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Worker | 50 | 0 | 0 | 40 | 150 (3.0 cells/s) | 6 | none | none | none | 160 (8 s) | 1 × 1 |
+| Melee soldier | 60 | 20 | 0 | 100 | 125 (2.5 cells/s) | 6 | 10 | 1,500 | 20 (1.0 s) | 200 (10 s) | 1 × 1 |
+| Ranged soldier | 40 | 50 | 0 | 50 | 125 | 7 | 8 | 5,000 | 24 (1.2 s) | 240 (12 s) | 1 × 1 |
+| HQ | none | none | none | 500 | none | 8 | none | none | none | starts built | 3 × 3 |
+| Barracks | 120 | 60 | 0 | 300 | none | 5 | none | none | none | 300 (15 s) | 2 × 2 |
+| Cavalry (D-51) | 0 | 70 | 60 | 120 | 200 (4.0 cells/s) | 6 | 9 | 1,500 | 20 | 260 (13 s) | 1 × 1 |
+| Farm (D-51) | 80 | 0 | 0 | 200 | none | 3 | none | none | none | 150 (7.5 s) | 2 × 2 |
+| Guard tower (D-51) | 80 | 60 | 0 | 400 | none | 7 | 6 | 6,000 | 30 (1.5 s) | 250 (12.5 s) | 1 × 1 |
+| Stable (D-51) | 150 | 40 | 0 | 300 | none | 5 | none | none | none | 300 (15 s) | 2 × 2 |
 
 **Other constants (initial)**
 
 | Constant | Value |
 | --- | --- |
-| Starting resources (each faction) | 200 wood, 100 gold |
+| Starting resources (each faction) | 200 wood, 100 gold, 100 food (food: D-51) |
+| Food in a finished farm (D-51) | 400 |
+| Upgrades at a barracks (D-51) | Forging: 80 gold, 100 food, 400 ticks; Armour: 100 gold, 100 food, 400 ticks |
 | Starting units | HQ, 3 workers |
 | Wood node | 500 units, finite |
 | Gold node | 300 units, finite |
@@ -115,7 +121,9 @@ Build a complete, finishable mini RTS in Godot 4 that demonstrates grid navigati
 | Default match limit | 36,000 ticks (30 minutes) |
 | AI decision interval | every 10 ticks |
 
-The HQ trains workers only. Soldiers are trained only at a **completed** barracks.
+The HQ trains workers only. Soldiers are trained only at a **completed** barracks, and cavalry only at a **completed** stable.
+
+**Economy and army additions (D-51, stretch).** Food is a third resource. A worker builds a farm like a barracks; a finished farm holds 400 food, which its own faction's workers harvest like a node (10 per trip, 40 ticks, carried to the HQ), and it is removed when empty. A finished guard tower attacks, every 30 ticks, the nearest enemy unit within its range (ties: lowest id). A barracks researches each upgrade once per faction, using a slot of its queue (cancelling refunds it): **Forging** gives soldiers (melee, ranged, cavalry) +2 damage, **Armour** makes soldiers take 2 less damage per hit, never less than 1. Research items do not count towards the population.
 
 ## 5. Game Rules
 
@@ -456,6 +464,14 @@ The project must run as a deployed service. "Deployed" means: the game is export
 - [x] **AC-95** The README states the simplifications of v1 (pathfinding ignores fog, units share cells, no line-of-sight, finite nodes).
 - [x] **AC-96** Each decision in section 19 that you changed during the project is updated in the log with the reason.
 
+### Stretch: economy and army (D-51)
+
+- [x] **AC-97** Each faction starts with 100 food, and a finished farm holds 400 food that only its own faction's workers can harvest: a worker beside a farm carries 10 food to the HQ per trip, the farm is removed when empty, and conservation (AC-07) holds for food.
+- [x] **AC-98** A farm, tower or stable is placed, paid and built like a barracks; cavalry is trained only at a completed stable and costs 70 gold and 60 food.
+- [x] **AC-99** A finished guard tower hits the nearest enemy unit within 6 cells for 6 damage every 30 ticks, ignores units out of range, and does nothing while under construction.
+- [x] **AC-100** Forging and Armour are researched once per faction at a completed barracks, through the transaction; afterwards a melee soldier deals 12 damage to an unarmoured soldier and 8 to an armoured one (a hit never deals less than 1), and research items do not count towards the population.
+- [x] **AC-101** In AI-against-AI matches the AI builds farms, guard towers and stables, trains cavalry and researches upgrades, with no firewall violation.
+
 ## 13. Traceability to the Guide's Acceptance Criteria
 
 | Guide criterion | Covered by |
@@ -541,7 +557,7 @@ Build in this order, because each step depends on the one before it. A step is d
 | 8 | The enemy AI and its tests | AC-59 to AC-67 |
 | 9 | Replays, the headless runner, the Wilson interval, and the strategy experiment | AC-68 to AC-72 |
 | 10 | Production deployment and documentation: container, headers, size, README, architecture and test-plan documents, demo | AC-79 to AC-96 |
-| 11 | Stretch: minimap, sound, more maps, attack-move, shift-queue, line-of-sight fog, unit collision | None required |
+| 11 | Stretch: minimap, sound, more maps, attack-move, shift-queue, line-of-sight fog, unit collision; food, farms, guard tower, cavalry and upgrades (D-51) | AC-97 to AC-101 (stretch) |
 
 Steps 7 and 8 both depend only on step 6, so they can be built in either order or in parallel. Keep the container from step 1 working throughout: rebuild and open it after every step.
 
@@ -575,6 +591,7 @@ Steps 7 and 8 both depend only on step 6, so they can be built in either order o
 | D-22 | 2026-10-15 | AC-10 symmetry compares footprints: a w × h building anchored at `(x, y)` mirrors to the anchor `(48 − w − x, 48 − h − y)` (a 3 × 3 HQ: `(45 − x, 45 − y)`) | Compare anchors with `(47 − x, 47 − y)` | Anchors are top-left cells, so mirroring a multi-cell footprint shifts the anchor |
 | D-23 | 2026-10-15 | `retreat_fraction` stored as an integer percentage (40, 25, 50); the check is `army * 100 < pct * start_army` | Floating-point fraction | The AI is in `scripts/sim/`, which is integer-only |
 | D-24 | 2026-10-15 | A non-soldier given an `attack` order returns `invalid_target` (AC-47) | A new result code | Uses an existing code |
+| D-51 | 2026-10-20 | More gameplay (the user asked for cavalry, a guard tower, farms with food and upgrades, and approved this design): food is a third resource (start 100) gathered from farms (400 each, removed when empty); a guard tower shoots enemy units; a stable trains fast cavalry for gold and food; Forging (+2 damage) and Armour (−2 damage taken, at least 1) are researched at a barracks. Existing units and costs are unchanged, so AC-01 to AC-96 keep their numbers; the AI uses every addition (AC-97 to AC-101). The re-run sanity check (AC-71) then found a start-position bias (player start won 37 % of decisive Balanced v Balanced matches, CI [0.303, 0.441]): the AI scanned for building sites and rally cells in plain row-major order, which is not mirror-symmetric between the two start corners, and D-51 added three more buildings placed that way. The scans now run in each AI's own frame (flipped for the bottom-right start); the re-run gives 0.474, CI [0.404, 0.544] | AoE-style food costs for every unit (rewrites the existing costs and tests) | New strategic choices with no change to the rules already tested; the experiment is re-run on the new rules |
 | D-50 | 2026-10-20 | Age of Empires II look for units and ground (all 3D art is rendered from a 38° camera angle, lowered from 52° at the user's request so units and buildings show their sides as in AoE II; the top-down ground is kept) (the user still found the art weak: the pixel-art units did not match the 3D buildings and the ground looked flat). Units are pre-rendered by `tools/render_3d.gd` from Kay Lousberg's CC0 KayKit Adventurers characters (worker = Barbarian with an axe, melee = Knight with sword and badge shield, ranged = hooded Rogue with a crossbow; capes and shield in team colours) in 8 directions, with idle, walk, attack or work and death animations, each frame with its own soft shadow; `UnitSprites` maps the existing animation logic onto the new sheets. The ground is a shader blending three CC0 ambientCG photo textures (grass, patchy grass and earth, bare earth on roads and clearings from a mask with noisy edges) when the ground is pre-drawn; ponds use natural colours. The LPC sprites of D-41 (CC-BY-SA) are no longer used and were removed; the Credits screen now lists the CC0 sources | Real 3D units; keep the LPC sprites | One consistent 3D look across units, buildings and props, and realistic terrain, while the game stays 2D and fast; every asset is now CC0 apart from the OFL fonts |
 | D-49 | 2026-10-20 | Pre-rendered 3D art (the user asked for 3D buildings and good shadows). `tools/render_3d.gd` assembles the HQ (four towers, walls, a gate, a taller keep with team flags) and the barracks (timber hall, gabled roof, chimney, team banners, ballista) from Kenney's CC0 Castle Kit and Fantasy Town Kit, plus 8 trees and 4 rocks from the Nature Kit, lights them in Godot's 3D engine (sun from the front left, a cool fill light) and renders them with an orthographic camera at the game's view into sprites in `assets/rendered/`. Each sprite carries its own soft cast shadow (a planar projection of the model along the sun, blurred), with JSON anchors. The game stays 2D: buildings, ghosts and units are drawn back to front by where they stand, and units hidden behind a building show as a faint team-coloured silhouette. The 3D models are build-time inputs only and do not ship. The non-goal "3D graphics" (section 2) still holds: the game itself has no 3D scene | A real 3D game (3D terrain and camera, real-time shadows) | The user chose pre-rendered 3D: the look of 3D with real lighting and shadows, without rewriting the view layer, and still fast in the browser (desktop benchmark 89 to 91 FPS) |
 | D-48 | 2026-10-19 | Design polish in the current style (the user asked to improve the map, buildings, HUD and units). Map: some blocked cell groups are drawn as ponds (sandy shore, water, deep middle, moving sparkle; 20 % of groups, still impassable, so the rules do not change), forests get a dark undergrowth and four trees per cell, grass beside obstacles is shaded, broader grass colour patches, rocks vary in size, position and mirroring with pebbles around. Buildings: the HQ is built from Kenney pieces (keep, two corner towers, gate wall) and the barracks gets an armoury rack, both on a paved stone base with a team-coloured trim; a building under construction rises from its base inside wooden scaffolding; the HQ chimney smokes. HUD: messages on dark tags, a divider and a COMMANDS heading in the bottom panel, the hint as a tip line. Units: health bars only for units hit in the last 3 s, selected or hovered, fading out. Presentation only; new sprites listed in `ASSETS.md` | New art packs; real water rules (units that cannot cross water while others can) | Same art direction, fixing what looked weakest; the simulation, AI and experiment are unchanged |

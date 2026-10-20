@@ -27,6 +27,8 @@ var possible_starts: Array[Vector2i] = []
 ## Fog states (Fog.UNEXPLORED / EXPLORED / VISIBLE); index y * width + x.
 var fog: PackedByteArray
 var stats: Dictionary
+## The faction's researched upgrades: name -> true (D-51).
+var upgrades: Dictionary = {}
 
 
 ## Every entity id this observation contains: the only ids the AI may name

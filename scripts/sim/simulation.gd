@@ -30,13 +30,16 @@ const COMMAND_SUBJECT: Dictionary = {
 	"build": "worker_id",
 	"train": "building_id",
 	"cancel_train": "building_id",
+	"research": "building_id",
 }
 ## Orders that may be queued with "queue": true (D-44), and how many.
 const QUEUEABLE: Array[String] = ["move", "attack_move", "attack", "harvest"]
 const MAX_ORDERS: int = 8
 const NO_CELL: Vector2i = Vector2i(-1, -1)
 ## Which units each building trains (SPEC 4).
-const TRAINS: Dictionary = {"hq": ["worker"], "barracks": ["melee", "ranged"]}
+const TRAINS: Dictionary = {"hq": ["worker"], "barracks": ["melee", "ranged"], "farm": [], "tower": [], "stable": ["cavalry"]}
+## Buildings a worker may build (D-51 adds farm, tower and stable).
+const BUILDABLE: Array[String] = ["barracks", "farm", "tower", "stable"]
 ## A replacement node must be within 10 cells of the exhausted one
 ## (squared Euclidean distance in cells, decision D-28).
 const REPLACEMENT_RADIUS_SQ: int = 100
@@ -65,10 +68,16 @@ var entities: Dictionary = {}
 var next_id: int = 1
 ## Stockpiles and the transaction.
 var bank: ResourceManager
-## Shortcut to bank.stock: faction -> {"wood": int, "gold": int}. Read-only for callers.
+## Shortcut to bank.stock: faction -> {"wood": int, "gold": int, "food": int}. Read-only for callers.
 var resources: Dictionary
 ## Resource left in nodes at the start, per type (for the conservation check).
-var initial_node_total: Dictionary = {"wood": 0, "gold": 0}
+var initial_node_total: Dictionary = {"wood": 0, "gold": 0, "food": 0}
+## Food put into finished farms, and food lost when a farm is destroyed
+## before it is empty (D-51; for the conservation check).
+var node_added: Dictionary = {"wood": 0, "gold": 0, "food": 0}
+var node_razed: Dictionary = {"wood": 0, "gold": 0, "food": 0}
+## Faction -> {upgrade name -> true} once researched (D-51).
+var upgrades: Dictionary = {"player": {}, "ai": {}}
 ## 1 where a unit cannot stand: blocked terrain, a building or a resource node.
 var solid: PackedByteArray
 ## Building or node id covering each cell; 0 = none.
@@ -94,6 +103,7 @@ func _init(p_map: MapGrid, p_seed: int, p_config: Dictionary = {}) -> void:
 		start[f] = {
 			"wood": int(p_config.get("start_wood", Consts.START_WOOD)),
 			"gold": int(p_config.get("start_gold", Consts.START_GOLD)),
+			"food": int(p_config.get("start_food", Consts.START_FOOD)),
 		}
 	bank = ResourceManager.new(start)
 	resources = bank.stock
@@ -205,9 +215,9 @@ func _tick_harvest(e: Entity) -> void:
 				var take: int = mini(Consts.CARRY_CAPACITY, node.amount)
 				node.amount -= take
 				e.carry += take
-				e.carry_type = node.kind
+				e.carry_type = node.resource()
 				e.timer = 0
-				bank.record_removed(e.faction, node.kind, take)
+				bank.record_removed(e.faction, node.resource(), take)
 				# Switch phase before a possible removal, so the removal treats
 				# this worker as walking home with its load.
 				e.phase = "to_dropoff"
@@ -275,13 +285,14 @@ func _start_dropoff(e: Entity) -> bool:
 
 
 ## Nearest node of the same type within 10 cells of the exhausted one
-## (ties: lowest id). Sets it as the new target; false if none.
+## (ties: lowest id); for a farm, the faction's own finished farms only.
+## Sets it as the new target; false if none.
 func _find_replacement(e: Entity) -> bool:
 	var best: Entity = null
 	var best_d: int = REPLACEMENT_RADIUS_SQ + 1
 	for id: int in entities:
 		var n: Entity = entities[id]
-		if n.kind != e.harvest_type:
+		if n.kind != e.harvest_type or not n.is_harvestable() or n.is_building() and n.faction != e.faction:
 			continue
 		var d: Vector2i = n.cell - e.harvest_cell
 		var dsq: int = d.x * d.x + d.y * d.y
@@ -332,7 +343,16 @@ func placement_check(faction: String, kind: String, anchor: Vector2i) -> String:
 	for c: Vector2i in cells:
 		if not fog.is_explored(faction, c):
 			return "not_explored"
-	return bank.check(faction, {"wood": stats[kind].wood, "gold": stats[kind].gold})
+	return bank.check(faction, cost_of(kind))
+
+
+## What an entity costs. Food appears only when it is not 0, so the costs of
+## the original entities keep their two-resource shape (D-51).
+func cost_of(kind: String) -> Dictionary:
+	var c: Dictionary = {"wood": stats[kind].wood, "gold": stats[kind].gold}
+	if stats[kind].food > 0:
+		c["food"] = stats[kind].food
+	return c
 
 
 ## Sends a worker to build or resume `b`. False (and idle) if it cannot reach it.
@@ -381,6 +401,7 @@ func _tick_buildings() -> void:
 			b.progress += 1
 			if b.progress >= stats[b.kind].build_time:
 				b.complete = true
+				_on_complete(b)
 				for w: Entity in builders:
 					w.set_idle()
 				events.append({"type": "completed", "tick": tick, "entity_id": b.id, "faction": b.faction})
@@ -392,6 +413,9 @@ func _tick_buildings() -> void:
 			item.remaining -= 1
 		if item.remaining > 0:
 			continue
+		if Consts.UPGRADES.has(item.type):
+			_finish_research(b, item)
+			continue
 		var cells: Array[Vector2i] = spawn_cells(b, 1)
 		if cells.is_empty():
 			if item.status != "spawn_blocked":
@@ -401,6 +425,22 @@ func _tick_buildings() -> void:
 		b.queue.remove_at(0)
 		var u: int = spawn_unit(item.type, b.faction, cells[0])
 		events.append({"type": "trained", "tick": tick, "entity_id": u, "building_id": b.id, "faction": b.faction})
+
+
+## A finished farm is filled with food; a tower aims from its centre (D-51).
+func _on_complete(b: Entity) -> void:
+	if b.kind == "farm":
+		b.amount = Consts.FARM_FOOD
+		node_added.food += Consts.FARM_FOOD
+	elif b.kind == "tower":
+		b.pos = MapGrid.cell_center(b.cell)
+
+
+## A research item finishes (D-51): the upgrade is the faction's from now on.
+func _finish_research(b: Entity, item: Dictionary) -> void:
+	b.queue.remove_at(0)
+	upgrades[b.faction][item.type] = true
+	events.append({"type": "researched", "tick": tick, "building_id": b.id, "faction": b.faction, "upgrade": item.type})
 
 
 func _builders_of(b: Entity) -> Array[Entity]:
@@ -420,6 +460,9 @@ func _builders_of(b: Entity) -> Array[Entity]:
 func _auto_acquire() -> void:
 	for id: int in entities:
 		var e: Entity = entities[id]
+		if e.kind == "tower":
+			_tower_acquire(e)
+			continue
 		if not e.is_soldier():
 			continue
 		if e.order_type == "attack" and e.auto and not _in_vision(e, entity(e.order_target)):
@@ -439,6 +482,32 @@ func _auto_acquire() -> void:
 				best_d = d
 		if best != null:
 			_start_attack(e, best, true)
+
+
+## A finished guard tower keeps its target while it stays in range, else
+## takes the nearest enemy unit in range (ties: lowest id; D-51).
+func _tower_acquire(e: Entity) -> void:
+	if not e.complete:
+		return
+	var cur: Entity = entity(e.order_target)
+	if cur != null and _in_range(e, cur):
+		return
+	e.order_type = "idle"
+	e.order_target = 0
+	var best: Entity = null
+	var best_d: int = 0
+	for tid: int in entities:
+		var t: Entity = entities[tid]
+		if not t.is_unit() or t.faction == e.faction or not _in_range(e, t):
+			continue
+		var d: Vector2i = t.pos - e.pos
+		var dsq: int = d.x * d.x + d.y * d.y
+		if best == null or dsq < best_d:
+			best = t
+			best_d = dsq
+	if best != null:
+		e.order_type = "attack"
+		e.order_target = best.id
 
 
 ## Squared distance in cells from `c` to the nearest cell of t's footprint.
@@ -489,7 +558,7 @@ func _resolve_combat() -> void:
 	var hits: Array[Array] = []
 	for id: int in entities:
 		var e: Entity = entities[id]
-		if not e.is_soldier():
+		if not e.is_soldier() and not (e.kind == "tower" and e.complete):
 			continue
 		if e.cooldown > 0:
 			e.cooldown -= 1
@@ -503,9 +572,21 @@ func _resolve_combat() -> void:
 		var t: Entity = h[1]
 		if t.hp <= 0:
 			continue
-		t.hp -= stats[a.kind].damage
+		var dmg: int = hit_damage(stats[a.kind].damage, a.is_soldier() and has_upgrade(a.faction, "forging"),
+			t.is_soldier() and has_upgrade(t.faction, "armour"))
+		t.hp -= dmg
 		a.cooldown = stats[a.kind].cooldown
-		events.append({"type": "attack", "tick": tick, "attacker": a.id, "target": t.id, "damage": stats[a.kind].damage})
+		events.append({"type": "attack", "tick": tick, "attacker": a.id, "target": t.id, "damage": dmg})
+
+
+## Damage of one hit (D-51): Forging adds 2, Armour takes 2 off, at least 1.
+static func hit_damage(base: int, forged: bool, armoured: bool) -> int:
+	var d: int = base + (Consts.UPGRADE_BONUS if forged else 0) - (Consts.UPGRADE_BONUS if armoured else 0)
+	return maxi(d, 1)
+
+
+func has_upgrade(faction: String, upgrade: String) -> bool:
+	return upgrades.has(faction) and (upgrades[faction] as Dictionary).has(upgrade)
 
 
 ## Movement for an attack order: stand still while in range, otherwise walk
@@ -533,7 +614,7 @@ func _tick_attack(e: Entity) -> void:
 		var ok: bool
 		var goal: Vector2i = tc
 		if t.is_unit():
-			if e.kind == "melee":
+			if e.is_melee():
 				goal = Spacing.melee_slot(self, e, t)
 			ok = _set_path(e, goal) or (goal != tc and _set_path(e, tc))
 		else:
@@ -664,6 +745,7 @@ func observation(faction: String) -> Observation:
 	o.possible_starts = map.possible_starts.duplicate()
 	o.fog = fog.grid(faction)
 	o.stats = stats.duplicate(true)
+	o.upgrades = (upgrades[faction] as Dictionary).duplicate()
 	return o
 
 
@@ -773,6 +855,8 @@ func _dispatch(name: String, ids: Array[int], args: Dictionary) -> String:
 			return _cmd_train(entities[ids[0]], str(args.get("unit_type", "")))
 		"cancel_train":
 			return _cmd_cancel_train(entities[ids[0]], int(args.index))
+		"research":
+			return _cmd_research(entities[ids[0]], str(args.get("upgrade", "")))
 	return "invalid_target"
 
 
@@ -921,7 +1005,8 @@ func _cmd_harvest(ids: Array[int], raw_node: Variant) -> String:
 	var node: Entity = entity(int(raw_node))
 	if node == null:
 		return "unknown_entity"
-	if not node.is_node():
+	# A node, or one of the workers' own finished farms (D-51).
+	if not node.is_harvestable() or node.is_building() and node.faction != (entities[ids[0]] as Entity).faction:
 		return "invalid_target"
 	for id: int in ids:
 		if (entities[id] as Entity).kind != "worker":
@@ -945,7 +1030,7 @@ func _cmd_harvest(ids: Array[int], raw_node: Variant) -> String:
 ## `build` on the anchor of one's own unfinished building of that type
 ## resumes it at no cost (decision D-29).
 func _cmd_build(w: Entity, kind: String, raw_cell: Variant) -> String:
-	if w.kind != "worker" or kind != "barracks":
+	if w.kind != "worker" or not kind in BUILDABLE:
 		return "invalid_target"
 	var cell: Variant = JsonUtil.to_cell(raw_cell)
 	if cell == null:
@@ -967,7 +1052,7 @@ func _cmd_build(w: Entity, kind: String, raw_cell: Variant) -> String:
 	_mark_touching(mask, cell, size, trial)
 	if (Pathfinder.find_path_to_any(map.width, map.height, trial, w.unit_cell(), mask).path as Array).is_empty():
 		return "no_path"
-	var paid: String = bank.spend(w.faction, {"wood": stats[kind].wood, "gold": stats[kind].gold})
+	var paid: String = bank.spend(w.faction, cost_of(kind))
 	if paid != "ok":
 		return paid
 	var b: int = place_building_unchecked(kind, w.faction, cell, false)
@@ -982,7 +1067,7 @@ func train_check(b: Entity, unit_type: String) -> String:
 		return "match_over"
 	if not b.is_building():
 		return "invalid_target"
-	if not unit_type in TRAINS[b.kind]:
+	if not unit_type in TRAINS.get(b.kind, []):
 		return "invalid_unit_for_building"
 	if not b.complete:
 		return "not_ready"
@@ -990,7 +1075,52 @@ func train_check(b: Entity, unit_type: String) -> String:
 		return "queue_full"
 	if population(b.faction) >= Consts.POPULATION_CAP:
 		return "population_cap"
-	return bank.check(b.faction, {"wood": stats[unit_type].wood, "gold": stats[unit_type].gold})
+	return bank.check(b.faction, cost_of(unit_type))
+
+
+## Whether `b` could research `upgrade` now, as a result code (D-51).
+## Changes nothing; the HUD uses it too.
+func research_check(b: Entity, upgrade: String) -> String:
+	if match_result != "":
+		return "match_over"
+	if b.kind != "barracks" or not Consts.UPGRADES.has(upgrade):
+		return "invalid_target"
+	if not b.complete:
+		return "not_ready"
+	if has_upgrade(b.faction, upgrade) or _researching(b.faction, upgrade):
+		return "already_researched"
+	if b.queue.size() >= Consts.QUEUE_CAPACITY:
+		return "queue_full"
+	return bank.check(b.faction, upgrade_cost(upgrade))
+
+
+func upgrade_cost(upgrade: String) -> Dictionary:
+	var u: Dictionary = Consts.UPGRADES[upgrade]
+	return {"wood": u.wood, "gold": u.gold, "food": u.food}
+
+
+## True while any of the faction's buildings has the upgrade queued.
+func _researching(faction: String, upgrade: String) -> bool:
+	for id: int in entities:
+		var b: Entity = entities[id]
+		if b.faction == faction and b.is_building():
+			for item: Dictionary in b.queue:
+				if item.type == upgrade:
+					return true
+	return false
+
+
+## Research: paid at enqueue through the one transaction, like training.
+func _cmd_research(b: Entity, upgrade: String) -> String:
+	var allowed: String = research_check(b, upgrade)
+	if allowed != "ok":
+		return allowed
+	var cost: Dictionary = upgrade_cost(upgrade)
+	var paid: String = bank.spend(b.faction, cost)
+	if paid != "ok":
+		return paid
+	b.queue.append({"type": upgrade, "remaining": Consts.UPGRADES[upgrade].time, "cost": cost, "status": ""})
+	return "ok"
 
 
 ## Training: the cost is paid at enqueue through the one transaction (D-06).
@@ -998,7 +1128,7 @@ func _cmd_train(b: Entity, unit_type: String) -> String:
 	var allowed: String = train_check(b, unit_type)
 	if allowed != "ok":
 		return allowed
-	var cost: Dictionary = {"wood": stats[unit_type].wood, "gold": stats[unit_type].gold}
+	var cost: Dictionary = cost_of(unit_type)
 	var paid: String = bank.spend(b.faction, cost)
 	if paid != "ok":
 		return paid
@@ -1045,6 +1175,8 @@ func place_building_unchecked(kind: String, faction: String, anchor: Vector2i, i
 	e.size = stats[kind].footprint
 	e.hp = stats[kind].health
 	e.complete = is_complete
+	if is_complete:
+		_on_complete(e)
 	for c: Vector2i in e.footprint():
 		solid[c.y * map.width + c.x] = 1
 		occupant[c.y * map.width + c.x] = e.id
@@ -1084,6 +1216,8 @@ func destroy_entity(id: int) -> void:
 			solid[i] = map.blocked[i]
 	if dead.is_unit() and dead.carry > 0:
 		bank.record_lost(dead.faction, dead.carry_type, dead.carry)
+	if dead.kind == "farm":
+		node_razed.food += dead.amount
 	events.append({"type": "destroyed", "tick": tick, "entity_id": id, "kind": dead.kind, "faction": dead.faction,
 		"pos": dead.pos, "cell": dead.cell, "size": dead.size})
 	for oid: int in entities:
@@ -1175,7 +1309,8 @@ func building_adjacent_to(cell: Vector2i, faction: String) -> int:
 	return 0
 
 
-## Units alive plus units queued (SPEC 4: the cap counts queued units).
+## Units alive plus units queued (SPEC 4: the cap counts queued units;
+## research items are not units, D-51).
 func population(faction: String) -> int:
 	var n: int = 0
 	for id: int in entities:
@@ -1185,7 +1320,9 @@ func population(faction: String) -> int:
 		if e.is_unit():
 			n += 1
 		elif e.is_building():
-			n += e.queue.size()
+			for item: Dictionary in e.queue:
+				if not Consts.UPGRADES.has(item.type):
+					n += 1
 	return n
 
 
@@ -1213,6 +1350,12 @@ func state_hash() -> int:
 	h.add_int(firewall_violations)
 	h.add_int(next_id)
 	bank.add_to_hash(h)
+	for f: String in Consts.FACTIONS:
+		for u: String in Consts.UPGRADES:
+			h.add_int(1 if has_upgrade(f, u) else 0)
+	for r: String in ResourceManager.TYPES:
+		h.add_int(node_added[r])
+		h.add_int(node_razed[r])
 	map.add_to_hash(h)
 	h.add_bytes(solid)
 	fog.add_to_hash(h)

@@ -307,6 +307,69 @@ func build_barracks(team: String) -> Node3D:
 	return root3
 
 
+## D-51: a farm, 2 x 2 tiles: tilled rows of wheat (corn at the back),
+## fenced, with a gate at the front and a small team banner.
+func build_farm(team: String) -> Node3D:
+	var root3: Node3D = Node3D.new()
+	for tx: float in [-0.5, 0.5]:
+		for tz: float in [-0.5, 0.5]:
+			var at: Vector3 = Vector3(tx, 0.05, tz)
+			# Two furrows per tile, planted with melons, pumpkins and greens.
+			for dz: float in [-0.25, 0.25]:
+				put(root3, "nature/crops_dirtRow", at + Vector3(0, 0, dz)).scale = Vector3(1.0, 1.0, 0.75)
+				for i: int in 3:
+					var crop: String = ["nature/crop_melon", "nature/crops_leafsStageB", "nature/crop_pumpkin"][(i + int(tx * 2.0 + tz * 4.0 + dz * 4.0 + 8.0)) % 3]
+					put(root3, crop, at + Vector3(-0.3 + 0.3 * i, 0.03, dz)).scale = Vector3(0.75, 0.75, 0.75)
+			# Fences on the outer edges; the gate at the front left.
+			put(root3, "town/fence", Vector3(tx, 0, tz), 0 if tx > 0 else 2)
+			if tz > 0:
+				put(root3, "town/fence-gate" if tx < 0 else "town/fence", Vector3(tx, 0, tz), 3)
+			else:
+				put(root3, "town/fence", Vector3(tx, 0, tz), 1)
+	var b: Node3D = put(root3, "town/banner-red", Vector3(-0.85, 0, -1.0), 3)
+	b.scale = Vector3(0.8, 0.8, 0.8)
+	paint(b, TEAM[team])
+	return root3
+
+
+## D-51: a guard tower, 1 x 1: a stone tower with a lookout storey and a
+## pointed roof (the roofs are blue; the red team's are recoloured), and the
+## team flag on top.
+func build_tower(team: String) -> Node3D:
+	var root3: Node3D = Node3D.new()
+	tower(root3, Vector3.ZERO, 1)
+	var flag: Node3D = put(root3, "castle/flag", Vector3(0, 3.3, 0), 0)
+	flag.scale = Vector3(0.7, 0.7, 0.7)
+	paint(flag, TEAM[team])
+	return root3
+
+
+## D-51: a stable, 2 x 2 tiles: a timber barn with wide doors at the front,
+## a fenced paddock beside it, a cart, and team banners.
+func build_stable(team: String) -> Node3D:
+	var root3: Node3D = Node3D.new()
+	for tx: float in [-0.5, 0.5]:
+		for tz: float in [-0.5, 0.5]:
+			var at: Vector3 = Vector3(tx, 0, tz)
+			put(root3, "town/planks", at)
+			put(root3, "town/wall-wood-detail-cross" if tz < 0 else "town/wall-wood", at, 0 if tx > 0 else 2)
+			if tz > 0:
+				put(root3, "town/wall-wood-doorway-square-wide", at, 3)
+			else:
+				put(root3, "town/wall-wood", at, 1)
+			put(root3, "town/roof-gable", at + Vector3(0, 1.0, 0), 0)
+	for tx2: float in [-0.75, 0.75]:
+		var b: Node3D = put(root3, "town/banner-red", Vector3(tx2, 0.05, 1.0), 3)
+		paint(b, TEAM[team])
+	put(root3, "town/cart", Vector3(-1.45, 0, 0.3), 0).scale = Vector3(0.7, 0.7, 0.7)
+	# A small paddock on the right.
+	for z: float in [-0.5, 0.5]:
+		put(root3, "town/fence", Vector3(1.5, 0, z), 0)
+	put(root3, "town/fence", Vector3(1.5, 0, 0.5), 3)
+	put(root3, "town/fence", Vector3(1.5, 0, -0.5), 1)
+	return root3
+
+
 ## Turns the castle kit's blue roofs red (for the red team's HQ).
 func _blue_to_red(img: Image) -> void:
 	for y: int in img.get_height():
@@ -325,14 +388,17 @@ func _render_buildings(out: String) -> void:
 	var specs: Array = [
 		["hq", Vector2i(6, 7), Vector3(0.9, 2.2, 0.4)],
 		["barracks", Vector2i(4, 4), Vector3(0.6, 0.9, 0.3)],
+		["farm", Vector2i(4, 3), Vector3(0.5, 0.3, 0.3)],
+		["tower", Vector2i(3, 5), Vector3(0.7, 1.8, 0.2)],
+		["stable", Vector2i(5, 4), Vector3(0.4, 0.9, 0.3)],
 	]
 	for spec: Array in specs:
 		for team: String in TEAM:
-			var prop: Node3D = build_hq(team) if spec[0] == "hq" else build_barracks(team)
+			var prop: Node3D = call("build_" + String(spec[0]), team)
 			var units: Vector2i = spec[1]
 			var look: Vector3 = spec[2]
 			var img: Image = await render(prop, units * int(PX_PER_UNIT), float(units.y), look)
-			if spec[0] == "hq" and team == "red":
+			if (spec[0] == "hq" or spec[0] == "tower") and team == "red":
 				_blue_to_red(img)
 			var name: String = "%s_%s" % [spec[0], team]
 			img.save_png(out.path_join(name + ".png"))
@@ -393,7 +459,18 @@ const UNITS: Dictionary = {
 		"anims": {"idle": ["Idle", 1], "walk": ["Walking_A", 8], "slash": ["1H_Melee_Attack_Slice_Diagonal", 8], "hurt": ["Death_A", 8]}},
 	"ranged": {"model": "kay/Rogue_Hooded", "keep": ["2H_Crossbow"], "team": ["Rogue_Cape"],
 		"anims": {"idle": ["2H_Ranged_Aiming", 1], "walk": ["Walking_A", 8], "shoot": ["2H_Ranged_Shoot", 8], "hurt": ["Death_A", 8]}},
+	# D-51: the Knight seated on Quaternius's CC0 horse (Farm Animals pack).
+	"cavalry": {"model": "kay/Knight", "cavalry": true, "keep": ["1H_Sword", "Badge_Shield"], "team": ["Knight_Cape", "Badge_Shield"],
+		"anims": {"idle": ["idle", 1], "walk": ["walk", 8], "slash": ["slash", 8], "hurt": ["hurt", 8]}},
 }
+const HORSE: String = "horse/Farm Animals by @Quaternius/FBX/Horse.fbx"
+## Height of the horse's back above the ground, and the rider's scale.
+const HORSE_HEIGHT: float = 1.15
+const RIDER_SCALE: float = 0.72
+## The horse model already faces +Z (the camera at direction 0), like the characters.
+const HORSE_YAW: float = 0.0
+## Where the rider sits, relative to the horse's back (forward, up).
+const SEAT: Vector2 = Vector2(-0.05, -0.3)
 ## Weapon and accessory meshes (everything else is the body).
 const GEAR: Array[String] = ["1H_Sword_Offhand", "Badge_Shield", "Rectangle_Shield", "Round_Shield", "Spike_Shield", "1H_Sword",
 	"2H_Sword", "1H_Axe_Offhand", "Barbarian_Round_Shield", "1H_Axe", "2H_Axe", "Mug", "Knife_Offhand", "1H_Crossbow",
@@ -420,13 +497,17 @@ func _render_units(out: String, only: PackedStringArray) -> void:
 			continue
 		for team: String in TEAM:
 			var spec: Dictionary = UNITS[kind]
-			var studio: Dictionary = await _studio(spec, team, look)
+			var studio: Dictionary
+			if spec.get("cavalry", false):
+				studio = await _cavalry_studio(spec, team, look)
+			else:
+				studio = await _studio(spec, team, look)
 			for anim: String in spec.anims:
 				var a: Array = spec.anims[anim]
 				var frames: int = a[1]
 				var sheet: Image = Image.create(UNIT_FRAME * frames, UNIT_FRAME * DIRS, false, Image.FORMAT_RGBA8)
 				var player: AnimationPlayer = studio.player
-				var length: float = player.get_animation(a[0]).length
+				var length: float = (studio.length as Callable).call(a[0]) if studio.has("length") else player.get_animation(a[0]).length
 				for d: int in DIRS:
 					studio.body.rotation.y = d * TAU / DIRS
 					for f: int in frames:
@@ -505,13 +586,90 @@ func _studio(spec: Dictionary, team: String, look: Vector3) -> Dictionary:
 	return {"vp": vp, "holder": holder, "body": body, "player": player, "sun": sun}
 
 
+## A rider on a horse (D-51): the Knight's studio, with the horse added
+## under him. The rider sits (legs from Sit_Chair_Pose; for the attack, the
+## upper body swings the sword) and rises and falls with the horse's back.
+func _cavalry_studio(spec: Dictionary, team: String, look: Vector3) -> Dictionary:
+	var st: Dictionary = await _studio(spec, team, look)
+	var holder: Node3D = st.holder
+	var knight: Node3D = st.body
+	holder.remove_child(knight)
+	var rig: Node3D = Node3D.new()
+	holder.add_child(rig)
+	var doc: FBXDocument = FBXDocument.new()
+	var fs: FBXState = FBXState.new()
+	doc.append_from_file(_kits.path_join(HORSE), fs)
+	var horse: Node3D = doc.generate_scene(fs)
+	var mount: Node3D = Node3D.new()
+	mount.rotation_degrees.y = HORSE_YAW
+	rig.add_child(mount)
+	mount.add_child(horse)
+	var hp: AnimationPlayer = horse.find_children("*", "AnimationPlayer", true, false)[0]
+	var sk: Skeleton3D = horse.find_children("*", "Skeleton3D", true, false)[0]
+	var back: int = sk.find_bone("Back")
+	hp.play("Armature|Idle")
+	hp.seek(0.0, true)
+	hp.pause()
+	for i: int in 3:
+		await process_frame
+	# Scale the horse so its back stands HORSE_HEIGHT above the ground.
+	var back_y: float = (sk.global_transform * sk.get_bone_global_pose(back)).origin.y
+	horse.scale *= HORSE_HEIGHT / maxf(back_y, 0.001)
+	for i: int in 2:
+		await process_frame
+	var rest: Vector3 = rig.to_local((sk.global_transform * sk.get_bone_global_pose(back)).origin)
+	rig.add_child(knight)
+	knight.scale = Vector3.ONE * RIDER_SCALE
+	var kp: AnimationPlayer = st.player
+	# The riding attack: the sword swing with the seated legs.
+	var swing: Animation = kp.get_animation("1H_Melee_Attack_Slice_Diagonal").duplicate(true)
+	var sit: Animation = kp.get_animation("Sit_Chair_Pose")
+	for i: int in range(swing.get_track_count() - 1, -1, -1):
+		var path: String = String(swing.track_get_path(i)).to_lower()
+		if "leg" in path or "foot" in path or "toe" in path or "hips" in path:
+			swing.remove_track(i)
+	for i: int in sit.get_track_count():
+		var path: String = String(sit.track_get_path(i)).to_lower()
+		if "leg" in path or "foot" in path or "toe" in path or "hips" in path:
+			var j: int = swing.add_track(sit.track_get_type(i))
+			swing.track_set_path(j, sit.track_get_path(i))
+			swing.track_insert_key(j, 0.0, sit.track_get_key_value(i, 0))
+	kp.get_animation_library("").add_animation("Ride_Slash", swing)
+	var pose: Callable = func(anim: String, t: float) -> void:
+		var h_anim: String = {"idle": "Armature|Idle", "walk": "Armature|Run", "slash": "Armature|Idle", "hurt": "Armature|Death"}[anim]
+		hp.play(h_anim)
+		hp.seek(t if anim != "slash" else 0.0, true)
+		hp.pause()
+		kp.play("Ride_Slash" if anim == "slash" else "Sit_Chair_Pose")
+		kp.seek(t if anim == "slash" else 0.0, true)
+		kp.pause()
+		var now: Vector3 = rig.to_local((sk.global_transform * sk.get_bone_global_pose(back)).origin)
+		knight.position = Vector3(0, rest.y + SEAT.y, SEAT.x) + (now - rest) - Vector3(0, 0.5 * RIDER_SCALE, 0)
+	var length: Callable = func(anim: String) -> float:
+		match anim:
+			"walk":
+				return hp.get_animation("Armature|Run").length
+			"slash":
+				return swing.length
+			"hurt":
+				return hp.get_animation("Armature|Death").length
+		return 1.0
+	st.body = rig
+	st.pose = pose
+	st.length = length
+	return st
+
+
 ## One frame: the posed character, then its flattened black shadow.
 func _shoot(studio: Dictionary, anim: String, t: float) -> Image:
 	var player: AnimationPlayer = studio.player
 	var holder: Node3D = studio.holder
-	player.play(anim)
-	player.seek(t, true)
-	player.pause()
+	if studio.has("pose"):
+		(studio.pose as Callable).call(anim, t)
+	else:
+		player.play(anim)
+		player.seek(t, true)
+		player.pause()
 	holder.transform = Transform3D.IDENTITY
 	_set_black(holder, false)
 	for i: int in 3:

@@ -32,6 +32,8 @@ var time: float = 0.0
 var fx: Array[Dictionary] = []
 var hover_id: int = 0
 var placing: bool = false
+## What is being placed (D-51): "barracks", "farm", "tower" or "stable".
+var placing_kind: String = "barracks"
 ## True after F: the next left click is an attack-move destination (D-44).
 var aiming: bool = false
 ## Touch mode (phones and tablets, D-45): drag pans, tap selects or orders.
@@ -284,10 +286,12 @@ func _consume(events: Array[Dictionary]) -> void:
 				if hud != null and hud.minimap != null:
 					hud.minimap.ping(tp)
 				attack_info[a.id] = {"t": time, "dir": (tp - ap).normalized()}
-				if a.kind == "ranged":
-					# The arrow leaves the bow at the shot's release frame; the
-					# target flashes when it lands.
+				if a.kind == "ranged" or a.kind == "tower":
+					# The arrow leaves the bow at the shot's release frame (a
+					# tower shoots from its lookout); the target flashes when it lands.
 					var bow: Vector2 = ap + Vector2(0, -14) + (tp - ap).normalized() * 8.0
+					if a.kind == "tower":
+						bow = ap + Vector2(0, -C * 1.9)
 					effects.arrow(bow, tp + Vector2(0, -8), a.faction, t.id, int(ev.damage), 0.17)
 					effects.later(0.17, func() -> void: Sound.play_at("bow", bow, camera.position, -7.0))
 				else:
@@ -411,7 +415,7 @@ func issue(cmd: Dictionary) -> String:
 	if r != "ok":
 		messages.add(HudModel.MESSAGES.get(r, r), time, "warn")
 		Sound.play("error", -10.0, 0.0)
-	elif cmd.command == "train" or cmd.command == "build":
+	elif cmd.command == "train" or cmd.command == "build" or cmd.command == "research":
 		Sound.play("confirm", -8.0, 0.0)
 	return r
 
@@ -428,9 +432,17 @@ func cancel_train(index: int) -> void:
 		issue(Commands.cancel_train(faction, b.id, index))
 
 
-func start_placing() -> void:
+## Research an upgrade at the selected barracks (D-51).
+func research(upgrade: String) -> void:
+	var b: Entity = selection.building(sim)
+	if b != null and b.faction == faction and b.kind == "barracks":
+		issue(Commands.research(faction, b.id, upgrade))
+
+
+func start_placing(kind: String = "barracks") -> void:
 	if demo:
 		return
+	placing_kind = kind
 	if selection.of_kind(sim, func(e: Entity) -> bool: return e.kind == "worker").is_empty():
 		messages.add("Select a worker first", time, "warn")
 		return
@@ -461,7 +473,7 @@ func select_only(id: int) -> void:
 ## Top-left cell of the barracks footprint, centred on the mouse (or, in
 ## touch mode, on the last spot touched).
 func placement_anchor() -> Vector2i:
-	var size: Vector2 = Vector2(sim.stats["barracks"].footprint)
+	var size: Vector2 = Vector2(sim.stats[placing_kind].footprint)
 	var at: Vector2 = _touch_at if touch else get_global_mouse_position()
 	var m: Vector2 = at / C - size / 2.0 + Vector2(0.5, 0.5)
 	return Vector2i(floori(m.x), floori(m.y))
@@ -495,7 +507,7 @@ func _try_place() -> void:
 		var da: Vector2i = sim.entity(a).pos - target
 		var db: Vector2i = sim.entity(b).pos - target
 		return da.length_squared() < db.length_squared() or (da.length_squared() == db.length_squared() and a < b))
-	if issue(Commands.build(faction, workers[0], "barracks", anchor)) == "ok":
+	if issue(Commands.build(faction, workers[0], placing_kind, anchor)) == "ok":
 		placing = false
 		_touch_at = Vector2.ZERO
 		_add_fx({"type": "marker", "a": (Vector2(anchor) + Vector2.ONE) * C, "color": Palette.ACCENT, "life": 0.7, "order": "build"})
@@ -549,7 +561,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match (event as InputEventKey).keycode:
 			KEY_B:
-				start_placing()
+				start_placing("barracks")
+			KEY_N:
+				start_placing("farm")
+			KEY_T:
+				start_placing("tower")
+			KEY_V:
+				start_placing("stable")
+			KEY_C:
+				train("cavalry")
+			KEY_R:
+				research("forging")
+			KEY_Y:
+				research("armour")
 			KEY_F:
 				start_aiming()
 			KEY_Q:

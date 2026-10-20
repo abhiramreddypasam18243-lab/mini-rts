@@ -62,12 +62,45 @@ func _run() -> void:
 	game.selection.inspected = mine[1]
 	await _frames(20)
 	await _shot("11_unit_card")
-	# Let the AI play for 3,000 ticks (2.5 minutes), then look at its base.
+	# D-51: a farm being worked, a guard tower, a stable and cavalry.
+	main.start_match({"map": "generated", "seed": _seed})
+	await _frames(5)
+	game = main.game
+	sim = game.sim
+	hq = sim.entity(sim.hq_of("player"))
+	var placed: Dictionary = {}
+	for kind: String in ["farm", "stable", "tower"]:
+		var spot: Variant = _site(sim, kind, hq.cell + (Vector2i(1, 5) if kind == "tower" else Vector2i(1, 1)))
+		if spot != null:
+			placed[kind] = sim.place_building_unchecked(kind, "player", spot, true)
+	var workers: Array[int] = []
+	for id: int in sim.entities:
+		if sim.entity(id).kind == "worker" and sim.entity(id).faction == "player":
+			workers.append(id)
+	if placed.has("farm"):
+		sim.submit(Commands.harvest("player", workers.slice(0, 2), placed.farm))
+	if placed.has("stable"):
+		var st: Entity = sim.entity(placed.stable)
+		for c: Vector2i in sim.spawn_cells(st, 3):
+			sim.spawn_unit("cavalry", "player", c)
+		game.selection.selected = [placed.stable]
+		game.selection.inspected = placed.stable
+	sim.update_fog()
+	game.camera.position = (Vector2(hq.cell) + Vector2(3.5, 3.0)) * Consts.PIXELS_PER_CELL
+	game.advance_ticks(60)
+	await _frames(40)
+	await _shot("14_economy")
+	if workers.size() > 2:
+		game.selection.selected = [workers[2]]
+		game.selection.inspected = workers[2]
+	await _frames(10)
+	await _shot("15_worker_buttons")
+	# Let the AI play for 2,000 ticks (100 s), then look at its base.
 	main.start_match({"map": "generated", "seed": _seed, "ai_policy": "balanced"})
 	await _frames(5)
 	game = main.game
 	sim = game.sim
-	game.advance_ticks(3000)
+	game.advance_ticks(2000)
 	var ai_hq: Entity = sim.entity(sim.hq_of("ai"))
 	game.camera.position = (Vector2(ai_hq.cell) + Vector2(1.5, 1.5)) * Consts.PIXELS_PER_CELL
 	sim.fog.reveal("player", ai_hq, 14)  # snapshot only: let the camera see the AI base
@@ -80,3 +113,13 @@ func _run() -> void:
 	await _frames(60)
 	await _shot("12_victory")
 	quit()
+
+
+## The first spot in rings around `from` where `kind` can be placed.
+func _site(sim: Simulation, kind: String, from: Vector2i) -> Variant:
+	for d: int in range(2, 10):
+		for y: int in range(from.y - d, from.y + d + 1):
+			for x: int in range(from.x - d, from.x + d + 1):
+				if maxi(absi(x - from.x), absi(y - from.y)) == d and sim.placement_check("player", kind, Vector2i(x, y)) == "ok":
+					return Vector2i(x, y)
+	return null

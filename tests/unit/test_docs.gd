@@ -11,7 +11,7 @@ func _read(path: String) -> String:
 
 func test_ac_88_readme_has_every_required_part() -> void:
 	var r: String = _read("res://README.md")
-	for part: String in ["## Controls", "## How it is built", "| Entity | Wood | Gold | Health",
+	for part: String in ["## Controls", "## How it is built", "| Entity | Wood | Gold | Food | Health",
 			"## How the enemy AI thinks", "## The strategy experiment", "## Known limitations",
 			"## Setup from a clean checkout", "## Deployment"]:
 		assert_string_contains(r, part)
@@ -30,7 +30,7 @@ func test_ac_91_architecture_shows_both_layers_and_rule_owners() -> void:
 
 func test_ac_92_test_plan_lists_every_ac_and_every_test() -> void:
 	var plan: String = _read("res://docs/test-plan.md")
-	for n: int in range(1, 97):
+	for n: int in range(1, 102):
 		assert_string_contains(plan, "| AC-%02d |" % n, "AC-%02d has a row" % n)
 	# Every acceptance test in the suite appears in the plan.
 	var dir: DirAccess = DirAccess.open("res://tests/unit")

@@ -17,7 +17,8 @@ static func run(map: MapGrid, p_seed: int, policies: Dictionary, max_ticks: int,
 			controllers[f] = AIController.new(f, AIConfig.preset(policies[f]))
 	var stats: Dictionary = {}
 	for f: String in Consts.FACTIONS:
-		stats[f] = {"first_barracks_tick": -1, "soldiers_trained": 0, "units_lost": 0}
+		stats[f] = {"first_barracks_tick": -1, "soldiers_trained": 0, "units_lost": 0,
+			"built": {}, "cavalry_trained": 0, "researched": 0}
 	var first_attack: int = -1
 	while world.match_result == "":
 		for f: String in controllers:
@@ -26,12 +27,19 @@ static func run(map: MapGrid, p_seed: int, policies: Dictionary, max_ticks: int,
 		for ev: Dictionary in world.take_events():
 			match ev.type:
 				"completed":
-					if stats[ev.faction].first_barracks_tick < 0:
+					var b: Entity = world.entity(ev.entity_id)
+					if b != null:
+						stats[ev.faction].built[b.kind] = int(stats[ev.faction].built.get(b.kind, 0)) + 1
+					if b != null and b.kind == "barracks" and stats[ev.faction].first_barracks_tick < 0:
 						stats[ev.faction].first_barracks_tick = world.tick
+				"researched":
+					stats[ev.faction].researched += 1
 				"trained":
 					var u: Entity = world.entity(ev.entity_id)
 					if u != null and u.is_soldier():
 						stats[ev.faction].soldiers_trained += 1
+					if u != null and u.kind == "cavalry":
+						stats[ev.faction].cavalry_trained += 1
 				"attack":
 					if first_attack < 0:
 						first_attack = world.tick

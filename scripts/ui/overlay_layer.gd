@@ -26,8 +26,9 @@ func _draw() -> void:
 
 	if game.placing:
 		var anchor: Vector2i = game.placement_anchor()
-		var size: Vector2i = game.sim.stats["barracks"].footprint
-		var code: String = game.sim.placement_check(game.faction, "barracks", anchor)
+		var kind: String = game.placing_kind
+		var size: Vector2i = game.sim.stats[kind].footprint
+		var code: String = game.sim.placement_check(game.faction, kind, anchor)
 		var ok: bool = code == "ok"
 		var col: Color = Palette.GOOD if ok else Palette.BAD
 		var r: Rect2 = Rect2(Vector2(anchor) * C, Vector2(size) * C)
@@ -38,8 +39,8 @@ func _draw() -> void:
 		s.set_corner_radius_all(9)
 		s.anti_aliasing = true
 		draw_style_box(s, r.grow(-2.0))
-		draw_texture_rect(Art.tex("barracks"), r.grow(4.0), false, Color(col.lightened(0.4), 0.75))
-		var text: String = "Build barracks" if ok else HudModel.reason_text(code, HudModel.cost_of(game.sim, "barracks"))
+		Art.draw_rendered(self, "%s_%s" % [kind, Art.TEAM_ART[game.faction]], r.get_center(), Color(col.lightened(0.5), 0.7))
+		var text: String = "Build " + HudModel.KIND_NAMES[kind].to_lower() if ok else HudModel.reason_text(code, HudModel.cost_of(game.sim, kind))
 		var font: Font = UiTheme.font("semibold")
 		var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		var tp: Vector2 = Vector2(r.get_center().x - w / 2.0, r.end.y + 18)

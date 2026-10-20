@@ -174,7 +174,7 @@ func test_observation_contains_only_allowed_information() -> void:
 	var obs: Observation = sim.observation("ai")
 	assert_eq(obs.tick, 0)
 	assert_eq(obs.faction, "ai")
-	assert_eq(obs.resources, {"wood": 200, "gold": 100})
+	assert_eq(obs.resources, {"wood": 200, "gold": 100, "food": 100})
 	assert_eq(obs.own_units.size(), 3, "three starting workers")
 	assert_eq(obs.own_buildings.size(), 1, "the HQ")
 	assert_eq(obs.enemy_units.size(), 0, "the player is far away")

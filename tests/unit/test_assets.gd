@@ -41,5 +41,5 @@ func test_ac_85_every_asset_is_listed_with_source_and_licence() -> void:
 func test_ac_85_every_art_source_is_credited_in_the_game() -> void:
 	# The Credits screen names every art, sound and font source in ASSETS.md.
 	var text: String = MainMenu.credits_text()
-	for source: String in ["Kay Lousberg", "Kenney", "ambientCG", "cynicmusic", "Cinzel", "Alegreya Sans", "Godot"]:
+	for source: String in ["Kay Lousberg", "Quaternius", "Kenney", "ambientCG", "cynicmusic", "Cinzel", "Alegreya Sans", "Godot"]:
 		assert_string_contains(text, source)

@@ -10,6 +10,7 @@ const MAP_EDGE_DARK: Color = Color("3a2716")
 
 const WOOD: Color = Color("6fbf4a")
 const GOLD: Color = Color("f2b632")
+const FOOD: Color = Color("e8925a")
 
 const TEAM: Dictionary = {"player": Color("3d8fd6"), "ai": Color("d84a3a"), "": Color("d9cfa8")}
 const TEAM_DARK: Dictionary = {"player": Color("1d4f80"), "ai": Color("7c2219"), "": Color("6b5a3a")}
@@ -41,4 +42,4 @@ static func health(ratio: float) -> Color:
 
 
 static func resource(kind: String) -> Color:
-	return WOOD if kind == "wood" else GOLD
+	return WOOD if kind == "wood" else (FOOD if kind == "food" or kind == "farm" else GOLD)
