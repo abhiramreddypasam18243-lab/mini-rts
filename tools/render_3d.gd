@@ -9,7 +9,7 @@
 extends SceneTree
 
 ## Camera pitch (degrees below horizontal) and the sun's direction.
-const PITCH: float = 52.0
+const PITCH: float = 38.0
 ## The sun shines from the left front: fronts lit, shadows to the right.
 const SUN: Vector3 = Vector3(-54.0, -66.0, 0.0)
 const PX_PER_UNIT: float = 64.0

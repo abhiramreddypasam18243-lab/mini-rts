@@ -27,7 +27,7 @@ const SCALE: float = 1.0 / 1.6
 ## World pixels per 3D unit (a 3D character is about 1.6 units tall, so
 ## about 26 world pixels: a little less than a cell, so neighbours do not
 ## overlap).
-const WORLD_PER_UNIT: float = 15.0
+const WORLD_PER_UNIT: float = 13.5
 
 static var _tex: Dictionary = {}
 static var _meta: Dictionary = {}

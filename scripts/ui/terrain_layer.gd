@@ -502,6 +502,10 @@ func water_shape(ci: CanvasItem, r: float, col: Color, deep: bool) -> void:
 				continue
 			var centre: Vector2 = (Vector2(c) + Vector2(0.5, 0.5)) * C
 			ci.draw_circle(centre, C * r, col, true, -1.0, true)
+			# Where four water cells meet, fill the square between their centres.
+			var quad: Array[Vector2i] = [c + Vector2i.RIGHT, c + Vector2i.DOWN, c + Vector2i.ONE]
+			if quad.all(func(q: Vector2i) -> bool: return is_water(q) and (not deep or _interior_water(q))):
+				ci.draw_rect(Rect2(centre, Vector2(C, C)), col)
 			for d: Vector2i in [Vector2i.RIGHT, Vector2i.DOWN]:
 				var n: Vector2i = c + d
 				if is_water(n) and (not deep or _interior_water(n)):
