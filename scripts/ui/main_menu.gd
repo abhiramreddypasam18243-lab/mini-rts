@@ -313,7 +313,7 @@ func _build_scene() -> void:
 		var p: Vector2 = Vector2(r.randf_range(0, FIELD.x), r.randf_range(0, FIELD.y))
 		if absf(p.y - 520.0) < 170.0 and absf(p.x - 1100.0) < 760.0:
 			continue  # keep the middle open for the armies
-		var k: String = ["tree_pine", "tree_tall", "rock_cluster", "rock_big", "gold_ore", "tree_pine_small", "tree_pine"][r.randi_range(0, 6)]
+		var k: String = ["tree_a", "tree_c", "rock_a", "rock_d", "gold_ore", "tree_f", "tree_g"][r.randi_range(0, 6)]
 		_scene.append({"kind": k, "pos": p, "size": r.randf_range(60.0, 110.0)})
 	for i: int in 16:
 		var f: String = "player" if i < 8 else "ai"
@@ -428,29 +428,24 @@ func _draw() -> void:
 			continue
 		match o.kind:
 			"castle", "barracks":
-				var sz: float = o.size
-				# The shadow sits at the building's foot (the castle sprite's
-				# picture ends higher up its canvas than the barracks').
-				var foot: float = -sz * 0.16 if o.kind == "castle" else sz * 0.2
-				draw_set_transform(p + Vector2(4, foot), 0.0, Vector2(1.0, 0.3))
-				draw_circle(Vector2.ZERO, sz * 0.46, Color(0, 0.05, 0, 0.2), true, -1.0, true)
-				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-				draw_texture_rect(Art.tex(o.kind), Rect2(p - Vector2(sz / 2.0, sz * 0.75), Vector2(sz, sz)), false)
-				Art.banner(self, p + Vector2(sz * 0.32, -sz * 0.62), Palette.TEAM[o.faction], _t)
+				# Pre-rendered 3D buildings (D-49); `size` is the drawn width of
+				# the footprint (3 cells for the castle, 2 for the barracks).
+				var units: float = 3.0 if o.kind == "castle" else 2.0
+				var name: String = "%s_%s" % ["hq" if o.kind == "castle" else "barracks", Art.TEAM_ART[o.faction]]
+				Art.draw_rendered(self, name, p, Color.WHITE, -INF, o.size / units)
 			"unit":
 				var flash: float = clampf(1.0 - (_t - o.hit) / 0.15, 0.0, 1.0) if _t >= o.hit else 0.0
 				var a: Dictionary = _pose(o)
 				Art.unit(self, p, o.unit, o.faction, a.anim, a.dir, a.frame, 1.0, flash, 1.0)
 			_:
 				var sz2: float = o.size
-				draw_set_transform(p + Vector2(3, sz2 * 0.3), 0.0, Vector2(1.0, 0.4))
-				draw_circle(Vector2.ZERO, sz2 * 0.3, Color(0, 0.05, 0, 0.2), true, -1.0, true)
-				if o.kind.begins_with("tree"):
-					var sway: float = sin(_t * 1.6 + o.pos.x * 0.045) * 0.04
-					draw_set_transform_matrix(Transform2D(Vector2(1, 0), Vector2(sway, 1), p + Vector2(0, sz2 * 0.5)))
-					draw_texture_rect(Art.tex(o.kind), Rect2(Vector2(-sz2 * 0.5, -sz2), Vector2(sz2, sz2)), false)
-				else:
+				if o.kind.begins_with("tree") or o.kind.begins_with("rock"):
+					var sway: float = sin(_t * 1.6 + o.pos.x * 0.045) * 0.04 if o.kind.begins_with("tree") else 0.0
+					draw_set_transform_matrix(Transform2D(Vector2(1, 0), Vector2(sway, 1), p))
+					Art.draw_rendered(self, o.kind, Vector2.ZERO, Color(1.08, 1.08, 1.08), -INF, sz2 * 0.55)
 					draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				else:
+					draw_texture_rect(Art.tex(o.kind), Rect2(p - Vector2(sz2, sz2) * 0.5, Vector2(sz2, sz2)), false)
 					draw_texture_rect(Art.tex(o.kind), Rect2(p - Vector2(sz2, sz2) * 0.5, Vector2(sz2, sz2)), false)
 				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 

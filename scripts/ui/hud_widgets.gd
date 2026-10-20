@@ -109,7 +109,8 @@ class Portrait extends Control:
 				Art.icon(self, c, kind, 1.7)
 			"hq", "barracks":
 				var tint: Color = Color(0.65, 0.65, 0.7) if ghost else Color.WHITE
-				draw_texture_rect(Art.tex("castle" if kind == "hq" else "barracks"), Rect2(c - Vector2(38, 36), Vector2(76, 76)), false, tint)
+				# The pre-rendered 3D building (D-49), fitted to the portrait.
+				Art.draw_fit(self, "%s_%s" % [kind, Art.TEAM_ART[faction]], Rect2(c - Vector2(36, 36), Vector2(72, 72)), tint)
 				Art.banner(self, Vector2(size.x - 18, 10), Palette.TEAM[faction], t)
 			_:
 				Art.unit_icon(self, c, kind, faction, 62.0)

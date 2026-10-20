@@ -432,33 +432,21 @@ func _draw_rocks(ci: CanvasItem) -> void:
 	for y: int in range(-BORDER, map.height + BORDER):
 		for x: int in range(-BORDER, map.width + BORDER):
 			var c: Vector2i = Vector2i(x, y)
-			if not is_forest(c) and not is_rock(c):
+			if not is_rock(c):
 				continue
 			var r: Rect2 = Rect2(Vector2(x, y) * C, Vector2(C, C))
-			if is_forest(c):
-				for t: Dictionary in trees_in(c):
-					ci.draw_set_transform(t.foot + Vector2(3, 1), 0.0, Vector2(1.0, 0.42))
-					ci.draw_circle(Vector2.ZERO, t.size * 0.3, Color(0.0, 0.08, 0.02, 0.22), true, -1.0, true)
-				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-			else:
-				ci.draw_set_transform(r.get_center() + Vector2(2, 9), 0.0, Vector2(1.0, 0.45))
-				ci.draw_circle(Vector2.ZERO, C * 0.6, Color(0, 0.05, 0, 0.25), true, -1.0, true)
-				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-				# Varied size, offset and mirroring, so a rock field does not
-				# look stamped (D-48); pebbles scattered around.
-				var name: String = ["rock_cluster", "rock_pair", "rock_big"][int(noise(x, y, 3) * 3.0) % 3]
-				var s: float = C * (1.3 + 0.55 * noise(x, y, 4))
-				var off: Vector2 = Vector2(noise(x, y, 12) - 0.5, noise(x, y, 13) - 0.5) * 8.0
-				var flip: float = -1.0 if noise(x, y, 14) < 0.5 else 1.0
-				var tone: float = 0.88 + 0.16 * noise(x, y, 15)
-				ci.draw_set_transform(r.get_center() + off - Vector2(0, 3), 0.0, Vector2(flip, 1.0))
-				ci.draw_texture_rect(Art.tex(name), Rect2(-Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(tone, tone, tone * 0.97))
-				ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-				for k: int in 2:
-					if noise(x, y, 16 + k) < 0.5:
-						var pp: Vector2 = r.get_center() + Vector2(noise(x, y, 18 + k) - 0.5, noise(x, y, 20 + k) - 0.5) * C * 1.6
-						ci.draw_circle(pp, 1.8, Color(0.42, 0.4, 0.36, 0.85), true, -1.0, true)
-						ci.draw_circle(pp - Vector2(0.5, 0.5), 0.9, Color(0.85, 0.83, 0.78, 0.8), true, -1.0, true)
+			# Pre-rendered 3D rocks (D-49) with their own shadows, varied in
+			# size, position and tone; pebbles scattered around.
+			var name: String = ["rock_a", "rock_b", "rock_c", "rock_d"][int(noise(x, y, 3) * 4.0) % 4]
+			var off: Vector2 = Vector2(noise(x, y, 12) - 0.5, noise(x, y, 13) - 0.5) * 8.0
+			var tone: float = 0.9 + 0.14 * noise(x, y, 15)
+			var sc: float = C * (0.8 + 0.3 * noise(x, y, 4))
+			Art.draw_rendered(ci, name, r.get_center() + off + Vector2(0, 6), Color(tone, tone, tone), -INF, sc)
+			for k: int in 2:
+				if noise(x, y, 16 + k) < 0.5:
+					var pp: Vector2 = r.get_center() + Vector2(noise(x, y, 18 + k) - 0.5, noise(x, y, 20 + k) - 0.5) * C * 1.6
+					ci.draw_circle(pp, 1.8, Color(0.42, 0.4, 0.36, 0.85), true, -1.0, true)
+					ci.draw_circle(pp - Vector2(0.5, 0.5), 0.9, Color(0.85, 0.83, 0.78, 0.8), true, -1.0, true)
 
 
 ## True on roads and base clearings (the minimap draws them as dirt).
@@ -491,11 +479,13 @@ func is_water(c: Vector2i) -> bool:
 func trees_in(c: Vector2i) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var r: Vector2 = Vector2(c) * C
-	var n: int = 4 if map.in_bounds(c) else 3
+	# Pre-rendered 3D trees (D-49): mostly pines, some leafy trees.
+	var n: int = 2
 	for k: int in n:
-		var name: String = ["tree_pine", "tree_tall", "tree_pine", "tree_pine_small"][int(noise(c.x, c.y, 10 + k) * 4.0) % 4]
-		var size: float = C * (1.1 + noise(c.x, c.y, 20 + k) * 0.45)
-		var foot: Vector2 = r + Vector2(0.1 + 0.8 * noise(c.x, c.y, 30 + k), 0.3 + 0.65 * float(k) / float(n - 1)) * C
+		var pick: float = noise(c.x, c.y, 10 + k)
+		var name: String = ["tree_a", "tree_b", "tree_c", "tree_d", "tree_e", "tree_a", "tree_d", "tree_f", "tree_g", "tree_h"][int(pick * 10.0) % 10]
+		var size: float = C * (0.72 + noise(c.x, c.y, 20 + k) * 0.25)
+		var foot: Vector2 = r + Vector2(0.2 + 0.6 * noise(c.x, c.y, 30 + k), 0.35 + 0.55 * float(k)) * C
 		out.append({"name": name, "size": size, "foot": foot})
 	return out
 
@@ -524,9 +514,8 @@ class TreeDraw extends Node2D:
 				if not terrain.is_forest(c):
 					continue
 				for t: Dictionary in terrain.trees_in(c):
-					var s: float = t.size
-					var shade: float = 0.86 + 0.14 * TerrainLayer.noise(x, y, 33)
-					draw_texture_rect(Art.tex(t.name), Rect2(t.foot - Vector2(s * 0.5, s * 0.82), Vector2(s, s)), false, Color(shade, shade, shade))
+					var shade: float = 1.05 + 0.15 * TerrainLayer.noise(x, y, 33)
+					Art.draw_rendered(self, t.name, t.foot, Color(shade, shade, shade), -INF, t.size)
 
 
 ## The ponds' moving sparkle: one disc per water cell, coloured by the

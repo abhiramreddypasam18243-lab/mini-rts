@@ -44,8 +44,47 @@ static func _round_tex(alpha_at: Callable) -> ImageTexture:
 
 static func tex(name: String) -> Texture2D:
 	if not _tex.has(name):
-		_tex[name] = load(DIR + name + ".png")
+		var r: String = RENDERED + name + ".png"
+		_tex[name] = load(r) if ResourceLoader.exists(r) else load(DIR + name + ".png")
 	return _tex[name]
+
+
+# --- pre-rendered 3D sprites (decision D-49) -----------------------------------
+
+const RENDERED: String = "res://assets/rendered/"
+## World pixels per 3D unit: one unit is one map cell.
+const UNIT_PX: float = 32.0
+const TEAM_ART: Dictionary = {"player": "blue", "ai": "red"}
+static var _anchors: Dictionary = {}
+
+
+## A rendered sprite's anchor: pixels per unit and the pixel where its 3D
+## origin (a building's footprint centre, a tree's foot) lies.
+static func anchor(name: String) -> Dictionary:
+	if _anchors.is_empty():
+		for f: String in ["rendered.json", "props.json"]:
+			var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(RENDERED + f))
+			if d is Dictionary:
+				_anchors.merge(d)
+	return _anchors.get(name, {"ppu": 64.0, "origin": [64.0, 64.0]})
+
+
+## Draws a rendered sprite with its origin at `at` (world), `scale` world
+## pixels per unit; only the part below `clip_y` (world y) is drawn.
+static func draw_rendered(ci: CanvasItem, name: String, at: Vector2, tint: Color = Color.WHITE,
+		clip_y: float = -INF, scale: float = UNIT_PX) -> void:
+	var a: Dictionary = anchor(name)
+	var t: Texture2D = tex(name)
+	var k: float = scale / float(a.ppu)
+	var src: Rect2 = Rect2(Vector2.ZERO, t.get_size())
+	var dst: Rect2 = Rect2(at - Vector2(a.origin[0], a.origin[1]) * k, t.get_size() * k)
+	if clip_y > dst.position.y:
+		if clip_y >= dst.end.y:
+			return
+		var cut: float = (clip_y - dst.position.y) / k
+		src = Rect2(0, cut, src.size.x, src.size.y - cut)
+		dst = Rect2(dst.position.x, clip_y, dst.size.x, dst.end.y - clip_y)
+	ci.draw_texture_rect_region(t, dst, src, tint)
 
 
 static func _box(key: String, bg: Color, radius: int, border: Color = Color(0, 0, 0, 0), bw: int = 0) -> StyleBoxFlat:
@@ -98,20 +137,18 @@ static func building(ci: CanvasItem, rect: Rect2, kind: String, faction: String,
 	elif flash > 0.0:
 		tint = Color(1, 1 - 0.5 * flash, 1 - 0.5 * flash)
 	# The part of the building already built: everything below clip_y.
-	var top: float = rect.position.y - rect.size.y * 0.3
+	var top: float = rect.position.y - rect.size.y * (0.9 if kind == "hq" else 0.5)
 	var clip_y: float = -INF
 	if not complete and not ghost:
 		var f: float = clampf(progress, 0.0, 1.0)
 		clip_y = lerpf(rect.end.y, top, 0.15 + 0.85 * f)
 		tint.a = 0.9
-	for part: Array in _parts(kind, rect):
-		draw_fit(ci, part[0], part[1], tint, clip_y)
+	# The pre-rendered 3D building (D-49), its footprint centre on the plot's
+	# centre; its team flags and shadow are part of the picture.
+	draw_rendered(ci, "%s_%s" % [kind, TEAM_ART[faction]], rect.get_center(), tint, clip_y)
 	if not complete and not ghost:
 		_scaffold(ci, rect, clip_y)
 		bar(ci, Rect2(rect.position.x + 8, rect.end.y - 7, rect.size.x - 16, 5), progress, Palette.ACCENT)
-	elif not ghost:
-		var flag: Vector2 = Vector2(rect.end.x - 10, rect.position.y - 20) if kind == "hq" else Vector2(rect.end.x - 10, rect.position.y - 6)
-		banner(ci, flag, team, t)
 
 
 ## The pieces of a building, back to front: [sprite, target rect].
@@ -263,12 +300,11 @@ static func node(ci: CanvasItem, c: Vector2, kind: String, fullness: float, t: f
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		for i: int in trees:
 			var sp: Vector3 = spots[i]
-			var sz: float = cell * 1.25 * sp.z
 			var foot: Vector2 = c + Vector2(sp.x, sp.y)
 			# Sway in the wind: shear the tree about its foot.
-			var sway: float = sin(t * 1.6 + foot.x * 0.045 + foot.y * 0.031) * 0.05
+			var sway: float = sin(t * 1.6 + foot.x * 0.045 + foot.y * 0.031) * 0.04
 			ci.draw_set_transform_matrix(Transform2D(Vector2(1, 0), Vector2(sway, 1), foot))
-			ci.draw_texture_rect(tex("tree_pine"), Rect2(Vector2(-sz * 0.5, -sz * 0.84), Vector2(sz, sz)), false, Color(1, 1, 1, alpha))
+			draw_rendered(ci, ["tree_a", "tree_d", "tree_b"][i], Vector2.ZERO, Color(1, 1, 1, alpha), -INF, UNIT_PX * 0.62 * sp.z)
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	else:
 		var size: float = cell * (1.6 if fullness > 0.4 else 1.25)

@@ -62,44 +62,78 @@ func _draw_world() -> void:
 			if id == game.hover_id or id == game.selection.inspected:
 				_ring_rect(Rect2(Vector2(g.cell) * C, Vector2(C, C)), Color(Palette.resource(g.kind), 0.7))
 
-	# Ghosts: enemy buildings remembered but not seen now.
+	# Buildings, ghosts and units are drawn together, back to front by where
+	# they stand (D-49): a unit behind a castle is hidden by its towers, one
+	# in front is drawn over it.
+	var items: Array[Array] = []
 	for id: int in mem:
 		var g: Dictionary = mem[id]
 		if g.faction == "" or g.faction == f or game.spectate:
 			continue
 		if sim.fog.any_visible(f, g.cell, g.size) and sim.entities.has(id):
 			continue
-		Art.building(self, Rect2(Vector2(g.cell) * C, Vector2(g.size) * C), g.kind, g.faction, t, g.complete, 1.0, true)
-
-	# Buildings the player owns or sees.
+		items.append([float(g.cell.y + g.size.y) * C - 4.0, 0, id])
 	for id: int in sim.entities:
 		var e: Entity = sim.entities[id]
-		if not e.is_building() or not (e.faction == f or game.spectate or sim.fog.any_visible(f, e.cell, e.size)):
-			continue
-		var r: Rect2 = Rect2(Vector2(e.cell) * C, Vector2(e.size) * C)
-		var progress: float = float(e.progress) / sim.stats[e.kind].build_time if not e.complete else 1.0
-		Art.building(self, r, e.kind, e.faction, t, e.complete, progress, false, game.flash(id))
-		var selected: bool = game.selection.selected.has(id) or game.selection.inspected == id
-		if selected or id == game.hover_id:
-			_ring_rect(r, Color(1, 1, 1, 0.85 if selected else 0.35))
-		var max_hp: int = sim.stats[e.kind].health
-		if e.hp < max_hp or selected:
-			Art.bar(self, Rect2(r.position.x + 6, r.position.y - 9, r.size.x - 12, 4), float(e.hp) / max_hp, Palette.health(float(e.hp) / max_hp))
-		if e.faction == f and not e.queue.is_empty():
-			var item: Dictionary = e.queue[0]
-			var total: int = sim.stats[item.type].build_time
-			Art.bar(self, Rect2(r.position.x + 10, r.end.y + 4, r.size.x - 20, 3), 1.0 - float(item.remaining) / total, Palette.ACCENT)
-
-	# Units, lower on screen drawn last.
+		if e.is_building() and (e.faction == f or game.spectate or sim.fog.any_visible(f, e.cell, e.size)):
+			items.append([float(e.cell.y + e.size.y) * C - 4.0, 1, id])
 	var shown: Array[Entity] = []
 	for id: int in sim.entities:
 		var e: Entity = sim.entities[id]
 		if e.is_unit() and (e.faction == f or game.spectate or sim.fog.is_visible(f, e.unit_cell())):
 			shown.append(e)
 	_separate(shown)
-	shown.sort_custom(func(a: Entity, b: Entity) -> bool: return _feet(a).y < _feet(b).y or (_feet(a).y == _feet(b).y and a.id < b.id))
 	for e: Entity in shown:
-		_draw_unit(e, sim)
+		items.append([_feet(e).y, 2, e.id])
+	items.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0] or (x[0] == y[0] and (x[1] < y[1] or (x[1] == y[1] and x[2] < y[2]))))
+	for it: Array in items:
+		match it[1]:
+			0:
+				var g2: Dictionary = mem[it[2]]
+				Art.building(self, Rect2(Vector2(g2.cell) * C, Vector2(g2.size) * C), g2.kind, g2.faction, t, g2.complete, 1.0, true)
+			1:
+				_draw_building(sim.entities[it[2]], sim)
+			2:
+				_draw_unit(sim.entities[it[2]], sim)
+	_draw_hidden(shown, sim)
+
+
+## Units standing behind a building are drawn again over it as a faint
+## silhouette in their team colour, so they can still be seen and clicked.
+func _draw_hidden(shown: Array[Entity], sim: Simulation) -> void:
+	var covers: Array[Rect2] = []
+	for id: int in sim.entities:
+		var b: Entity = sim.entities[id]
+		if b.is_building():
+			var r: Rect2 = Rect2(Vector2(b.cell) * C, Vector2(b.size) * C)
+			# The building's picture rises above its footprint.
+			covers.append(Rect2(r.position.x - 4, r.position.y - r.size.y * (1.0 if b.kind == "hq" else 0.6), r.size.x + 8, r.size.y * (2.0 if b.kind == "hq" else 1.6)))
+	for e: Entity in shown:
+		var feet: Vector2 = _feet(e)
+		for c: Rect2 in covers:
+			if c.has_point(feet) and feet.y < c.end.y - C * 0.6:
+				var a: Dictionary = _anim(e, feet)
+				var tint: Color = Color(Palette.TEAM_LIGHT[e.faction], 0.55)
+				UnitSprites.draw(self, feet, e.kind, e.faction, a.anim, a.dir, a.frame, UnitSprites.SCALE, tint)
+				break
+
+
+func _draw_building(e: Entity, sim: Simulation) -> void:
+	var f: String = game.faction
+	var id: int = e.id
+	var r: Rect2 = Rect2(Vector2(e.cell) * C, Vector2(e.size) * C)
+	var progress: float = float(e.progress) / sim.stats[e.kind].build_time if not e.complete else 1.0
+	Art.building(self, r, e.kind, e.faction, game.time, e.complete, progress, false, game.flash(id))
+	var selected: bool = game.selection.selected.has(id) or game.selection.inspected == id
+	if selected or id == game.hover_id:
+		_ring_rect(r, Color(1, 1, 1, 0.85 if selected else 0.35))
+	var max_hp: int = sim.stats[e.kind].health
+	if e.hp < max_hp or selected:
+		Art.bar(self, Rect2(r.position.x + 6, r.position.y - 9, r.size.x - 12, 4), float(e.hp) / max_hp, Palette.health(float(e.hp) / max_hp))
+	if e.faction == f and not e.queue.is_empty():
+		var item: Dictionary = e.queue[0]
+		var total: int = sim.stats[item.type].build_time
+		Art.bar(self, Rect2(r.position.x + 10, r.end.y + 4, r.size.x - 20, 3), 1.0 - float(item.remaining) / total, Palette.ACCENT)
 
 
 ## Where a unit's feet are drawn: its position (the cell centre) a little
