@@ -288,7 +288,7 @@ func _do_expand(out: Array[Dictionary], used: Dictionary, res: Dictionary) -> vo
 	var live_farms: int = _farms.filter(func(f: Dictionary) -> bool: return not f.complete or f.amount > 0).size()
 	if live_farms < _workers.size() / 5 and _farms.all(func(f: Dictionary) -> bool: return f.complete):
 		kind = "farm"
-	elif _towers.is_empty() and _obs.tick >= TOWER_TICK:
+	elif _towers.size() < config.max_towers and _towers.all(func(t: Dictionary) -> bool: return t.complete) and _obs.tick >= TOWER_TICK:
 		kind = "tower"
 	elif _stables.is_empty() and not _farms.is_empty():
 		kind = "stable"
@@ -308,7 +308,7 @@ func _do_expand(out: Array[Dictionary], used: Dictionary, res: Dictionary) -> vo
 ## D-51: Forging, then Armour, at a finished barracks with a free queue slot,
 ## once the army has 3 soldiers.
 func _do_research(out: Array[Dictionary], res: Dictionary) -> void:
-	if _soldiers.size() < 3:
+	if not config.research or _soldiers.size() < config.research_army:
 		return
 	for up: String in ["forging", "armour"]:
 		if _obs.upgrades.has(up) or _researching(up):
@@ -405,7 +405,7 @@ func _site_ok(anchor: Vector2i, size: Vector2i, blocked: Dictionary) -> bool:
 func _do_defend(out: Array[Dictionary], used: Dictionary) -> void:
 	var groups: Dictionary = {}
 	for s: Dictionary in _free(used, _soldiers):
-		var t: Dictionary = _nearest(s.cell, _threats)
+		var t: Dictionary = _pick_enemy(s, _threats)
 		used[s.id] = true  # a defender is not also sent scouting or rallying
 		if t.is_empty() or (s.order_type == "attack" and s.order_target == t.id):
 			continue
@@ -425,8 +425,9 @@ func _do_attack(out: Array[Dictionary], used: Dictionary) -> void:
 	var march: Array[int] = []
 	var hit_target: Array[int] = []
 	var engage: Dictionary = {}
+	_do_tactics(out, used)
 	for s: Dictionary in _free(used, _army):
-		var near: Dictionary = _nearest(s.cell, _obs.enemy_units)
+		var near: Dictionary = _pick_enemy(s, _obs.enemy_units)
 		if not near.is_empty() and _dist_sq(s.cell, near.cell) <= ENGAGE_SQ:
 			if not (s.order_type == "attack" and s.order_target == near.id):
 				if not engage.has(near.id):
@@ -447,6 +448,45 @@ func _do_attack(out: Array[Dictionary], used: Dictionary) -> void:
 		var goal: Variant = _approach_cell(_target)
 		if goal != null:
 			_issue(out, used, Commands.move(faction, march, goal))
+
+
+## Which enemy a soldier fights: the nearest; on Hard (D-52) the weakest
+## one it can already reach (within its attack range plus one cell; lowest
+## health, then lowest id), so wounded enemies are finished first, and
+## cavalry take an enemy worker in reach first.
+func _pick_enemy(s: Dictionary, enemies: Array[Dictionary]) -> Dictionary:
+	if config.raid and s.kind == "cavalry":
+		var workers: Array[Dictionary] = enemies.filter(func(e: Dictionary) -> bool: return e.kind == "worker")
+		var w: Dictionary = _nearest(s.cell, workers)
+		if not w.is_empty() and _dist_sq(s.cell, w.cell) <= ENGAGE_SQ:
+			return w
+	if not config.focus_fire:
+		return _nearest(s.cell, enemies)
+	var best: Dictionary = {}
+	var reach: int = int(_obs.stats[s.kind].range) / 1000 + 1
+	for e: Dictionary in enemies:
+		if _dist_sq(s.cell, e.cell) > reach * reach:
+			continue
+		if best.is_empty() or e.hp < best.hp or e.hp == best.hp and e.id < best.id:
+			best = e
+	return best if not best.is_empty() else _nearest(s.cell, enemies)
+
+
+## Hard (D-52): soldiers below wounded_pct % of their health with an enemy
+## in reach walk back to the rally cell.
+func _do_tactics(out: Array[Dictionary], used: Dictionary) -> void:
+	if config.wounded_pct > 0:
+		var rally: Variant = _rally_cell()
+		var back: Array[int] = []
+		for s: Dictionary in _free(used, _army):
+			var hurt: bool = s.hp * 100 < config.wounded_pct * int(_obs.stats[s.kind].health)
+			var near: Dictionary = _nearest(s.cell, _obs.enemy_units)
+			if hurt and rally != null and not near.is_empty() and _dist_sq(s.cell, near.cell) <= ENGAGE_SQ:
+				used[s.id] = true
+				if s.order_type != "move":
+					back.append(s.id)
+		if not back.is_empty():
+			_issue(out, used, Commands.move(faction, back, rally))
 
 
 ## In ECONOMY, BUILD and RECOVER, idle army soldiers gather at a rally cell

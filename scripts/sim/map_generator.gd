@@ -12,6 +12,13 @@
 ##     (path length from a cell 4-adjacent to the HQ footprint to a cell
 ##     4-adjacent to the node; decision D-25).
 ## After 50 failed attempts the result is "map_generation_failed".
+##
+## Styles (decision D-53), all point-symmetric and checked the same way:
+##   "classic"   the scattered rocks above;
+##   "river"     a 3-cell river along the anti-diagonal between the starts,
+##               crossed only at three 5-cell fords (the middle and 16 cells
+##               to either side), fewer rocks;
+##   "highlands" long rock ridges and extra gold (3 to 5 more pairs).
 class_name MapGenerator
 extends RefCounted
 
@@ -20,14 +27,19 @@ const HQ: int = 3
 const CLEAR: int = 2
 const NEAR_STEPS: int = 15
 const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+const STYLES: Array[String] = ["classic", "river", "highlands"]
+## River fords: centred where x - y equals these, each 5 cells wide.
+const FORDS: Array[int] = [-16, 0, 16]
+const FORD_HALF: int = 2
 
 
-static func generate(p_seed: int, size: int = Consts.DEFAULT_MAP_SIZE) -> Dictionary:
+static func generate(p_seed: int, size: int = Consts.DEFAULT_MAP_SIZE, style: String = "classic") -> Dictionary:
+	assert(style in STYLES, "unknown map style '%s'" % style)
 	var rng: SimRng = SimRng.new(p_seed)
 	for attempt: int in MAX_TRIES:
-		var m: MapGrid = _attempt(rng, size)
+		var m: MapGrid = _attempt(rng, size, style)
 		if m != null and _acceptable(m):
-			m.map_name = "generated-%d" % p_seed
+			m.map_name = ("generated-%d" if style == "classic" else style + "-%d") % p_seed
 			return {"map": m, "error": ""}
 	return {"map": null, "error": "map_generation_failed"}
 
@@ -36,7 +48,17 @@ static func mirror(cell: Vector2i, size: int) -> Vector2i:
 	return Vector2i(size - 1 - cell.x, size - 1 - cell.y)
 
 
-static func _attempt(rng: SimRng, size: int) -> MapGrid:
+## True for a river cell (not a ford): within 1 of the anti-diagonal.
+static func is_river(c: Vector2i, size: int) -> bool:
+	if absi(c.x + c.y - (size - 1)) > 1:
+		return false
+	for f: int in FORDS:
+		if absi(c.x - c.y - f) <= FORD_HALF:
+			return false
+	return true
+
+
+static func _attempt(rng: SimRng, size: int, style: String = "classic") -> MapGrid:
 	var hi: int = mini(9, size / 2 - HQ - CLEAR)
 	if hi < CLEAR:
 		return null
@@ -55,8 +77,32 @@ static func _attempt(rng: SimRng, size: int) -> MapGrid:
 				if m.in_bounds(Vector2i(x, y)):
 					reserved[y * size + x] = 1
 
+	# The river and its banks are kept clear of rocks and nodes (D-53).
+	if style == "river":
+		for y: int in size:
+			for x: int in size:
+				var c: Vector2i = Vector2i(x, y)
+				if absi(x + y - (size - 1)) <= 2:
+					reserved[y * size + x] = 1
+				if is_river(c, size):
+					m.set_blocked(c, true)
+					m.look[c] = "water"
+	# Ridges: long thin mirrored rock walls (D-53).
+	if style == "highlands":
+		for i: int in rng.between(5, 8):
+			var c: Vector2i = Vector2i(rng.range_int(size), rng.range_int(size))
+			var horizontal: bool = rng.between(0, 1) == 0
+			var length: int = rng.between(7, 13)
+			var thick: int = rng.between(1, 2)
+			for along: int in length:
+				for across: int in thick:
+					var cell: Vector2i = c + (Vector2i(along, across) if horizontal else Vector2i(across, along))
+					if m.in_bounds(cell) and reserved[cell.y * size + cell.x] == 0:
+						for k: Vector2i in [cell, mirror(cell, size)]:
+							m.set_blocked(k, true)
+							m.look[k] = "rock"
 	# Rocks: mirrored rectangles.
-	var rocks: int = rng.between(10, 18)
+	var rocks: int = rng.between(10, 18) if style == "classic" else rng.between(5, 9)
 	for i: int in rocks:
 		var c: Vector2i = Vector2i(rng.range_int(size), rng.range_int(size))
 		var w: int = rng.between(1, 5)
@@ -78,7 +124,7 @@ static func _attempt(rng: SimRng, size: int) -> MapGrid:
 			if manhattan >= 5 and manhattan <= 10 and _place_pair(m, reserved, occupied, type, c):
 				break
 	var extra_wood: int = rng.between(2, 4)
-	var extra_gold: int = rng.between(1, 3)
+	var extra_gold: int = rng.between(3, 5) if style == "highlands" else rng.between(1, 3)
 	for k: int in extra_wood + extra_gold:
 		var type: String = "wood" if k < extra_wood else "gold"
 		for t: int in 30:

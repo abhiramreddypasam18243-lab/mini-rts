@@ -30,7 +30,7 @@ func test_ac_91_architecture_shows_both_layers_and_rule_owners() -> void:
 
 func test_ac_92_test_plan_lists_every_ac_and_every_test() -> void:
 	var plan: String = _read("res://docs/test-plan.md")
-	for n: int in range(1, 102):
+	for n: int in range(1, 106):
 		assert_string_contains(plan, "| AC-%02d |" % n, "AC-%02d has a row" % n)
 	# Every acceptance test in the suite appears in the plan.
 	var dir: DirAccess = DirAccess.open("res://tests/unit")

@@ -24,6 +24,16 @@ func _draw() -> void:
 		draw_rect(r, Color(Palette.ACCENT, 0.10))
 		draw_rect(r, Color(Palette.ACCENT, 0.85), false, 1.5, true)
 
+	# The selected building's rally point (D-54): a dashed line and a flag.
+	var rb: Entity = game.selection.building(game.sim)
+	if rb != null and game.rally.has(rb.id):
+		var from: Vector2 = (Vector2(rb.cell) + Vector2(rb.size) / 2.0) * C
+		var to: Vector2 = (Vector2(game.rally[rb.id]) + Vector2(0.5, 0.5)) * C
+		draw_dashed_line(from, to, Color(Palette.ACCENT, 0.8), 2.0, 8.0, true, true)
+		draw_line(to, to + Vector2(0, -22), Color("4a3020"), 2.5, true)
+		var wave: float = sin(game.time * 5.0) * 2.0
+		draw_colored_polygon(PackedVector2Array([to + Vector2(1, -22), to + Vector2(15, -18 + wave), to + Vector2(1, -13)]), Palette.TEAM[game.faction])
+
 	if game.placing:
 		var anchor: Vector2i = game.placement_anchor()
 		var kind: String = game.placing_kind

@@ -360,3 +360,23 @@ Testing on a desktop browser that pretends to be a phone checks the layout and t
 
 **One thing that could go wrong**
 The AI's extra buildings cost resources it used to spend on soldiers, so a policy can become weaker without any rule being wrong. That is why the experiment was re-run instead of assuming the old results still hold.
+
+---
+
+## Difficulty, map styles, conveniences and the auto-economy supervisor (D-52 to D-55)
+
+**What was built**
+- **Difficulty** Easy / Normal / Hard on top of any AI policy, chosen in the menu.
+- Two more **map styles**: *River crossing* (three fords) and *Highlands* (ridges and extra gold).
+- **Conveniences:** control groups, an idle-worker key and button, rally points, and "Under attack!" alerts.
+- **Auto economy:** a helper AI that runs the player's economy while the player commands the army.
+
+**Why it is designed this way**
+- *Difficulty never cheats.* Every level sees only its Observation; Hard plays better instead of seeing more or gathering faster.
+- *Measure, don't assume.* Each Hard idea was played against Normal before it was kept. Three of them (chasing the weakest enemy anywhere, cavalry raids, early research) made the AI lose more, so they were dropped. The final Hard is only slightly stronger, and the report says so.
+- *The supervisor is the enemy AI with fewer jobs.* `EconomyHelper` extends `EnemyAI` and reuses its gathering and building code, and it goes through the same firewall, so it cannot touch the army or see hidden things.
+- *Conveniences change no rules.* Rally points and groups only create ordinary commands, so replays and determinism are unaffected.
+- *New maps reuse the generator's checks.* They mirror every cell through the centre, and the same connectivity and resource checks apply, so fairness can be measured the same way.
+
+**One thing that could go wrong**
+A helper that issues commands for the player can fight the player's own orders: a worker the player just moved could be sent to gather again. The helper only touches workers that are *idle*, so an order the player gives is never overridden.

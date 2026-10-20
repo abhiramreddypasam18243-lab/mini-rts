@@ -113,6 +113,11 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | Click a queued unit | Cancel it (full refund, once) |
 | `WASD` or the screen edges | Pan the camera (`W` trains a melee soldier while a building is selected) |
 | `F3` | Frames per second, unit count and the AI's current state |
+| `Ctrl+1`…`9` / `1`…`9` | Store the selected units as a control group / select it (press twice to centre the camera on it) |
+| `.` (or the *Idle* button) | Select the next idle worker and centre the camera on it |
+| Right click with the HQ, barracks or stable selected | Set its rally point: new units walk there (a worker sent to wood, gold or your farm gathers) |
+| `Space` | Jump to the last "Under attack!" alert |
+| `G` (or the *Auto economy* button) | Auto economy: a helper runs your economy (idle workers gather, the HQ trains workers up to 10, a farm is built when food runs low) while you command the army |
 | `M` (or the Sound button) | Sound and music on / off (remembered) |
 | Minimap (bottom right) | Left click or drag: move the camera there · right click: order the selected units there |
 | `F`, then click (or the Attack-move button) | Attack-move: the selected soldiers walk there and fight any enemy they meet on the way |
@@ -201,6 +206,10 @@ Then it acts: workers gather (2 on each farm with food, the rest about 2 on wood
 **Worked example (AC-62), Balanced policy (retreat 40 %):** the AI attacked with 6 soldiers; 2 are left. Integers only: `2 × 100 = 200` is less than `40 × 6 = 240`, so row 3 fires → RECOVER. With 3 left, `300 ≥ 240`, so it keeps attacking. Another row: 5 workers, 120 wood, 60 gold and no barracks → row 5 → BUILD.
 
 **It cannot cheat.** `decide()` only receives an `Observation`: its own units and buildings, enemy units on cells it can see *now*, enemy buildings as last seen, the terrain and its own fog. A test reads the AI's source files and fails if they mention the simulation. The simulation rejects (and counts) any AI command naming something not in its observation: 0 such commands in 100 matches (AC-61). A metamorphic test moves hidden player units around and checks the AI's commands do not change (AC-60).
+
+**Difficulty (D-52).** The menu offers Easy, Normal and Hard on top of the policy. Normal is the policy as described. Easy reacts on every third decision, keeps at most 4 workers, attacks with 2 fewer soldiers and builds no towers or upgrades. Hard focuses fire on the weakest enemy it can already reach, pulls back soldiers below 30 % health, sends cavalry at enemy workers in reach, builds 2 towers and attacks with 2 more soldiers. No difficulty cheats: all see only their observation. Each Hard change was played against Normal before it was kept; three ideas (chasing the weakest enemy anywhere, cavalry raids, early research) made it *weaker* and were dropped. Measured over 100 matches: Easy wins 29.6 % against Normal, Hard 53.6 % (interval [0.437, 0.632], so at most slightly stronger).
+
+**Maps (D-53).** Besides the classic generated map there are *River crossing* (a river between the bases, crossed only at three fords) and *Highlands* (long rock ridges, extra gold). Both are point-symmetric and passed the fairness check (Balanced v Balanced, 100 matches each: player start won 53.1 % and 46.9 %, both intervals containing 0.5).
 
 Policies are the same machine with different numbers:
 

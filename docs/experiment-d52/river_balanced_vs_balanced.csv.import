@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://bxlfti1qh5bfo"
+
+[deps]
+
+files=["res://docs/experiment-d52/river_balanced_vs_balanced.map.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.side.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.side.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.a.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.winner.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.outcome.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.duration.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.first.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.wood.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.gold.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.units.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.wood.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.gold.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.units.translation"]
+
+source_file="res://docs/experiment-d52/river_balanced_vs_balanced.csv"
+dest_files=["res://docs/experiment-d52/river_balanced_vs_balanced.map.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.side.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.side.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.a.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.winner.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.outcome.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.duration.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.first.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.wood.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.gold.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.units.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.wood.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.gold.translation", "res://docs/experiment-d52/river_balanced_vs_balanced.units.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

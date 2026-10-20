@@ -19,6 +19,9 @@ var nodes: Array[Dictionary] = []
 ## Faction name -> HQ anchor (top-left cell of the 3 x 3 footprint).
 var starts: Dictionary = {}
 var possible_starts: Array[Vector2i] = []
+## Drawing hints for blocked cells (D-53): cell -> "water" or "rock". Not a
+## rule: a blocked cell blocks the same whatever it looks like.
+var look: Dictionary = {}
 
 
 func _init(p_width: int = 0, p_height: int = 0) -> void:

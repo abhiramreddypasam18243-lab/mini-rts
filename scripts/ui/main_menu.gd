@@ -8,6 +8,9 @@ extends Control
 signal start_requested(settings: Dictionary)
 
 const POLICIES: Array[Array] = [["balanced", "Balanced"], ["aggressive", "Aggressive"], ["economy_first", "Economy-first"]]
+## Generated map styles (D-53) and AI difficulties (D-52).
+const MAP_STYLES: Array[Array] = [["generated", "Classic"], ["river", "River crossing"], ["highlands", "Highlands"]]
+const DIFFICULTIES: Array[Array] = [["easy", "Easy"], ["normal", "Normal"], ["hard", "Hard"]]
 ## The backdrop is a field this big; the view drifts across it.
 const FIELD: Vector2 = Vector2(2200, 1100)
 const TILE: float = 56.0
@@ -15,6 +18,8 @@ const TILE: float = 56.0
 var _t: float = 0.0
 var _seed_edit: LineEdit
 var _policy: OptionButton
+var _map_style: OptionButton
+var _difficulty: OptionButton
 var _help: PanelContainer
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _scene: Array[Dictionary] = []
@@ -86,8 +91,8 @@ func _ready() -> void:
 	box.custom_minimum_size = Vector2(400, 0)
 	panel.add_child(box)
 
-	var play: Button = _button("Play  ·  random map", "gold")
-	play.pressed.connect(func() -> void: start_requested.emit(_settings("generated")))
+	var play: Button = _button("Play", "gold")
+	play.pressed.connect(func() -> void: start_requested.emit(_settings(MAP_STYLES[_map_style.selected][0])))
 	box.add_child(play)
 	var tutorial: Button = _button("Play  ·  tutorial map", "beige")
 	tutorial.pressed.connect(func() -> void: start_requested.emit(_settings("tutorial")))
@@ -110,6 +115,7 @@ func _ready() -> void:
 	shuffle.pressed.connect(func() -> void: _seed_edit.text = str(_rng.randi_range(1, 99999)))
 	seed_row.add_child(shuffle)
 
+	_map_style = _option_row(box, "Map", MAP_STYLES, 0)
 	var policy_row: HBoxContainer = HBoxContainer.new()
 	policy_row.add_theme_constant_override("separation", 8)
 	box.add_child(policy_row)
@@ -121,6 +127,7 @@ func _ready() -> void:
 	for p: Array in POLICIES:
 		_policy.add_item(p[1])
 	policy_row.add_child(_policy)
+	_difficulty = _option_row(box, "Difficulty", DIFFICULTIES, 1)
 
 	var demo: Button = _button("Watch demo", "beige")
 	demo.pressed.connect(func() -> void: start_requested.emit({"mode": "demo"}))
@@ -278,7 +285,26 @@ static func credits_text() -> String:
 
 
 func _settings(map: String) -> Dictionary:
-	return {"map": map, "seed": _seed(), "ai_policy": POLICIES[_policy.selected][0]}
+	var level: String = DIFFICULTIES[_difficulty.selected][0]
+	var policy: String = POLICIES[_policy.selected][0] + ("" if level == "normal" else ":" + level)
+	return {"map": map, "seed": _seed(), "ai_policy": policy}
+
+
+## A labelled drop-down row in the menu panel.
+func _option_row(box: VBoxContainer, label: String, items: Array[Array], selected: int) -> OptionButton:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	box.add_child(row)
+	row.add_child(_row_label(label))
+	var o: OptionButton = OptionButton.new()
+	o.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	o.focus_mode = Control.FOCUS_NONE
+	o.add_theme_font_size_override("font_size", 17)
+	for it: Array in items:
+		o.add_item(it[1])
+	o.selected = selected
+	row.add_child(o)
+	return o
 
 
 func _seed() -> int:

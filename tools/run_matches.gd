@@ -3,6 +3,8 @@
 ##       --policy-a balanced --policy-b aggressive --seeds 1-100 \
 ##       --max-ticks 36000 --out results/balanced_vs_aggressive.csv [--replay-dir results/replays]
 ## --matches N is accepted instead of --seeds: seeds 1..N/2, each played twice.
+## --map-style classic|river|highlands picks the generated map style (D-53);
+## a policy may carry a difficulty, e.g. balanced:hard (D-52).
 ## Every seed is played twice with the sides swapped; one CSV row per match,
 ## written as soon as the match ends (so a stopped run keeps its rows).
 extends SceneTree
@@ -34,7 +36,7 @@ func _initialize() -> void:
 	var done: Array[int] = [0]
 	var total: int = seeds.size() * 2
 	for s: int in seeds:
-		var map: MapGrid = MapGenerator.generate(s).map
+		var map: MapGrid = MapGenerator.generate(s, Consts.DEFAULT_MAP_SIZE, a.get("map-style", "classic")).map
 		for a_slot: String in ["player", "ai"]:
 			var b_slot: String = "ai" if a_slot == "player" else "player"
 			var r: Dictionary = MatchRunner.run(map, s, {a_slot: policy_a, b_slot: policy_b}, max_ticks, replay_dir != "")

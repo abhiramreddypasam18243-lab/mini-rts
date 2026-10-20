@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://cg4iqf78qcw5"
+
+[deps]
+
+files=["res://docs/experiment-d52/easy_vs_normal.map.translation", "res://docs/experiment-d52/easy_vs_normal.side.translation", "res://docs/experiment-d52/easy_vs_normal.side.translation", "res://docs/experiment-d52/easy_vs_normal.a.translation", "res://docs/experiment-d52/easy_vs_normal.winner.translation", "res://docs/experiment-d52/easy_vs_normal.outcome.translation", "res://docs/experiment-d52/easy_vs_normal.duration.translation", "res://docs/experiment-d52/easy_vs_normal.first.translation", "res://docs/experiment-d52/easy_vs_normal.wood.translation", "res://docs/experiment-d52/easy_vs_normal.gold.translation", "res://docs/experiment-d52/easy_vs_normal.units.translation", "res://docs/experiment-d52/easy_vs_normal.wood.translation", "res://docs/experiment-d52/easy_vs_normal.gold.translation", "res://docs/experiment-d52/easy_vs_normal.units.translation"]
+
+source_file="res://docs/experiment-d52/easy_vs_normal.csv"
+dest_files=["res://docs/experiment-d52/easy_vs_normal.map.translation", "res://docs/experiment-d52/easy_vs_normal.side.translation", "res://docs/experiment-d52/easy_vs_normal.side.translation", "res://docs/experiment-d52/easy_vs_normal.a.translation", "res://docs/experiment-d52/easy_vs_normal.winner.translation", "res://docs/experiment-d52/easy_vs_normal.outcome.translation", "res://docs/experiment-d52/easy_vs_normal.duration.translation", "res://docs/experiment-d52/easy_vs_normal.first.translation", "res://docs/experiment-d52/easy_vs_normal.wood.translation", "res://docs/experiment-d52/easy_vs_normal.gold.translation", "res://docs/experiment-d52/easy_vs_normal.units.translation", "res://docs/experiment-d52/easy_vs_normal.wood.translation", "res://docs/experiment-d52/easy_vs_normal.gold.translation", "res://docs/experiment-d52/easy_vs_normal.units.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

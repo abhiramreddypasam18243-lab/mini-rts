@@ -20,9 +20,14 @@ var commands: int = 0
 var _last_issue: int = 0
 
 
-func _init(p_faction: String, config: AIConfig) -> void:
+func _init(p_faction: String, config: AIConfig, p_ai: EnemyAI = null) -> void:
 	faction = p_faction
-	ai = EnemyAI.new(p_faction, config)
+	ai = p_ai if p_ai != null else EnemyAI.new(p_faction, config)
+
+
+## The auto-economy supervisor for `p_faction` (D-55), behind the same firewall.
+static func economy_helper(p_faction: String) -> AIController:
+	return AIController.new(p_faction, AIConfig.preset("balanced"), EconomyHelper.new(p_faction))
 
 
 ## Call before every sim.step(). Returns the commands issued (empty when
@@ -30,6 +35,9 @@ func _init(p_faction: String, config: AIConfig) -> void:
 func before_step(world: Simulation) -> Array[Dictionary]:
 	var issued: Array[Dictionary] = []
 	if world.match_result != "" or world.tick % Consts.AI_DECISION_INTERVAL != 0:
+		return issued
+	# Easy decides on every 3rd decision tick only (D-52).
+	if (world.tick / Consts.AI_DECISION_INTERVAL) % ai.config.decide_every != 0:
 		return issued
 	var obs: Observation = world.observation(faction)
 	issued = ai.decide(obs)

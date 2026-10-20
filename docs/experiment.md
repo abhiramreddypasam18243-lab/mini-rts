@@ -53,6 +53,19 @@ No match ended in a draw. Every sign test on the paired seeds gives p < 0.0001.
 - **D-51 slowed the rush a little.** Guard towers, cavalry and upgrades help the defender: Aggressive's win rates fell (0.919 → 0.869 against Balanced, 0.980 → 0.948 against EconomyFirst), and longer games produced more timeouts (EconomyFirst vs Balanced: 9 → 23). The ranking did not change.
 - **Matches are short and decisive.** Only 32 of the 600 comparison matches reached the 30-minute limit, and none ended in a draw.
 
+## Difficulty and map styles (D-52, D-53)
+
+Run on 2026-10-20, 50 seeds × 2 (sides swapped) each, generated with `tools/run_matches.gd` (`--policy-a balanced:hard`, `--map-style river`, ...); tables in [`experiment-d52/tables.md`](experiment-d52/tables.md).
+
+| Check | A wins / B wins | Timeouts | Win rate, 95 % CI |
+| --- | --- | --- | --- |
+| Easy vs Normal (Balanced) | 29 / 69 | 2 | **0.296** [0.215, 0.393] |
+| Hard vs Normal (Balanced) | 52 / 45 | 3 | **0.536** [0.437, 0.632] |
+| River, Balanced v Balanced: player-start win rate | 26 / 23 seeds | 1 seed | **0.531** [0.433, 0.626] |
+| Highlands, Balanced v Balanced: player-start win rate | 23 / 26 seeds | 1 seed | **0.469** [0.374, 0.567] |
+
+Easy is clearly weaker than Normal. Hard's interval contains 0.5: **Hard is at most slightly stronger than Normal**, so the difficulty step from Normal to Hard is small. Both new map styles pass the fairness check.
+
 ## What the experiment cannot show
 
 - **Only these rules and these maps.** The conclusion is "Aggressive beats the others *under these stats and on these generated 48 × 48 maps*". Bigger maps (longer walks to the enemy), more resources, cheaper workers, stronger defences (more towers than the AI builds) or a different unit balance could reverse the ranking. Early attacks are typically weaker when travel times are long.

@@ -51,6 +51,15 @@ var hud: Hud
 var camera: Camera2D
 ## The opponent: the enemy AI, driven through its firewall (build step 8).
 var opponent: AIController
+## The auto-economy supervisor (D-55) while it is switched on, else null.
+var helper: AIController = null
+## Control groups (D-54): 1..9 -> unit ids; rally points: building id -> cell.
+var groups: Dictionary = {}
+var rally: Dictionary = {}
+var _group_time: Dictionary = {}
+var _last_alert: float = -100.0
+var _alert_at: Vector2 = Vector2.ZERO
+var _last_idle: int = 0
 ## Demo mode (AC-93): a recorded replay plays back; the player only watches.
 const DEMO_PATH: String = "res://data/replays/demo.replay.jsonl"
 const DEMO_SPEED: float = 2.0
@@ -96,9 +105,12 @@ func setup(p_settings: Dictionary) -> void:
 
 
 static func load_map(p_settings: Dictionary) -> MapGrid:
-	if p_settings.get("map", "generated") == "tutorial":
+	var name: String = str(p_settings.get("map", "generated"))
+	if name == "tutorial":
 		return MapGrid.load_file("res://data/maps/tutorial.json").map
-	return MapGenerator.generate(int(p_settings.get("seed", 1))).map
+	# "generated" is the classic style; "river" and "highlands" are D-53.
+	var style: String = name if name in MapGenerator.STYLES else "classic"
+	return MapGenerator.generate(int(p_settings.get("seed", 1)), Consts.DEFAULT_MAP_SIZE, style).map
 
 
 func _ready() -> void:
@@ -224,6 +236,8 @@ func advance_ticks(n: int) -> void:
 				_demo_next += 1
 		elif opponent != null:
 			opponent.before_step(sim)
+		if helper != null and not demo:
+			helper.before_step(sim)
 		sim.step()
 		_consume(sim.take_events())
 	if sim.match_result != "" and not _result_shown:
@@ -266,6 +280,9 @@ func _consume(events: Array[Dictionary]) -> void:
 			"trained":
 				if ev.faction == faction:
 					_trained += 1
+					# Units walk to (or gather at) their building's rally point (D-54).
+					if rally.has(int(ev.building_id)):
+						issue(CommandAids.rally_command(sim, faction, int(ev.entity_id), rally[int(ev.building_id)]), true)
 					var u: Entity = sim.entity(ev.entity_id)
 					messages.add("%s ready" % HudModel.KIND_NAMES[u.kind] if u != null else "Unit ready", time, "good")
 			"deposit":
@@ -277,6 +294,15 @@ func _consume(events: Array[Dictionary]) -> void:
 			"attack":
 				var a: Entity = sim.entity(ev.attacker)
 				var t: Entity = sim.entity(ev.target)
+				if t != null and not demo and not spectate:
+					var where: Vector2 = draw_pos(t) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
+					if CommandAids.should_alert(sim, faction, ev, view_rect().has_point(where), time, _last_alert):
+						_last_alert = time
+						_alert_at = where
+						messages.add("Under attack! (Space to look)", time, "bad")
+						Sound.play("error", -6.0, 0.0)
+						if hud != null and hud.minimap != null:
+							hud.minimap.ping(where)
 				if a == null or t == null or not (_seen(a) or _seen(t)):
 					continue
 				var tp: Vector2 = draw_pos(t) + _world._off.get(t.id, Vector2.ZERO) + Vector2(0, -6) if t.is_unit() 					else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
@@ -408,10 +434,13 @@ func _add_fx(e: Dictionary) -> void:
 
 ## Submits a command; a rejection is shown as a message. In the demo the
 ## player only watches: nothing is submitted, so the replay stays exact.
-func issue(cmd: Dictionary) -> String:
+## `quiet` (automatic orders such as rally points) skips the feedback.
+func issue(cmd: Dictionary, quiet: bool = false) -> String:
 	if demo:
 		return "demo"
 	var r: String = sim.submit(cmd)
+	if quiet:
+		return r
 	if r != "ok":
 		messages.add(HudModel.MESSAGES.get(r, r), time, "warn")
 		Sound.play("error", -10.0, 0.0)
@@ -584,12 +613,59 @@ func _unhandled_input(event: InputEvent) -> void:
 				train("ranged")
 			KEY_F3:
 				hud.toggle_fps()
+			KEY_G:
+				toggle_helper()
+			KEY_PERIOD:
+				select_idle_worker()
+			KEY_SPACE:
+				if _last_alert > -100.0:
+					look_at_world(_alert_at)
+			KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
+				_group_key((event as InputEventKey).keycode - KEY_0, (event as InputEventKey).ctrl_pressed)
 			KEY_ESCAPE:
 				if placing or aiming:
 					placing = false
 					aiming = false
 				else:
 					selection.clear()
+
+
+## Ctrl+n stores the selected units as group n; n selects the group, and a
+## second press within 0.4 s centres the camera on it (D-54).
+func _group_key(n: int, store: bool) -> void:
+	if store:
+		CommandAids.assign(groups, n, selection.units(sim))
+		messages.add("Group %d: %d units" % [n, selection.units(sim).size()], time, "good")
+		return
+	var ids: Array[int] = CommandAids.recall(groups, n, sim, faction)
+	if ids.is_empty():
+		return
+	selection.selected = ids
+	selection.inspected = ids[0]
+	if time - float(_group_time.get(n, -10.0)) < 0.4:
+		look_at_world(draw_pos(sim.entity(ids[0])))
+	_group_time[n] = time
+
+
+## "." selects the next idle worker and centres the camera on it (D-54).
+func select_idle_worker() -> void:
+	var id: int = CommandAids.next_idle(sim, faction, _last_idle)
+	if id == 0:
+		messages.add("No idle workers", time, "warn")
+		return
+	_last_idle = id
+	select_only(id)
+	look_at_world(draw_pos(sim.entity(id)))
+
+
+## G switches the auto-economy supervisor on or off (D-55).
+func toggle_helper() -> void:
+	if demo or spectate:
+		return
+	helper = null if helper != null else AIController.economy_helper(faction)
+	messages.add("Auto economy on: idle workers gather, the HQ trains workers, farms are built" if helper != null else "Auto economy off", time, "good")
+	if hud != null:
+		hud.refresh_helper()
 
 
 ## The terrain layer (the minimap draws its forests, rocks and roads).
@@ -757,6 +833,16 @@ func attack_move_to(world: Vector2) -> void:
 
 
 func _right_click(mouse: Vector2) -> void:
+	# With one of the player's training buildings selected, a right click
+	# sets its rally point (D-54).
+	var b: Entity = selection.building(sim)
+	if b != null and b.faction == faction and not (Simulation.TRAINS.get(b.kind, []) as Array).is_empty():
+		var cell: Vector2i = MapGrid.milli_to_cell(_to_milli(mouse))
+		if sim.map.in_bounds(cell):
+			rally[b.id] = cell
+			_add_fx({"type": "marker", "a": mouse, "color": Palette.ACCENT, "life": 0.7, "order": "move"})
+			Sound.play("order", -9.0, 0.05)
+		return
 	var cmds: Array[Dictionary] = selection.context_commands(sim, faction, _to_milli(mouse))
 	for cmd: Dictionary in cmds:
 		# Shift queues move, gather and attack orders (D-44).

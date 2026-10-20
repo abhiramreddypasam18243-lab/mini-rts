@@ -13,6 +13,8 @@ var root: Control
 var _wood: Label
 var _gold: Label
 var _food: Label
+var _idle: Button
+var _helper: Button
 var _pop: Label
 var _clock: Label
 var _card: VBoxContainer
@@ -135,6 +137,24 @@ func _build_top_bar() -> void:
 		Sound.toggle_mute()
 		sound.text = "Sound: off" if Sound.is_muted() else "Sound: on")
 	right.add_child(sound)
+	if not game.demo:
+		# The auto-economy supervisor (D-55) and the idle-worker finder
+		# (D-54), on a second row under the top-right buttons.
+		var row2: HBoxContainer = HBoxContainer.new()
+		row2.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+		row2.offset_top = 62
+		row2.offset_right = -16
+		row2.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		row2.add_theme_constant_override("separation", 8)
+		root.add_child(row2)
+		_slide_in(row2, -90.0, 0.3)
+		_idle = _small_button("Idle: 0", func() -> void: game.select_idle_worker())
+		_idle.tooltip_text = "Select the next idle worker (.)"
+		row2.add_child(_idle)
+		_helper = _small_button("Auto economy: off", func() -> void: game.toggle_helper())
+		_helper.custom_minimum_size = Vector2(176, 40)
+		_helper.tooltip_text = "G: a helper runs your economy (gathering, workers, farms); you command the army"
+		row2.add_child(_helper)
 	right.add_child(_small_button("Restart", func() -> void: game.restart_requested.emit()))
 	right.add_child(_small_button("Menu", func() -> void: game.menu_requested.emit()))
 
@@ -368,6 +388,8 @@ func refresh() -> void:
 	_set_counter(_food, res.food, _last_res.get("food", res.food))
 	_last_res = res
 	_pop.text = HudModel.population(sim, f)
+	if _idle != null:
+		_idle.text = "Idle: %d" % CommandAids.idle_workers(sim, f).size()
 	_clock.text = HudModel.clock_text(sim.tick)
 	_refresh_card(sim, f)
 	_refresh_messages()
@@ -379,6 +401,12 @@ func refresh() -> void:
 			_fps.text = "%d FPS · %d units · %s" % [Engine.get_frames_per_second(), sim.unit_ids().size(), game.bench.text()]
 		else:
 			_fps.text = "%d FPS · %d units · enemy AI: %s" % [Engine.get_frames_per_second(), sim.unit_ids().size(), ("replay" if game.opponent == null else game.opponent.ai.state)]
+
+
+func refresh_helper() -> void:
+	if _helper != null:
+		_helper.text = "Auto economy: on" if game.helper != null else "Auto economy: off"
+		UiTheme.style_button(_helper, "gold" if game.helper != null else "beige", 15)
 
 
 func toggle_fps() -> void:
@@ -494,7 +522,7 @@ func _rebuild_card(sim: Simulation, f: String) -> void:
 			slot.pressed.connect(func() -> void: game.cancel_train(i))
 			_queue.add_child(slot)
 			_slots.append(slot)
-		_hint.text = "Click a queued item to cancel it (full refund)." if b.complete else "It works once construction finishes."
+		_hint.text = "Click a queued item to cancel it (full refund). Right-click the map to set a rally point." if b.complete else "It works once construction finishes."
 		if b.kind == "farm":
 			_hint.text = "Right-click the farm with workers selected to gather food (%d left)." % b.amount if b.complete else "Workers can farm here once it is built."
 		elif b.kind == "tower":

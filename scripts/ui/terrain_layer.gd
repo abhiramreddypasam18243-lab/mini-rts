@@ -514,6 +514,12 @@ func water_shape(ci: CanvasItem, r: float, col: Color, deep: bool) -> void:
 					# and a gently wavy shore.
 					var half: Vector2 = Vector2(C * r, C * r) * 0.78
 					ci.draw_rect(Rect2(centre - half, Vector2.ZERO).expand(other + half), col)
+			# Diagonal neighbours join too, so a river running at 45 degrees
+			# (the River map, D-53) is one stream, not a string of beads.
+			for d2: Vector2i in [Vector2i.ONE, Vector2i(-1, 1)]:
+				var n2: Vector2i = c + d2
+				if is_water(n2) and (not deep or _interior_water(n2)):
+					ci.draw_line(centre, (Vector2(n2) + Vector2(0.5, 0.5)) * C, col, C * r * 1.56, true)
 
 
 func _interior_water(c: Vector2i) -> bool:
@@ -561,14 +567,22 @@ func _kind(c: Vector2i) -> float:
 func is_forest(c: Vector2i) -> bool:
 	if not map.in_bounds(c):
 		return true
+	if map.look.has(c):
+		return false
 	return not map.is_walkable(c) and _kind(c) < 0.45
 
 
+## Blocked cells look like rock, water or forest: the map's hint if it has
+## one (D-53), otherwise a slow noise.
 func is_rock(c: Vector2i) -> bool:
+	if map.look.has(c):
+		return map.look[c] == "rock"
 	return map.in_bounds(c) and not map.is_walkable(c) and _kind(c) >= 0.45 and _kind(c) < 0.8
 
 
 func is_water(c: Vector2i) -> bool:
+	if map.look.has(c):
+		return map.look[c] == "water"
 	return map.in_bounds(c) and not map.is_walkable(c) and _kind(c) >= 0.8
 
 
