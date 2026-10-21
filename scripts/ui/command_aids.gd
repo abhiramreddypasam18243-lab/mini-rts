@@ -5,7 +5,10 @@
 ##   - idle workers: "." cycles through them;
 ##   - rally points: units trained at a building walk to its rally point
 ##     (a worker sent to wood, gold or the player's own farm gathers there);
-##   - attack alerts: at most one "under attack" warning every ALERT_GAP s.
+##   - attack alerts: at most one "under attack" warning every ALERT_GAP s;
+##   - D-56: new workers and finished builders start gathering by
+##     themselves; double-click selects every unit of that kind in view;
+##     Ctrl+A selects every soldier.
 class_name CommandAids
 extends RefCounted
 
@@ -59,6 +62,52 @@ static func rally_command(sim: Simulation, faction: String, unit_id: int, cell: 
 			and (target.is_node() or target.faction == faction):
 		return Commands.harvest(faction, [unit_id], target.id)
 	return Commands.move(faction, [unit_id], cell)
+
+
+## The order that puts an idle worker to work (D-56): gather from
+## `prefer` if it is the faction's own finished farm with food, else from
+## the nearest resource node the faction knows about (ties: lowest id).
+## {} when there is none.
+static func auto_gather(sim: Simulation, faction: String, worker_id: int, prefer: int = 0) -> Dictionary:
+	var w: Entity = sim.entity(worker_id)
+	if w == null or w.kind != "worker":
+		return {}
+	var p: Entity = sim.entity(prefer)
+	if p != null and p.kind == "farm" and p.faction == faction and p.is_harvestable() and p.amount > 0:
+		return Commands.harvest(faction, [worker_id], p.id)
+	var best: int = 0
+	var best_d: int = -1
+	for id: int in sim.fog.memory[faction]:
+		var n: Entity = sim.entity(id)
+		if n == null or not n.is_node():
+			continue
+		var d: Vector2i = MapGrid.cell_center(n.cell) - w.pos
+		var dd: int = d.x * d.x + d.y * d.y
+		if best_d == -1 or dd < best_d or dd == best_d and id < best:
+			best = id
+			best_d = dd
+	return {} if best == 0 else Commands.harvest(faction, [worker_id], best)
+
+
+## The faction's units of `kind` whose position lies in `view` (world
+## pixels), in id order (double-click, D-56).
+static func same_kind_in(sim: Simulation, faction: String, kind: String, view: Rect2) -> Array[int]:
+	var out: Array[int] = []
+	for id: int in sim.entities:
+		var e: Entity = sim.entities[id]
+		if e.kind == kind and e.faction == faction and view.has_point(Vector2(e.pos) * Consts.PIXELS_PER_CELL / 1000.0):
+			out.append(id)
+	return out
+
+
+## Every soldier of the faction, in id order (Ctrl+A, D-56).
+static func all_soldiers(sim: Simulation, faction: String) -> Array[int]:
+	var out: Array[int] = []
+	for id: int in sim.entities:
+		var e: Entity = sim.entities[id]
+		if e.is_soldier() and e.faction == faction:
+			out.append(id)
+	return out
 
 
 ## Whether an attack on one of the faction's things should raise an alert:

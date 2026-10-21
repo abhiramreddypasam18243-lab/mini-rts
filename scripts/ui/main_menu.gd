@@ -127,7 +127,8 @@ func _ready() -> void:
 	for p: Array in POLICIES:
 		_policy.add_item(p[1])
 	policy_row.add_child(_policy)
-	_difficulty = _option_row(box, "Difficulty", DIFFICULTIES, 1)
+	# New players start on Easy (D-56).
+	_difficulty = _option_row(box, "Difficulty", DIFFICULTIES, 0)
 
 	var demo: Button = _button("Watch demo", "beige")
 	demo.pressed.connect(func() -> void: start_requested.emit({"mode": "demo"}))

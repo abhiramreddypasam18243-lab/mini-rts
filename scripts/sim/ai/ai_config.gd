@@ -26,6 +26,16 @@ var research_army: int = 3
 var focus_fire: bool = false
 var wounded_pct: int = 0
 var raid: bool = false
+## Production: at most this many items queued per building (Easy: 1).
+var max_queue: int = 2
+## Peace time (D-56): the AI may not start an attack before this tick.
+## 0 for the presets (the experiment and tests); games started from the
+## menu use PEACE for their difficulty.
+var peace_ticks: int = 0
+
+## Peace time per difficulty in games played from the menu (D-56):
+## 6, 3 and 1.5 minutes at 20 ticks per second.
+const PEACE: Dictionary = {"easy": 7200, "normal": 3600, "hard": 1800}
 
 const PRESETS: Dictionary = {
 	"balanced": [6, 5, 6, 40, 2, 1],
@@ -35,6 +45,14 @@ const PRESETS: Dictionary = {
 
 
 const DIFFICULTIES: Array[String] = ["easy", "normal", "hard"]
+
+
+## The opponent of a game started from the menu: the preset plus the
+## difficulty's peace time (D-56).
+static func for_game(spec: String) -> AIConfig:
+	var c: AIConfig = preset(spec)
+	c.peace_ticks = PEACE[c.difficulty]
+	return c
 
 
 ## A policy, optionally with a difficulty after a colon ("balanced:hard").
@@ -63,6 +81,7 @@ static func preset(spec: String) -> AIConfig:
 			c.army_threshold = maxi(c.army_threshold - 2, 2)
 			c.max_towers = 0
 			c.research = false
+			c.max_queue = 1
 		"hard":
 			c.max_towers = 2
 			c.focus_fire = true

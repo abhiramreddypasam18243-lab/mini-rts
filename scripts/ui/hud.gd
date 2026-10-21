@@ -14,6 +14,7 @@ var _wood: Label
 var _gold: Label
 var _food: Label
 var _idle: Button
+var _peace: Label
 var _helper: Button
 var _pop: Label
 var _clock: Label
@@ -122,6 +123,14 @@ func _build_top_bar() -> void:
 	_pop = _stat(row, "pop")
 	_divider(row)
 	_clock = _stat(row, "clock")
+	# The peace-time countdown (D-56), a tag under the top bar.
+	_peace = UiTheme.label("", 15, "bold", Color("e8f4d8"))
+	_peace.add_theme_stylebox_override("normal", UiTheme.box(Color(0.12, 0.25, 0.1, 0.78), 6, Color(0.5, 0.75, 0.4, 0.7), 1, Vector2(12, 4)))
+	_peace.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_peace.offset_top = 70
+	_peace.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_peace.visible = false
+	root.add_child(_peace)
 
 	var right: HBoxContainer = HBoxContainer.new()
 	right.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
@@ -391,6 +400,11 @@ func refresh() -> void:
 	if _idle != null:
 		_idle.text = "Idle: %d" % CommandAids.idle_workers(sim, f).size()
 	_clock.text = HudModel.clock_text(sim.tick)
+	# Peace time (D-56): a countdown until the enemy may attack.
+	if _peace != null:
+		_peace.visible = game.peace_ticks > sim.tick and not game.demo
+		if _peace.visible:
+			_peace.text = "Peace time %s  ·  the enemy will not attack yet" % HudModel.clock_text(game.peace_ticks - sim.tick)
 	_refresh_card(sim, f)
 	_refresh_messages()
 	if game.touch and not game.demo:

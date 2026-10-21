@@ -117,6 +117,9 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | `.` (or the *Idle* button) | Select the next idle worker and centre the camera on it |
 | Right click with the HQ, barracks or stable selected | Set its rally point: new units walk there (a worker sent to wood, gold or your farm gathers) |
 | `Space` | Jump to the last "Under attack!" alert |
+| Mouse wheel | Zoom in and out |
+| Double-click a unit | Select all your units of that kind on screen |
+| `Ctrl+A` | Select all your soldiers |
 | `G` (or the *Auto economy* button) | Auto economy: a helper runs your economy (idle workers gather, the HQ trains workers up to 10, a farm is built when food runs low) while you command the army |
 | `M` (or the Sound button) | Sound and music on / off (remembered) |
 | Minimap (bottom right) | Left click or drag: move the camera there · right click: order the selected units there |
@@ -207,7 +210,9 @@ Then it acts: workers gather (2 on each farm with food, the rest about 2 on wood
 
 **It cannot cheat.** `decide()` only receives an `Observation`: its own units and buildings, enemy units on cells it can see *now*, enemy buildings as last seen, the terrain and its own fog. A test reads the AI's source files and fails if they mention the simulation. The simulation rejects (and counts) any AI command naming something not in its observation: 0 such commands in 100 matches (AC-61). A metamorphic test moves hidden player units around and checks the AI's commands do not change (AC-60).
 
-**Difficulty (D-52).** The menu offers Easy, Normal and Hard on top of the policy. Normal is the policy as described. Easy reacts on every third decision, keeps at most 4 workers, attacks with 2 fewer soldiers and builds no towers or upgrades. Hard focuses fire on the weakest enemy it can already reach, pulls back soldiers below 30 % health, sends cavalry at enemy workers in reach, builds 2 towers and attacks with 2 more soldiers. No difficulty cheats: all see only their observation. Each Hard change was played against Normal before it was kept; three ideas (chasing the weakest enemy anywhere, cavalry raids, early research) made it *weaker* and were dropped. Measured over 100 matches: Easy wins 29.6 % against Normal, Hard 53.6 % (interval [0.437, 0.632], so at most slightly stronger).
+**Peace time (D-56).** In a game started from the menu the AI does not attack, or even scout your base, for the first 6 minutes on Easy, 3 on Normal and 1.5 on Hard; a countdown shows under the top bar. The menu starts on Easy. (The experiment's matches have no peace time.)
+
+**Difficulty (D-52).** The menu offers Easy, Normal and Hard on top of the policy. Normal is the policy as described. Easy reacts on every third decision, keeps at most 4 workers, attacks with 2 fewer soldiers and builds no towers or upgrades. Hard focuses fire on the weakest enemy it can already reach, pulls back soldiers below 30 % health, sends cavalry at enemy workers in reach, builds 2 towers and attacks with 2 more soldiers. No difficulty cheats: all see only their observation. Each Hard change was played against Normal before it was kept; three ideas (chasing the weakest enemy anywhere, cavalry raids, early research) made it *weaker* and were dropped. Measured over 100 matches: Easy wins 32.7 % against Normal, Hard 53.6 % (interval [0.437, 0.632], so at most slightly stronger).
 
 **Maps (D-53).** Besides the classic generated map there are *River crossing* (a river between the bases, crossed only at three fords) and *Highlands* (long rock ridges, extra gold). Both are point-symmetric and passed the fairness check (Balanced v Balanced, 100 matches each: player start won 53.1 % and 46.9 %, both intervals containing 0.5).
 

@@ -380,3 +380,20 @@ The AI's extra buildings cost resources it used to spend on soldiers, so a polic
 
 **One thing that could go wrong**
 A helper that issues commands for the player can fight the player's own orders: a worker the player just moved could be sent to gather again. The helper only touches workers that are *idle*, so an order the player gives is never overridden.
+
+---
+
+## Making the game easier to play (decision D-56)
+
+**What was built**
+- **Peace time:** in games from the menu, the AI may not attack for 6 / 3 / 1.5 minutes (Easy / Normal / Hard), with a countdown. The menu starts on Easy, and Easy now trains one unit at a time per building.
+- **Less micro-management:** new workers and builders who finish a building start gathering by themselves. Double-click selects all units of that kind on screen, Ctrl+A selects every soldier, and the click area round a unit is larger.
+- **Easier to see:** units are drawn about 30 % larger, the mouse wheel zooms, units have bold team rings (enemies an extra red ring), and health bars always show during fights.
+
+**Why it is designed this way**
+- *Peace time belongs to the game, not the rules.* It is set only for games started from the menu (`AIConfig.for_game`). The presets used by the experiment and the tests keep 0, so every measured result stays valid.
+- *A test found a hole.* The first version only blocked the AI's ATTACK state, but its scout still walked to the player's base and fought there at about 50 seconds. The test checks the first hit on the player, not just the state, so it caught this; now there is no scouting during peace time either.
+- *Auto-gather is a presentation helper.* It issues ordinary harvest commands for the player, like the rally point, and it only chooses nodes the player has seen, so it reveals nothing the fog hides.
+
+**One thing that could go wrong**
+The fast test suite is close to its 2-minute limit (AC-89), because each new AI feature adds whole matches to the tests. A duplicate test was removed and one count lowered. More match-level tests should go in the long suite.

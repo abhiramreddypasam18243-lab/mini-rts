@@ -143,8 +143,9 @@ func _read(obs: Observation) -> void:
 			if _dist_sq_rect(e.cell, b.cell, b.size) <= limit:
 				_threats.append(e)
 				break
-	# The scout exists only while no enemy building is known.
-	if not _target.is_empty() or _soldiers.is_empty():
+	# The scout exists only while no enemy building is known, and not during
+	# peace time (D-56): a scout would fight whatever it meets at the enemy base.
+	if not _target.is_empty() or _soldiers.is_empty() or obs.tick < config.peace_ticks:
 		scout_id = 0
 	elif _find(_soldiers, scout_id).is_empty():
 		scout_id = _soldiers[0].id
@@ -175,7 +176,9 @@ func next_state(obs: Observation) -> String:
 		elif _target.is_empty():
 			_change(RECOVER, tick, "no enemy building known")
 		return state
-	if army >= config.army_threshold and not _target.is_empty() and (state == ECONOMY or state == RECOVER):
+	# No attack during peace time (D-56; 0 outside games from the menu).
+	if army >= config.army_threshold and not _target.is_empty() and (state == ECONOMY or state == RECOVER) \
+			and tick >= config.peace_ticks:
 		attack_start_army = army
 		_change(ATTACK, tick, "army %d >= %d and target %s known" % [army, config.army_threshold, _target.kind])
 		return state
@@ -577,7 +580,7 @@ func _do_gather(out: Array[Dictionary], used: Dictionary) -> void:
 func _do_production(out: Array[Dictionary], res: Dictionary) -> void:
 	if not _hq.is_empty() and _hq.complete:
 		var workers: int = _workers.size() + _queued(_hq, "worker")
-		if workers < config.worker_target and _hq.queue.size() < 2 and _affordable(res, "worker"):
+		if workers < config.worker_target and _hq.queue.size() < config.max_queue and _affordable(res, "worker"):
 			_spend(res, "worker")
 			out.append(Commands.train(faction, _hq.id, "worker"))
 	var melee: int = 0
@@ -591,7 +594,7 @@ func _do_production(out: Array[Dictionary], res: Dictionary) -> void:
 		melee += _queued(b, "melee")
 		ranged += _queued(b, "ranged")
 	for b: Dictionary in _barracks:
-		if not b.complete or b.queue.size() >= 2:
+		if not b.complete or b.queue.size() >= config.max_queue:
 			continue
 		var kind: String = "melee" if melee * config.mix_ranged <= ranged * config.mix_melee else "ranged"
 		if not _affordable(res, kind):
@@ -604,7 +607,7 @@ func _do_production(out: Array[Dictionary], res: Dictionary) -> void:
 			ranged += 1
 	# D-51: cavalry at every finished stable.
 	for b: Dictionary in _stables:
-		if b.complete and b.queue.size() < 2 and _affordable(res, "cavalry"):
+		if b.complete and b.queue.size() < config.max_queue and _affordable(res, "cavalry"):
 			_spend(res, "cavalry")
 			out.append(Commands.train(faction, b.id, "cavalry"))
 
@@ -623,7 +626,8 @@ func _check_stuck(obs: Observation, out: Array[Dictionary], used: Dictionary) ->
 	history.append({"tick": obs.tick, "from": state, "to": ECONOMY,
 		"reason": "stuck: %d idle units, %d wood, %d gold, state %s" % [idle.size(), obs.resources.wood, obs.resources.gold, state]})
 	state = ECONOMY
-	var goal: Variant = _explore_cell()
+	# During peace time (D-56) nobody is sent out exploring.
+	var goal: Variant = _explore_cell() if obs.tick >= config.peace_ticks else null
 	if not idle.is_empty() and goal != null:
 		_issue(out, used, Commands.move(faction, [idle[0].id], goal))
 	elif can_buy:

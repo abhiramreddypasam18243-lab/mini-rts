@@ -59,7 +59,7 @@ Run on 2026-10-20, 50 seeds × 2 (sides swapped) each, generated with `tools/run
 
 | Check | A wins / B wins | Timeouts | Win rate, 95 % CI |
 | --- | --- | --- | --- |
-| Easy vs Normal (Balanced) | 29 / 69 | 2 | **0.296** [0.215, 0.393] |
+| Easy vs Normal (Balanced; re-run after D-56 made Easy queue one item at a time) | 32 / 66 | 2 | **0.327** [0.242, 0.424] |
 | Hard vs Normal (Balanced) | 52 / 45 | 3 | **0.536** [0.437, 0.632] |
 | River, Balanced v Balanced: player-start win rate | 26 / 23 seeds | 1 seed | **0.531** [0.433, 0.626] |
 | Highlands, Balanced v Balanced: player-start win rate | 23 / 26 seeds | 1 seed | **0.469** [0.374, 0.567] |

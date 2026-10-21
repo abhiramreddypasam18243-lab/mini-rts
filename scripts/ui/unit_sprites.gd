@@ -25,9 +25,9 @@ const LEFT: int = 6
 ## in the world; 1.0 draws them 1.6 times larger, as the menu does).
 const SCALE: float = 1.0 / 1.6
 ## World pixels per 3D unit (a 3D character is about 1.6 units tall, so
-## about 26 world pixels: a little less than a cell, so neighbours do not
-## overlap).
-const WORLD_PER_UNIT: float = 13.5
+## about 28 world pixels; D-56 made units about 30 % larger so they read
+## clearly at the default zoom).
+const WORLD_PER_UNIT: float = 17.5
 
 static var _tex: Dictionary = {}
 static var _meta: Dictionary = {}

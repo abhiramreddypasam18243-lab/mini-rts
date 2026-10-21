@@ -15,7 +15,9 @@ class_name Selection
 extends RefCounted
 
 ## Click radius around a unit's position: 0.42 cells (in milli-cells, squared).
-const PICK_RADIUS_SQ: int = 420 * 420
+## Click radius round a unit, milli-cells (D-56: 600, was 420, so units
+## are easier to click).
+const PICK_RADIUS_SQ: int = 600 * 600
 
 ## Friendly units, or a single friendly building.
 var selected: Array[int] = []

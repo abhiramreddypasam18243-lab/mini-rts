@@ -88,6 +88,7 @@ func test_ac_102_hard_pulls_back_a_wounded_soldier() -> void:
 
 
 func test_ac_102_easy_loses_to_normal() -> void:
+	# (Also covers AC-106's "Easy still wins fewer matches than Normal".)
 	# Seeds played twice with sides swapped; measured, and Easy must win less.
 	var easy_wins: int = 0
 	var normal_wins: int = 0

@@ -100,7 +100,7 @@ static func _box(key: String, bg: Color, radius: int, border: Color = Color(0, 0
 
 
 static func unit_radius(kind: String) -> float:
-	return 10.0 if kind == "worker" else 12.0
+	return 13.0 if kind == "worker" else (17.0 if kind == "cavalry" else 15.0)
 
 
 ## A unit, animated (decision D-41): a team-coloured ring on the ground,
@@ -110,8 +110,16 @@ static func unit(ci: CanvasItem, feet: Vector2, kind: String, faction: String, a
 		alpha: float = 1.0, flash: float = 0.0, scale: float = UnitSprites.SCALE, ring_on: bool = true) -> void:
 	if ring_on:
 		var rr: float = unit_radius(kind) * scale / UnitSprites.SCALE
+		# A bold team ring (D-56); enemies get a second, red outer ring so
+		# they stand out in a crowd.
+		# Stamped from the cached ring texture (D-40: arcs tessellated every
+		# frame cost a third of the frame rate with 80 units).
 		ci.draw_set_transform(feet + Vector2(0, 1), 0.0, Vector2(1.0, 0.45))
-		ci.draw_texture_rect(ring(), Rect2(-rr, -rr, rr * 2.0, rr * 2.0), false, Color(Palette.TEAM[faction], 0.85 * alpha))
+		var t: Texture2D = ring()
+		ci.draw_texture_rect(t, Rect2(-rr - 2.0, -rr - 2.0, rr * 2.0 + 4.0, rr * 2.0 + 4.0), false, Color(0, 0, 0, 0.45 * alpha))
+		ci.draw_texture_rect(t, Rect2(-rr, -rr, rr * 2.0, rr * 2.0), false, Color(Palette.TEAM[faction], alpha))
+		if faction == "ai":
+			ci.draw_texture_rect(t, Rect2(-rr - 5.0, -rr - 5.0, rr * 2.0 + 10.0, rr * 2.0 + 10.0), false, Color(0.95, 0.15, 0.1, 0.75 * alpha))
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	var tint: Color = Color(1, 1 - 0.6 * flash, 1 - 0.6 * flash, alpha)
 	UnitSprites.draw(ci, feet, kind, faction, anim, dir, frame, scale, tint)

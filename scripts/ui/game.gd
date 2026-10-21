@@ -20,6 +20,9 @@ const TOP_PAD: float = 70.0
 const BOTTOM_PAD: float = 190.0
 ## The world is drawn zoomed in so the sprites read well (screen pixels per world pixel).
 const ZOOM: float = 1.6
+## Mouse-wheel zoom range (D-56).
+const ZOOM_MIN: float = 1.0
+const ZOOM_MAX: float = 2.4
 
 var settings: Dictionary = {}
 var faction: String = "player"
@@ -51,6 +54,10 @@ var hud: Hud
 var camera: Camera2D
 ## The opponent: the enemy AI, driven through its firewall (build step 8).
 var opponent: AIController
+## The current camera zoom (D-56: the mouse wheel changes it).
+var zoom: float = ZOOM
+## Peace time of this game (D-56): the AI attacks from this tick on.
+var peace_ticks: int = 0
 ## The auto-economy supervisor (D-55) while it is switched on, else null.
 var helper: AIController = null
 ## Control groups (D-54): 1..9 -> unit ids; rally points: building id -> cell.
@@ -127,7 +134,8 @@ func _ready() -> void:
 		if settings.get("mode", "") == "bench":
 			spectate = true
 		else:
-			opponent = AIController.new("ai", AIConfig.preset(str(settings.get("ai_policy", "balanced"))))
+			opponent = AIController.new("ai", AIConfig.for_game(str(settings.get("ai_policy", "balanced"))))
+			peace_ticks = opponent.ai.config.peace_ticks
 	UnitSprites.preload_all()
 	_terrain = TerrainLayer.new()
 	add_child(_terrain)
@@ -156,7 +164,7 @@ func _ready() -> void:
 	camera = Camera2D.new()
 	add_child(camera)
 	camera.make_current()
-	camera.zoom = Vector2(ZOOM, ZOOM)
+	camera.zoom = Vector2(zoom, zoom)
 	var hq: Entity = sim.entity(sim.hq_of(faction))
 	camera.position = (Vector2(hq.cell) + Vector2(hq.size) / 2.0) * C
 	_clamp_camera()
@@ -240,6 +248,8 @@ func advance_ticks(n: int) -> void:
 			helper.before_step(sim)
 		sim.step()
 		_consume(sim.take_events())
+		if peace_ticks > 0 and sim.tick == peace_ticks and not demo:
+			messages.add("Peace time is over: the enemy may attack now", time, "bad")
 	if sim.match_result != "" and not _result_shown:
 		_result_shown = true
 		placing = false
@@ -277,12 +287,19 @@ func _consume(events: Array[Dictionary]) -> void:
 			"message", "completed":
 				if ev.get("faction", "") == faction:
 					messages.add(HudModel.message_text(ev), time, "good" if ev.type == "completed" else "warn")
+				if ev.type == "completed" and ev.get("faction", "") == faction and not demo:
+					_builders_to_work(sim.entity(int(ev.entity_id)))
 			"trained":
 				if ev.faction == faction:
 					_trained += 1
-					# Units walk to (or gather at) their building's rally point (D-54).
+					# Units walk to (or gather at) their building's rally point (D-54);
+					# without one, a new worker starts gathering by itself (D-56).
 					if rally.has(int(ev.building_id)):
 						issue(CommandAids.rally_command(sim, faction, int(ev.entity_id), rally[int(ev.building_id)]), true)
+					else:
+						var g: Dictionary = CommandAids.auto_gather(sim, faction, int(ev.entity_id))
+						if not g.is_empty():
+							issue(g, true)
 					var u: Entity = sim.entity(ev.entity_id)
 					messages.add("%s ready" % HudModel.KIND_NAMES[u.kind] if u != null else "Unit ready", time, "good")
 			"deposit":
@@ -567,6 +584,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				if aiming:
 					attack_move_to(mouse)
 					return
+				# Double-click a unit: every unit of that kind in view (D-56).
+				if mb.double_click:
+					var id: int = Selection.pick(sim, faction, _to_milli(mouse))
+					var e: Entity = sim.entity(id)
+					if e != null and e.is_unit() and e.faction == faction:
+						var same: Array[int] = CommandAids.same_kind_in(sim, faction, e.kind, view_rect())
+						selection.selected = same.slice(0, Consts.MAX_SELECTION)
+						selection.inspected = id
+						return
 				_pressed = true
 				dragging = false
 				_press_screen = mb.position
@@ -578,6 +604,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				else:
 					selection.click(sim, faction, _to_milli(mouse))
 				dragging = false
+		elif (mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN) and mb.pressed:
+			set_zoom(zoom * (1.1 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.1))
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
 			if placing or aiming:
 				placing = false
@@ -615,6 +643,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				hud.toggle_fps()
 			KEY_G:
 				toggle_helper()
+			KEY_A:
+				if (event as InputEventKey).ctrl_pressed:
+					var all: Array[int] = CommandAids.all_soldiers(sim, faction)
+					selection.selected = all.slice(0, Consts.MAX_SELECTION)
+					selection.inspected = selection.selected[0] if not selection.selected.is_empty() else 0
 			KEY_PERIOD:
 				select_idle_worker()
 			KEY_SPACE:
@@ -628,6 +661,19 @@ func _unhandled_input(event: InputEvent) -> void:
 					aiming = false
 				else:
 					selection.clear()
+
+
+## The builders of a building that just finished go back to work (D-56):
+## a farm's builders farm it, others gather from the nearest known node.
+func _builders_to_work(b: Entity) -> void:
+	if b == null:
+		return
+	for id: int in sim.entities:
+		var w: Entity = sim.entities[id]
+		if w.kind == "worker" and w.faction == faction and w.order_type == "idle" and b.chebyshev_to(w.unit_cell()) == 1:
+			var g: Dictionary = CommandAids.auto_gather(sim, faction, id, b.id)
+			if not g.is_empty():
+				issue(g, true)
 
 
 ## Ctrl+n stores the selected units as group n; n selects the group, and a
@@ -668,6 +714,13 @@ func toggle_helper() -> void:
 		hud.refresh_helper()
 
 
+## Mouse-wheel zoom (D-56), kept within ZOOM_MIN..ZOOM_MAX.
+func set_zoom(z: float) -> void:
+	zoom = clampf(z, ZOOM_MIN, ZOOM_MAX)
+	camera.zoom = Vector2(zoom, zoom)
+	_clamp_camera()
+
+
 ## The terrain layer (the minimap draws its forests, rocks and roads).
 func terrain() -> TerrainLayer:
 	return _terrain
@@ -675,7 +728,7 @@ func terrain() -> TerrainLayer:
 
 ## The part of the world the camera shows (world pixels).
 func view_rect() -> Rect2:
-	var size: Vector2 = get_viewport_rect().size / ZOOM
+	var size: Vector2 = get_viewport_rect().size / zoom
 	return Rect2(camera.position - size / 2.0, size)
 
 
@@ -750,7 +803,7 @@ func touch_move(screen: Vector2, relative: Vector2) -> void:
 		drag_to = screen_to_world(screen)
 	else:
 		# Drag the map: the ground follows the finger.
-		camera.position -= relative / ZOOM
+		camera.position -= relative / zoom
 		_clamp_camera()
 		_last_manual_pan = time
 
@@ -865,7 +918,7 @@ func _to_milli(p: Vector2) -> Vector2i:
 func _pan(delta: float) -> void:
 	var dir: Vector2 = Vector2.ZERO
 	var building_selected: bool = selection.building(sim) != null
-	if Input.is_key_pressed(KEY_A):
+	if Input.is_key_pressed(KEY_A) and not Input.is_key_pressed(KEY_CTRL):
 		dir.x -= 1
 	if Input.is_key_pressed(KEY_D):
 		dir.x += 1
@@ -918,10 +971,10 @@ func _follow_action(delta: float) -> void:
 
 func _clamp_camera() -> void:
 	# The view and the HUD paddings in world units (the camera is zoomed in).
-	var view: Vector2 = get_viewport_rect().size / ZOOM
+	var view: Vector2 = get_viewport_rect().size / zoom
 	var map_px: Vector2 = Vector2(sim.map.width, sim.map.height) * C
-	var top: float = TOP_PAD / ZOOM
-	var padded: Vector2 = map_px + Vector2(0, top + BOTTOM_PAD / ZOOM)
+	var top: float = TOP_PAD / zoom
+	var padded: Vector2 = map_px + Vector2(0, top + BOTTOM_PAD / zoom)
 	camera.position = CameraMath.clamp_center(camera.position + Vector2(0, top), view, padded) - Vector2(0, top)
 
 

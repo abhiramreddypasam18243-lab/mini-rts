@@ -206,19 +206,21 @@ func _draw_unit(e: Entity, sim: Simulation) -> void:
 	if selected or inspected or e.id == game.hover_id:
 		_selection_ring(feet, r + 5.0, selected)
 	Art.unit(self, feet, e.kind, e.faction, a.anim, a.dir, a.frame, 1.0, game.flash(e.id))
-	var head: float = feet.y - 35.0
+	var head: float = feet.y - 44.0
 	if e.carry > 0:
 		Art.icon(self, Vector2(feet.x + 10.0, head + 8.0), e.carry_type, 0.36)
 	# Health bars only where they matter (D-48): units hit in the last 3 s,
 	# selected or hovered; they fade out instead of cluttering a fight.
 	var max_hp: int = sim.stats[e.kind].health
 	var since_hit: float = game.time - float(game._hit_time.get(e.id, -100.0))
-	var show: float = 1.0 if (selected or inspected or e.id == game.hover_id) else clampf((3.0 - since_hit) / 0.6, 0.0, 1.0)
+	# D-56: also always while the unit is fighting.
+	var fighting: bool = e.order_type == "attack"
+	var show: float = 1.0 if (selected or inspected or fighting or e.id == game.hover_id) else clampf((3.0 - since_hit) / 0.6, 0.0, 1.0)
 	if e.hp < max_hp and show > 0.0:
 		var ratio: float = float(e.hp) / max_hp
 		var bar_col: Color = Palette.health(ratio)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-		Art.bar(self, Rect2(feet.x - 11, head - 4, 22, 3), ratio, Color(bar_col, show))
+		Art.bar(self, Rect2(feet.x - 14, head - 4, 28, 4), ratio, Color(bar_col, show))
 
 
 ## Which animation, direction and frame to draw, from what the unit does:
