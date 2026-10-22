@@ -66,6 +66,8 @@ var target_cell: Vector2i = Vector2i(-1, -1)
 ## Where an attack-move is heading; kept while the soldier fights something
 ## on the way, so it can carry on. (-1, -1) = none.
 var am_cell: Vector2i = Vector2i(-1, -1)
+## Cavalry (D-57): milli-cells moved since the last hit, up to CHARGE_DIST.
+var charge: int = 0
 ## Orders queued with Shift, run in turn when the current one ends:
 ## each {"command": String, "cell": Vector2i or "target": int}.
 var orders: Array[Dictionary] = []
@@ -187,6 +189,7 @@ func add_to_hash(h: StateHasher) -> void:
 	h.add_int(harvest_cell.x)
 	h.add_int(harvest_cell.y)
 	h.add_int(cooldown)
+	h.add_int(charge)
 	h.add_int(1 if auto else 0)
 	h.add_int(1 if complete else 0)
 	h.add_int(progress)

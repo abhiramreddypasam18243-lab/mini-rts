@@ -23,4 +23,6 @@ Performance targets marked *(initial target)* in SPEC section 12, with the measu
 | AC-83 | First load ≤ 20 MB (compressed) | **19.96 MB** (gzip -9 of `index.html`, `.js`, `.wasm`, `.pck`) | 2026-10-20 | after D-51 (cavalry sheets, farm, tower and stable sprites); only 0.04 MB below the limit, so the next art addition needs the sprite sheets made smaller |
 | AC-83 | First load ≤ 20 MB (compressed) | **19.97 MB** (gzip -9 of `index.html`, `.js`, `.wasm`, `.pck`) | 2026-10-20 | after D-52 to D-55 (code only, no new art) |
 | AC-83 | First load ≤ 20 MB (compressed) | **19.98 MB** (gzip -9 of `index.html`, `.js`, `.wasm`, `.pck`) | 2026-10-21 | after D-56 (code only) |
+| AC-83 | First load ≤ 20 MB (compressed) | **19.98 MB** (19,982,090 bytes) | 2026-10-22 | after D-57 (code only) |
+| AC-77 | Desktop ≥ 60 FPS with 80 units | **80 FPS** (two runs: 80.2 and 79.5; 1 % low 50 to 55), on mains power | 2026-10-22 | after D-56 and D-57 (larger units, extra effects); was about 100 FPS. On battery the laptop caps games at 30 FPS, so measure plugged in |
 | AC-89 | Unit suite headless ≤ 2 min, fails the build on failure | **about 20 s** (179 tests); exit 1 on a failing test or a script error | 2026-10-17 | `tools/run_tests.sh`; GitHub Actions blocks the deploy |

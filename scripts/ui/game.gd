@@ -67,6 +67,16 @@ var _group_time: Dictionary = {}
 var _last_alert: float = -100.0
 var _alert_at: Vector2 = Vector2.ZERO
 var _last_idle: int = 0
+## Fights grouped into battles (D-57): summaries and the battle camera.
+var battles: BattleTracker = BattleTracker.new()
+## The battle camera (K): drifts to the hottest fight when the player has
+## not moved the camera for a while.
+var battle_cam: bool = true
+## Slow motion (D-57): the game runs at `_slow` speed until `_slow_until`.
+var _slow: float = 1.0
+var _slow_until: float = -1.0
+## Knock-back of a unit just hit: id -> direction it was pushed (D-57).
+var hit_dir: Dictionary = {}
 ## Demo mode (AC-93): a recorded replay plays back; the player only watches.
 const DEMO_PATH: String = "res://data/replays/demo.replay.jsonl"
 const DEMO_SPEED: float = 2.0
@@ -190,7 +200,10 @@ func _process(delta: float) -> void:
 	time += delta
 	var t_sim: int = Time.get_ticks_usec()
 	if sim.match_result == "":
-		advance_ticks(clock.advance(delta * (DEMO_SPEED if demo else 1.0)))
+		# Slow motion when an HQ falls (D-57) eases back to full speed.
+		if time > _slow_until:
+			_slow = minf(_slow + delta * 1.5, 1.0)
+		advance_ticks(clock.advance(delta * (DEMO_SPEED if demo else 1.0) * _slow))
 	t_sim = Time.get_ticks_usec() - t_sim
 	_pan(delta)
 	if demo:
@@ -202,8 +215,9 @@ func _process(delta: float) -> void:
 	Benchmark.mark("fog", t0)
 	fx = fx.filter(func(e: Dictionary) -> bool: return time - e.t0 < e.life)
 	t0 = Time.get_ticks_usec()
-	effects.update(delta)
+	effects.update(delta * _slow)
 	Benchmark.mark("fxupd", t0)
+	_battle_frame(delta)
 	for b: Dictionary in effects.landed:
 		_hit_time[b.target] = time
 		Sound.play_at("arrow_hit", b.b, camera.position, -6.0)
@@ -329,6 +343,13 @@ func _consume(events: Array[Dictionary]) -> void:
 				if hud != null and hud.minimap != null:
 					hud.minimap.ping(tp)
 				attack_info[a.id] = {"t": time, "dir": (tp - ap).normalized()}
+				battles.add_hit(tp, time)
+				if ev.get("charge", false):
+					# A cavalry charge (D-57): a burst of dust, a jolt, a label.
+					effects.dust(tp + Vector2(0, 8), 6, 14.0, 16.0)
+					effects.float_text(tp + Vector2(0, -34), "Charge!", Color("ffd36b"), 15)
+					if view_rect().has_point(tp):
+						shake(0.22)
 				if a.kind == "ranged" or a.kind == "tower":
 					# The arrow leaves the bow at the shot's release frame (a
 					# tower shoots from its lookout); the target flashes when it lands.
@@ -340,8 +361,10 @@ func _consume(events: Array[Dictionary]) -> void:
 				else:
 					# The sparks and the flash come when the swing connects.
 					var tid: int = t.id
+					var push: Vector2 = (tp - ap).normalized()
 					effects.later(0.2, func() -> void:
 						_hit_time[tid] = time
+						hit_dir[tid] = push
 						effects.hit(tp + Vector2(0, -10), ap)
 						Sound.play_at("sword", tp, camera.position, -4.0))
 				# Buildings show damage numbers, at most one every 0.35 s each
@@ -356,9 +379,18 @@ func _consume(events: Array[Dictionary]) -> void:
 				if ev.faction != "" and (ev.faction == faction or spectate or sim.fog.is_visible(faction, cell)):
 					if ev.kind in Entity.UNIT_KINDS:
 						effects.unit_died(center + Vector2(0, 8) + _world._off.get(ev.entity_id, Vector2.ZERO), ev.kind, ev.faction)
+						battles.add_death(center, ev.faction, time)
+						# A small jolt for a kill on screen (D-57).
+						if view_rect().has_point(center):
+							shake(0.12)
 						Sound.play_at("death", center, camera.position, -3.0)
 					else:
 						effects.building_died(Rect2(Vector2(ev.cell) * C, Vector2(ev.size) * C))
+						# An HQ falling plays in slow motion, the camera on it (D-57).
+						if ev.kind == "hq":
+							_slow = 0.3
+							_slow_until = time + 1.6
+							look_at_world(center)
 						Sound.play_at("collapse", center, camera.position, 0.0)
 						shake(0.75 if ev.kind == "hq" else 0.5)
 				if ev.faction == faction and ev.kind in Entity.UNIT_KINDS:
@@ -401,6 +433,9 @@ func _ambient_effects(delta: float) -> void:
 				Sound.play_at("hammer", hp, camera.position, -10.0)
 		elif e.is_unit():
 			var p: Vector2 = draw_pos(e) + Vector2(0, 8)
+			# Charging cavalry kicks up a dust trail (D-57).
+			if e.kind == "cavalry" and e.charge >= Consts.CHARGE_DIST and _prev_pos.has(id) 					and _prev_pos[id] != e.pos and r.randf() < delta * 14.0:
+				effects.dust(p + Vector2(r.randf_range(-6, 6), 2), 1, 4.0, 9.0)
 			if e.phase == "gathering" and e.harvest_type != "" and r.randf() < delta * 2.5:
 				var node_p: Vector2 = (Vector2(e.harvest_cell) + Vector2(0.5, 0.5)) * C
 				if e.harvest_type == "wood":
@@ -643,6 +678,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				hud.toggle_fps()
 			KEY_G:
 				toggle_helper()
+			KEY_K:
+				battle_cam = not battle_cam
+				messages.add("Battle camera on: the view drifts to big fights while you leave it alone" if battle_cam else "Battle camera off", time, "good")
 			KEY_A:
 				if (event as InputEventKey).ctrl_pressed:
 					var all: Array[int] = CommandAids.all_soldiers(sim, faction)
@@ -661,6 +699,22 @@ func _unhandled_input(event: InputEvent) -> void:
 					aiming = false
 				else:
 					selection.clear()
+
+
+## Battles (D-57): reports finished ones, and the battle camera drifts to
+## the hottest fight after 5 s without camera input (not while selecting,
+## placing or aiming).
+func _battle_frame(delta: float) -> void:
+	for s: Dictionary in battles.update(time):
+		if not demo:
+			var won: bool = int(s.ai_lost) > int(s.player_lost)
+			messages.add(BattleTracker.summary_text(s), time, "good" if won else "bad")
+	if not battle_cam or demo or touch or _pressed or placing or aiming or time - _last_manual_pan < 5.0:
+		return
+	var hot: Variant = battles.hottest(time)
+	if hot != null and (camera.position as Vector2).distance_to(hot) > 64.0:
+		camera.position = camera.position.lerp(hot, clampf(delta * 0.9, 0.0, 1.0))
+		_clamp_camera()
 
 
 ## The builders of a building that just finished go back to work (D-56):

@@ -142,7 +142,15 @@ func _draw_building(e: Entity, sim: Simulation) -> void:
 ## Where a unit's feet are drawn: its position (the cell centre) a little
 ## lower, plus its separation offset.
 func _feet(e: Entity) -> Vector2:
-	return game.draw_pos(e) + _off.get(e.id, Vector2.ZERO) + _stance(e) + Vector2(0, 8)
+	return game.draw_pos(e) + _off.get(e.id, Vector2.ZERO) + _stance(e) + _knock(e) + Vector2(0, 8)
+
+
+## D-57: a unit just hit is pushed back a few pixels and springs back.
+func _knock(e: Entity) -> Vector2:
+	var since: float = game.time - float(game._hit_time.get(e.id, -100.0))
+	if since > 0.18 or not game.hit_dir.has(e.id):
+		return Vector2.ZERO
+	return (game.hit_dir[e.id] as Vector2) * 5.0 * (1.0 - since / 0.18)
 
 
 ## A soldier fighting in melee stands back a little from its enemy (drawing
@@ -158,7 +166,9 @@ func _stance(e: Entity) -> Vector2:
 	var since: float = game.time - float(info.t)
 	# Eased in over 0.15 s after a blow, out over the last 0.5 s.
 	var w: float = minf(since / 0.15, 1.0) if since < 2.0 else clampf((2.5 - since) / 0.5, 0.0, 1.0)
-	return -(info.dir as Vector2) * STANCE * w
+	# D-57: during the swing the fighter lunges in, then steps back.
+	var lunge: float = sin(PI * since / SLASH_TIME) * 9.0 if since < SLASH_TIME else 0.0
+	return -(info.dir as Vector2) * (STANCE * w - lunge)
 
 
 ## Units may share a cell (D-04). On screen, units closer than PERSONAL push

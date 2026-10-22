@@ -141,16 +141,12 @@ func step() -> void:
 		var e: Entity = entities.get(id)
 		if e == null or not e.is_unit():
 			continue
-		if e.order_type == "move" or e.order_type == "attack_move":
-			if Movement.advance(e, stats[e.kind].speed):
-				e.set_idle()
-				e.am_cell = NO_CELL  # an attack-move that arrived is over
-		elif e.order_type == "harvest":
-			_tick_harvest(e)
-		elif e.order_type == "build":
-			_tick_build(e)
-		elif e.order_type == "attack":
-			_tick_attack(e)
+		var before: Vector2i = e.pos
+		_tick_unit(e)
+		# Cavalry builds up a charge while it moves (D-57).
+		if e.kind == "cavalry" and entities.has(id):
+			var d: Vector2i = e.pos - before
+			e.charge = mini(e.charge + absi(d.x) + absi(d.y), Consts.CHARGE_DIST)
 	if tick % Spacing.INTERVAL == 0:
 		Spacing.step_aside(self)
 	_tick_buildings()
@@ -161,6 +157,20 @@ func step() -> void:
 		_end_match("timeout")
 	if tick % FOG_INTERVAL == 0:
 		update_fog()
+
+
+## One unit's order for this tick.
+func _tick_unit(e: Entity) -> void:
+	if e.order_type == "move" or e.order_type == "attack_move":
+		if Movement.advance(e, stats[e.kind].speed):
+			e.set_idle()
+			e.am_cell = NO_CELL  # an attack-move that arrived is over
+	elif e.order_type == "harvest":
+		_tick_harvest(e)
+	elif e.order_type == "build":
+		_tick_build(e)
+	elif e.order_type == "attack":
+		_tick_attack(e)
 
 
 ## AC-19: a unit whose remaining path crosses a newly solid cell re-plans; if
@@ -574,9 +584,14 @@ func _resolve_combat() -> void:
 			continue
 		var dmg: int = hit_damage(stats[a.kind].damage, a.is_soldier() and has_upgrade(a.faction, "forging"),
 			t.is_soldier() and has_upgrade(t.faction, "armour"))
+		# A full charge doubles a cavalry hit (D-57); any hit spends it.
+		var charged: bool = a.kind == "cavalry" and a.charge >= Consts.CHARGE_DIST
+		if charged:
+			dmg *= 2
+		a.charge = 0
 		t.hp -= dmg
 		a.cooldown = stats[a.kind].cooldown
-		events.append({"type": "attack", "tick": tick, "attacker": a.id, "target": t.id, "damage": dmg})
+		events.append({"type": "attack", "tick": tick, "attacker": a.id, "target": t.id, "damage": dmg, "charge": charged})
 
 
 ## Damage of one hit (D-51): Forging adds 2, Armour takes 2 off, at least 1.

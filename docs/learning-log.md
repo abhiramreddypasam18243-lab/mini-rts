@@ -397,3 +397,20 @@ A helper that issues commands for the player can fight the player's own orders: 
 
 **One thing that could go wrong**
 The fast test suite is close to its 2-minute limit (AC-89), because each new AI feature adds whole matches to the tests. A duplicate test was removed and one count lowered. More match-level tests should go in the long suite.
+
+---
+
+## Better fight scenes and the cavalry charge (decision D-57)
+
+**What was built**
+- **One rule:** a cavalry charge. The first hit after a cavalry unit has moved at least 3 cells since its last hit deals double damage.
+- **Impact:** soldiers lunge into each swing and the unit hit is knocked back a few pixels. Kills on screen jolt the camera slightly. Charging cavalry raise a dust trail and show "Charge!".
+- **Cinematic camera:** an HQ falls in slow motion with the camera on it. Finished battles are summarised ("Battle won: 4 enemies killed, 1 of yours lost"). A battle camera (K) drifts to the biggest fight when the player leaves the camera alone.
+
+**Why it is designed this way**
+- *The charge is an integer the simulation tracks.* `Entity.charge` adds up the milli-cells moved and is reset by any hit, so the rule stays deterministic and is part of the state hash. The visuals read the same number, so the dust trail appears exactly when the next hit will be doubled.
+- *Everything else changes only the drawing.* Lunges and knock-backs move the sprite, not the unit, so combat ranges and tests are unaffected. Slow motion only slows how fast the presentation feeds ticks to the simulation, never the rules.
+- *A battle is a cluster in space and time.* `BattleTracker` groups hits and deaths within 8 cells and ends a battle after 4 quiet seconds. It is plain logic with no drawing, so it is tested headless.
+
+**One thing that could go wrong**
+An automatic camera can fight the player for control. The battle camera moves only after 5 seconds without camera input, and never while the player is dragging, placing a building or aiming. It can be switched off with K.

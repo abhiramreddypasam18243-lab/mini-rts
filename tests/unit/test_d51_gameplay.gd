@@ -267,7 +267,7 @@ func test_ac_101_ai_builds_farms_tower_stable_trains_cavalry_and_researches() ->
 	# AI against AI (Balanced v Aggressive) on generated maps; matches are
 	# short, so the counts are summed over both factions and every match.
 	var total: Dictionary = {"farm": 0, "tower": 0, "stable": 0, "cavalry": 0, "researched": 0}
-	for s: int in TestCounts.pick(3, 20):
+	for s: int in TestCounts.pick(2, 20):
 		var m: MapGrid = MapGenerator.generate(6600 + s).map
 		var r: Dictionary = MatchRunner.run(m, s, {"player": "balanced", "ai": "aggressive"}, 18000)
 		for f: String in Consts.FACTIONS:

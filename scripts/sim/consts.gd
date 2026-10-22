@@ -19,6 +19,9 @@ const UPGRADES: Dictionary = {
 }
 ## Forging adds this to a soldier's damage; Armour takes it off each hit.
 const UPGRADE_BONUS: int = 2
+## Cavalry charge (D-57): the first hit after galloping at least
+## CHARGE_DIST milli-cells (3 cells) since the last hit deals double damage.
+const CHARGE_DIST: int = 3000
 const START_WORKERS: int = 3
 
 const WOOD_NODE_AMOUNT: int = 500

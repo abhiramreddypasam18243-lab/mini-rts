@@ -46,7 +46,7 @@ Build a complete, finishable mini RTS in Godot 4 that demonstrates grid navigati
 - **Asset and licence rules:** L1 to L3 (section 3).
 - **Deployment:** D1 to D7 (section 10).
 - **Non-functional:** determinism, performance, code quality (section 14).
-- **Acceptance criteria:** AC-01 to AC-96 (section 12), mapped to the guide's twelve criteria in section 13.  Stretch: AC-97 to AC-107 (D-51 to D-56).
+- **Acceptance criteria:** AC-01 to AC-96 (section 12), mapped to the guide's twelve criteria in section 13.  Stretch: AC-97 to AC-109 (D-51 to D-57).
 
 ## 2. Goals, Scope and Non-Goals
 
@@ -484,6 +484,11 @@ The project must run as a deployed service. "Deployed" means: the game is export
 - [x] **AC-106** Peace time: in games started from the menu the AI may not attack before 6 minutes (Easy), 3 (Normal) or 1.5 (Hard), with a countdown on screen; the presets used by the experiment and tests have none. Easy queues one item per building at a time and still wins fewer matches than Normal.
 - [x] **AC-107** Easier controls: new workers and finished builders gather by themselves (a farm's builders farm it; otherwise the nearest node the player knows); double-click selects the player's units of that kind in view; Ctrl+A selects every soldier; the click radius round a unit is 600 milli-cells.
 
+### Stretch: fight scenes (D-57)
+
+- [x] **AC-108** Cavalry charge: a cavalry unit's first hit after moving at least 3 cells since its last hit deals double damage (18 instead of 9); any hit spends the charge; a shorter run, or any other unit, gives a normal hit; the charge is part of the state hash.
+- [x] **AC-109** Battles: hits and deaths within 8 cells form one battle; a battle with at least 3 deaths is summarised for the player 4 seconds after it goes quiet; the battle camera targets the battle with the most hits in the last 3 seconds.
+
 ## 13. Traceability to the Guide's Acceptance Criteria
 
 | Guide criterion | Covered by |
@@ -569,7 +574,7 @@ Build in this order, because each step depends on the one before it. A step is d
 | 8 | The enemy AI and its tests | AC-59 to AC-67 |
 | 9 | Replays, the headless runner, the Wilson interval, and the strategy experiment | AC-68 to AC-72 |
 | 10 | Production deployment and documentation: container, headers, size, README, architecture and test-plan documents, demo | AC-79 to AC-96 |
-| 11 | Stretch: minimap, sound, more maps, attack-move, shift-queue, line-of-sight fog, unit collision; food, farms, guard tower, cavalry and upgrades (D-51); difficulty, map styles, conveniences and the auto-economy supervisor (D-52 to D-55); easier play (D-56) | AC-97 to AC-107 (stretch) |
+| 11 | Stretch: minimap, sound, more maps, attack-move, shift-queue, line-of-sight fog, unit collision; food, farms, guard tower, cavalry and upgrades (D-51); difficulty, map styles, conveniences and the auto-economy supervisor (D-52 to D-55); easier play (D-56); fight scenes and the cavalry charge (D-57) | AC-97 to AC-109 (stretch) |
 
 Steps 7 and 8 both depend only on step 6, so they can be built in either order or in parallel. Keep the container from step 1 working throughout: rebuild and open it after every step.
 
@@ -603,6 +608,7 @@ Steps 7 and 8 both depend only on step 6, so they can be built in either order o
 | D-22 | 2026-10-15 | AC-10 symmetry compares footprints: a w × h building anchored at `(x, y)` mirrors to the anchor `(48 − w − x, 48 − h − y)` (a 3 × 3 HQ: `(45 − x, 45 − y)`) | Compare anchors with `(47 − x, 47 − y)` | Anchors are top-left cells, so mirroring a multi-cell footprint shifts the anchor |
 | D-23 | 2026-10-15 | `retreat_fraction` stored as an integer percentage (40, 25, 50); the check is `army * 100 < pct * start_army` | Floating-point fraction | The AI is in `scripts/sim/`, which is integer-only |
 | D-24 | 2026-10-15 | A non-soldier given an `attack` order returns `invalid_target` (AC-47) | A new result code | Uses an existing code |
+| D-57 | 2026-10-22 | Better fight scenes (the user asked for more impact, real clashes and a cinematic camera). Rule: a cavalry charge, the first hit after moving at least 3 cells since the last hit deals double damage (`Entity.charge`, hashed). Presentation: melee fighters lunge into each swing, a unit hit is knocked back a few pixels, a kill on screen and a charge jolt the camera, charging cavalry raise a dust trail and a "Charge!" label; an HQ falling plays in slow motion (0.3 speed for 1.6 s) with the camera on it; finished battles with at least 3 deaths are summarised ("Battle won: 4 enemies killed, 1 of yours lost"); a battle camera (K, on by default) drifts to the hottest fight after 5 s without camera input | Charge as a visual only; a camera that always follows fights | The charge gives cavalry a real role (striking from a distance) that the visuals can show; the camera only moves when the player has left it alone, so it never fights their control (AC-108, AC-109) |
 | D-56 | 2026-10-21 | Easier to play (the user found the game very hard: the AI won too fast, controls were awkward, fights hard to see). Peace time in games from the menu (no AI attack before 6 / 3 / 1.5 minutes on Easy / Normal / Hard, countdown in the top bar; the presets keep 0, so the experiment and tests are unchanged); Easy queues one item per building at a time; the menu starts on Easy. Controls: new workers and finished builders start gathering by themselves, double-click selects all units of that kind in view, Ctrl+A selects every soldier, a larger click radius (600 milli-cells, was 420). Seeing: units drawn about 30 % larger, mouse-wheel zoom (1.0 to 2.4), bold team rings with a red outer ring on enemies, health bars always shown while fighting | Slow the whole game down; give the player extra resources | The AI's rush (first attack about 54 s in) gave a new player no time to learn; peace time removes that without changing any rule the experiment measures (AC-106, AC-107) |
 | D-55 | 2026-10-20 | An auto-economy supervisor for the player (the user asked for "a supervisor kind of thing" and chose this): a toggle (G or the HUD button) runs an `EconomyHelper`, a subclass of the enemy AI that only gathers, trains workers (up to 10) and builds a farm when food is low; it receives the player's Observation and its commands pass the same firewall | An adviser that only gives tips; a commander hero unit; a spectator screen | Lets the player concentrate on the army; reuses tested AI code; cannot cheat or touch the army (AC-105) |
 | D-54 | 2026-10-20 | Player conveniences (UI only, no rule changes): control groups (Ctrl+1..9 / 1..9, double press centres the camera), the idle-worker key "." and button, rally points (right-click with a training building selected), and an "Under attack!" alert for attacks out of view (Space jumps there), at most one per 8 s | Rally points as a simulation rule | Standard RTS conveniences; built from ordinary commands, so replays and determinism are unaffected (AC-104) |

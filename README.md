@@ -120,6 +120,7 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | Mouse wheel | Zoom in and out |
 | Double-click a unit | Select all your units of that kind on screen |
 | `Ctrl+A` | Select all your soldiers |
+| `K` | Battle camera on / off: when you leave the camera alone for 5 s, it drifts to the biggest fight |
 | `G` (or the *Auto economy* button) | Auto economy: a helper runs your economy (idle workers gather, the HQ trains workers up to 10, a farm is built when food runs low) while you command the army |
 | `M` (or the Sound button) | Sound and music on / off (remembered) |
 | Minimap (bottom right) | Left click or drag: move the camera there · right click: order the selected units there |
@@ -168,7 +169,7 @@ Final stats (`data/units.json`, the same as SPEC section 4):
 | Guard tower | 80 | 60 | 0 | 400 | – | 7 | 6 | 6,000 | 30 | 250 (12.5 s) | 1 × 1 |
 | Stable | 150 | 40 | 0 | 300 | – | 5 | – | – | – | 300 (15 s) | 2 × 2 |
 
-Each side starts with an HQ, 3 workers, 200 wood, 100 gold and 100 food. A finished farm holds 400 food, gathered like a node by its own side's workers, and disappears when empty. A finished guard tower shoots the nearest enemy unit within 6 cells. At a barracks, **Forging** (80 gold, 100 food, 20 s) gives soldiers +2 damage and **Armour** (100 gold, 100 food, 20 s) makes them take 2 less per hit (never less than 1); each is researched once (decision D-51). Wood nodes hold 500, gold nodes 300; a worker carries 10 per trip and gathers for 40 ticks. Queues hold 5; population cap 40; matches end after 36,000 ticks (30 minutes).
+Each side starts with an HQ, 3 workers, 200 wood, 100 gold and 100 food. A finished farm holds 400 food, gathered like a node by its own side's workers, and disappears when empty. A finished guard tower shoots the nearest enemy unit within 6 cells. **Cavalry charge (D-57):** a cavalry unit's first hit after galloping at least 3 cells deals double damage, so cavalry hit hardest when they ride in from a distance. At a barracks, **Forging** (80 gold, 100 food, 20 s) gives soldiers +2 damage and **Armour** (100 gold, 100 food, 20 s) makes them take 2 less per hit (never less than 1); each is researched once (decision D-51). Wood nodes hold 500, gold nodes 300; a worker carries 10 per trip and gathers for 40 ticks. Queues hold 5; population cap 40; matches end after 36,000 ticks (30 minutes).
 
 ### Balance log (AC-90)
 
@@ -232,11 +233,11 @@ Policies are the same machine with different numbers:
 
 | Pairing (A vs B) | A win rate (decisive matches) | 95 % Wilson interval |
 | --- | --- | --- |
-| Aggressive vs Balanced | 0.869 | [0.815, 0.909] |
-| EconomyFirst vs Balanced | 0.260 | [0.201, 0.329] |
-| Aggressive vs EconomyFirst | 0.948 | [0.907, 0.972] |
+| Aggressive vs Balanced | 0.864 | [0.809, 0.905] |
+| EconomyFirst vs Balanced | 0.291 | [0.229, 0.363] |
+| Aggressive vs EconomyFirst | 0.959 | [0.920, 0.979] |
 
-**Under these rules and maps: Aggressive > Balanced > EconomyFirst** (re-run under the D-51 rules). The start positions pass the fairness check: in Balanced vs Balanced the player start won 45 of 95 decided seeds (interval [0.376, 0.573] contains 0.5). That check first caught an AI bug (building sites chosen in an order that favoured one corner), fixed before the final run; one pairing shows a mild player-start disadvantage, discussed in the report. This does not show that rushing is better in general: other maps, stats or a human opponent could change the order.
+**Under these rules and maps: Aggressive > Balanced > EconomyFirst** (re-run under the D-51 and D-57 rules). The start positions pass the fairness check: in Balanced vs Balanced the player start won 45 of 96 decided seeds (interval [0.372, 0.568] contains 0.5). That check first caught an AI bug (building sites chosen in an order that favoured one corner), fixed before the final run, and all four pairings now pass the same check. This does not show that rushing is better in general: other maps, stats or a human opponent could change the order.
 
 ## Tests
 
