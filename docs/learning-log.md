@@ -414,3 +414,18 @@ The fast test suite is close to its 2-minute limit (AC-89), because each new AI 
 
 **One thing that could go wrong**
 An automatic camera can fight the player for control. The battle camera moves only after 5 seconds without camera input, and never while the player is dragging, placing a building or aiming. It can be switched off with K.
+
+---
+
+## New grass texture (decision D-58)
+
+**What was built**
+The ground's grass texture is now ambientCG Grass007 (clover, weeds and twigs) instead of Grass004. The roads, earth patches, colour grade and game rules are unchanged.
+
+**Why it is designed this way**
+- *The choice was made from in-game screenshots.* Eight candidates were rendered on the same map and seed, with only the texture swapped, so the comparison showed exactly what the player would see.
+- *Only one file changed.* The ground shader tiles whatever image is in `assets/textures/grass.jpg`, so a texture change needs no code change. Its source and licence are recorded in `ASSETS.md`.
+- *Tall wind-swaying grass was tried and dropped.* Separate tufts drawn on top of the ground looked like clumps stuck on, not a field.
+
+**One thing that could go wrong**
+A busier texture can hide small things on the ground, such as pebbles and dropped details, and make a large field look repetitive. The shader samples the texture at two scales and blends them, which hides the tiling.
