@@ -115,6 +115,14 @@ var _press_screen: Vector2 = Vector2.ZERO
 var _trained: int = 0
 var _lost: int = 0
 var _result_shown: bool = false
+## Online match (D-60): the connection, the lockstep, and whether this
+## player's own commands want feedback (one flag per queued command, in order).
+var net: NetClient = null
+var lockstep: Lockstep = null
+var _net_quiet: Array[bool] = []
+var _stalled: float = 0.0
+var _desync_shown: bool = false
+var _halted: bool = false
 
 
 func setup(p_settings: Dictionary) -> void:
@@ -143,6 +151,14 @@ func _ready() -> void:
 		sim = Simulation.new(load_map(settings), int(settings.get("seed", 1)), {})
 		if settings.get("mode", "") == "bench":
 			spectate = true
+		elif settings.get("mode", "") == "online":
+			# Another person plays the other side (D-60): no AI, no peace time.
+			net = settings.net
+			faction = str(settings.you)
+			lockstep = Lockstep.new(faction)
+			net.received.connect(lockstep.receive)
+			net.opponent_left.connect(_net_ended.bind("left"))
+			net.failed.connect(func(_text: String) -> void: _net_ended("lost"))
 		else:
 			opponent = AIController.new("ai", AIConfig.for_game(str(settings.get("ai_policy", "balanced"))))
 			peace_ticks = opponent.ai.config.peace_ticks
@@ -192,6 +208,8 @@ func _ready() -> void:
 		messages.add("Benchmark (AC-77): 80 units, 15 seconds. Results appear here.", time, "info")
 	if demo:
 		messages.add("Demo: a recorded match plays back. WASD pans; the camera follows the action.", time, "info")
+	elif net != null:
+		messages.add("Online match: you are %s. Destroy the other player's HQ." % ("Blue" if faction == "player" else "Red"), time, "info")
 	else:
 		messages.add("Gather wood and gold, build a barracks, destroy the enemy HQ.", time, "info")
 
@@ -199,11 +217,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	time += delta
 	var t_sim: int = Time.get_ticks_usec()
-	if sim.match_result == "":
+	if sim.match_result == "" and not _halted:
 		# Slow motion when an HQ falls (D-57) eases back to full speed.
 		if time > _slow_until:
 			_slow = minf(_slow + delta * 1.5, 1.0)
 		advance_ticks(clock.advance(delta * (DEMO_SPEED if demo else 1.0) * _slow))
+		if lockstep != null:
+			_net_frame(delta)
 	t_sim = Time.get_ticks_usec() - t_sim
 	_pan(delta)
 	if demo:
@@ -258,8 +278,14 @@ func advance_ticks(n: int) -> void:
 				_demo_next += 1
 		elif opponent != null:
 			opponent.before_step(sim)
+		if lockstep != null and not _net_turn():
+			break
 		if helper != null and not demo:
-			helper.before_step(sim)
+			if lockstep != null:
+				for c: Dictionary in helper.before_step(sim):
+					issue(c, true)
+			else:
+				helper.before_step(sim)
 		sim.step()
 		_consume(sim.take_events())
 		if peace_ticks > 0 and sim.tick == peace_ticks and not demo:
@@ -391,7 +417,7 @@ func _consume(events: Array[Dictionary]) -> void:
 					else:
 						effects.building_died(Rect2(Vector2(ev.cell) * C, Vector2(ev.size) * C))
 						# An HQ falling plays in slow motion, the camera on it (D-57).
-						if ev.kind == "hq":
+						if ev.kind == "hq" and net == null:
 							_slow = 0.3
 							_slow_until = time + 1.6
 							look_at_world(center)
@@ -494,15 +520,82 @@ func _add_fx(e: Dictionary) -> void:
 func issue(cmd: Dictionary, quiet: bool = false) -> String:
 	if demo:
 		return "demo"
+	if _halted:
+		return "match_over"
+	if lockstep != null:
+		# Online (D-60): sent now, run on both machines a moment later; a
+		# rejection is reported when it runs.
+		if sim.match_result != "":
+			return "match_over"
+		lockstep.queue(cmd)
+		_net_quiet.append(quiet)
+		if not quiet and (cmd.command == "train" or cmd.command == "build" or cmd.command == "research"):
+			Sound.play("confirm", -8.0, 0.0)
+		return "ok"
 	var r: String = sim.submit(cmd)
 	if quiet:
 		return r
+	_feedback(r, cmd)
+	return r
+
+
+func _feedback(r: String, cmd: Dictionary) -> void:
 	if r != "ok":
 		messages.add(HudModel.MESSAGES.get(r, r), time, "warn")
 		Sound.play("error", -10.0, 0.0)
 	elif cmd.command == "train" or cmd.command == "build" or cmd.command == "research":
 		Sound.play("confirm", -8.0, 0.0)
-	return r
+
+
+# --- online matches (D-60) -----------------------------------------------------
+
+## At the start of each lockstep turn: sends this player's commands for a
+## later turn, then runs this turn's commands from both players. False when
+## the other player's commands for this turn have not arrived (wait).
+func _net_turn() -> bool:
+	if sim.tick % Lockstep.TURN_TICKS != 0:
+		return true
+	if lockstep.needs_close():
+		net.relay(lockstep.close_turn(sim.state_hash()))
+	if not lockstep.can_run():
+		return false
+	for c: Dictionary in lockstep.take_turn():
+		var r: String = sim.submit(c)
+		if str(c.get("faction", "")) == faction and not _net_quiet.is_empty():
+			if not _net_quiet.pop_front() and r != "ok":
+				_feedback(r, c)
+	return true
+
+
+## Waiting for the other player, and the desync warning.
+func _net_frame(delta: float) -> void:
+	var waiting: bool = sim.tick % Lockstep.TURN_TICKS == 0 and not lockstep.can_run()
+	_stalled = _stalled + delta if waiting else 0.0
+	if _stalled > 2.0 and fmod(_stalled, 6.0) < delta:
+		messages.add("Waiting for the other player…", time, "warn")
+	if lockstep.desync and not _desync_shown:
+		_desync_shown = true
+		messages.add("The two games went out of step. Please start a new match.", time, "bad")
+
+
+## The other player left, or the connection broke: the match ends here.
+func _net_ended(why: String) -> void:
+	if _result_shown:
+		return
+	_result_shown = true
+	placing = false
+	hud.show_result("left" if why == "left" else "lost", {"tick": sim.tick, "wood": sim.bank.deposited[faction].wood,
+		"gold": sim.bank.deposited[faction].gold, "trained": _trained, "lost": _lost})
+	# The simulation stops here: no more ticks or commands (it is not
+	# changed, only no longer run).
+	_halted = true
+
+
+func _exit_tree() -> void:
+	if net != null:
+		net.leave()
+		net.queue_free()
+		net = null
 
 
 func train(kind: String) -> void:

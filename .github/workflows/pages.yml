@@ -59,6 +59,16 @@ jobs:
       - name: Run the fast test suite (headless)
         run: tools/run_tests.sh
 
+      - name: Test the online relay (AC-113)
+        working-directory: relay
+        run: npm ci --no-audit --no-fund && npm test
+
+      - name: Online play end to end through a local relay (AC-114)
+        run: |
+          PORT=8090 node relay/server.js &
+          sleep 1
+          timeout 120 "$GODOT" --headless --script res://tools/net_smoke.gd -- --relay=ws://127.0.0.1:8090 --seconds=15
+
       - name: Export the web build
         run: |
           mkdir -p build/web

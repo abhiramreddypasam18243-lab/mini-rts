@@ -83,6 +83,9 @@ func show_menu() -> void:
 
 func start_match(settings: Dictionary) -> void:
 	_settings = settings.duplicate()
+	# An online match's connection (D-60) outlives the menu that opened it.
+	if settings.get("net") is NetClient:
+		(settings.net as NetClient).reparent(self)
 	if menu != null:
 		remove_child(_menu_layer)
 		_menu_layer.queue_free()

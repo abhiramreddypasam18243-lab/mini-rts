@@ -1,0 +1,15 @@
+{
+  "name": "mini-rts-relay",
+  "version": "1.0.0",
+  "description": "Pairs two Mini RTS players by room code and passes their messages along (D-60).",
+  "private": true,
+  "main": "server.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  }
+}

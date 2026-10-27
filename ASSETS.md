@@ -194,6 +194,7 @@ The game world, HUD and effects use three CC0 art packs by Kenney (decisions D-3
 | --- | --- | --- | --- | --- |
 | GUT (Godot Unit Test), `addons/gut/` | 9.6.1 | https://github.com/bitwes/Gut (tag v9.6.1) | MIT (`addons/gut/LICENSE.md`) | Headless unit tests; excluded from the web export |
 | Fonts bundled inside GUT, `addons/gut/fonts/` (Anonymous Pro, Courier Prime, Lobster Two) | with GUT 9.6.1 | https://github.com/bitwes/Gut | SIL Open Font License 1.1 (`addons/gut/fonts/OFL.txt`) | GUT's own test-runner GUI only; not used by the game |
+| `ws` (WebSocket library for Node), `relay/` | 8.18.3 (pinned in `relay/package.json`, locked in `relay/package-lock.json`) | https://github.com/websockets/ws | MIT | The online-play relay server (D-60); installed with `npm ci`, not stored in the repo, not part of the game |
 | Godot Engine and web export templates | 4.7.2-stable | https://github.com/godotengine/godot/releases/tag/4.7.2-stable (SHA-512 verified) | MIT | Engine; downloaded at build time, not stored in the repo |
 | nginx (unprivileged image) | `nginxinc/nginx-unprivileged:1.30.6-alpine3.24` | https://hub.docker.com/r/nginxinc/nginx-unprivileged | BSD-2-Clause (nginx) | Serves the web build in the container |
 | Debian base image (build stage only) | `debian:bookworm-slim` | https://hub.docker.com/_/debian | Debian licences (DFSG) | Runs the export in the Docker build stage |

@@ -18,6 +18,10 @@ var longest_quiet: int = 0
 var decisions: int = 0
 var commands: int = 0
 var _last_issue: int = 0
+## False in online matches (D-60): before_step only returns the commands
+## that pass the firewall, for the caller to send through the lockstep, so
+## both players' machines run them at the same tick.
+var submit: bool = true
 
 
 func _init(p_faction: String, config: AIConfig, p_ai: EnemyAI = null) -> void:
@@ -51,9 +55,17 @@ func before_step(world: Simulation) -> Array[Dictionary]:
 	if twice:
 		multi_command_decisions += 1
 	var known: Dictionary = obs.known_ids()
+	var passed: Array[Dictionary] = []
 	for cmd: Dictionary in issued:
-		if world.submit_observed(cmd, known) == "firewall":
+		if not submit:
+			if Simulation.referenced_ids(cmd).all(func(id: int) -> bool: return known.has(id)):
+				passed.append(cmd)
+			else:
+				violations += 1
+		elif world.submit_observed(cmd, known) == "firewall":
 			violations += 1
+	if not submit:
+		issued = passed
 	commands += issued.size()
 	# Quiet-stretch measurement (AC-64).
 	if not issued.is_empty():

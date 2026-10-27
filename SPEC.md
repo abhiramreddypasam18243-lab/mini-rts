@@ -46,7 +46,7 @@ Build a complete, finishable mini RTS in Godot 4 that demonstrates grid navigati
 - **Asset and licence rules:** L1 to L3 (section 3).
 - **Deployment:** D1 to D7 (section 10).
 - **Non-functional:** determinism, performance, code quality (section 14).
-- **Acceptance criteria:** AC-01 to AC-96 (section 12), mapped to the guide's twelve criteria in section 13.  Stretch: AC-97 to AC-110 (D-51 to D-59).
+- **Acceptance criteria:** AC-01 to AC-96 (section 12), mapped to the guide's twelve criteria in section 13.  Stretch: AC-97 to AC-114 (D-51 to D-60).
 
 ## 2. Goals, Scope and Non-Goals
 
@@ -68,7 +68,7 @@ Build a complete, finishable mini RTS in Godot 4 that demonstrates grid navigati
 
 **Stretch** (only after everything above passes): a minimap, sound effects and animations, multiple maps, a resource depot building, attack-move and shift-queued orders, line-of-sight fog, unit collision, and match statistics screens.
 
-**Non-goals (v1):** online multiplayer, accounts, large maps with hundreds of units, 3D graphics, campaigns, large tech trees, and machine-learning opponents. A transparent rule-based AI is easier to defend in a viva.
+**Non-goals (v1):** online multiplayer (two-player online matches were added later as a stretch goal, D-60; still no accounts, matchmaking or more than two players), accounts, large maps with hundreds of units, 3D graphics, campaigns, large tech trees, and machine-learning opponents. A transparent rule-based AI is easier to defend in a viva.
 
 ## 3. Asset and Licence Rules
 
@@ -493,6 +493,13 @@ The project must run as a deployed service. "Deployed" means: the game is export
 
 - [x] **AC-110** When something of the player's is hit, every idle soldier of the player's within 10 cells of it (squared cell distance ≤ 100) attack-moves to the fight: to the attacker's cell if it is a unit the player sees, otherwise to the hit unit's cell. Soldiers with another order, the victim itself, workers and the AI's units are not sent.
 
+### Stretch: online play against a friend (D-60)
+
+- [x] **AC-111** Lockstep: two peers that give random orders at random moments and run at different paces have identical state hashes after every turn; a command given during turn T runs at the first tick of turn T + 2 (a turn is 3 ticks) on both machines.
+- [x] **AC-112** A peer never runs a turn before it has the other player's commands for it (alone it runs only the 2 empty starting turns); the commands of one turn run in the same order on both machines (Blue's first, each player's in the order given); a state hash that differs between the peers for the same turn is reported as a desync.
+- [x] **AC-113** The relay gives a host a 4-character room code (no 0, O, 1, I or L), starts both players with the host's map and seed (host Blue, guest Red), passes each message only to the other player and in order, tells a player when the other leaves, refuses a wrong code, a full room or a different game version, and answers `ok` on `/healthz`.
+- [x] **AC-114** End to end: two game screens connected through a running relay and given random orders through the normal command path have equal state hashes at every tick both reach (at least 100 ticks); when the guest leaves, the host's match ends with "The other player left".
+
 ## 13. Traceability to the Guide's Acceptance Criteria
 
 | Guide criterion | Covered by |
@@ -578,7 +585,7 @@ Build in this order, because each step depends on the one before it. A step is d
 | 8 | The enemy AI and its tests | AC-59 to AC-67 |
 | 9 | Replays, the headless runner, the Wilson interval, and the strategy experiment | AC-68 to AC-72 |
 | 10 | Production deployment and documentation: container, headers, size, README, architecture and test-plan documents, demo | AC-79 to AC-96 |
-| 11 | Stretch: minimap, sound, more maps, attack-move, shift-queue, line-of-sight fog, unit collision; food, farms, guard tower, cavalry and upgrades (D-51); difficulty, map styles, conveniences and the auto-economy supervisor (D-52 to D-55); easier play (D-56); fight scenes and the cavalry charge (D-57); soldiers help each other (D-59) | AC-97 to AC-110 (stretch) |
+| 11 | Stretch: minimap, sound, more maps, attack-move, shift-queue, line-of-sight fog, unit collision; food, farms, guard tower, cavalry and upgrades (D-51); difficulty, map styles, conveniences and the auto-economy supervisor (D-52 to D-55); easier play (D-56); fight scenes and the cavalry charge (D-57); soldiers help each other (D-59); online play against a friend (D-60) | AC-97 to AC-114 (stretch) |
 
 Steps 7 and 8 both depend only on step 6, so they can be built in either order or in parallel. Keep the container from step 1 working throughout: rebuild and open it after every step.
 
@@ -612,6 +619,7 @@ Steps 7 and 8 both depend only on step 6, so they can be built in either order o
 | D-22 | 2026-10-15 | AC-10 symmetry compares footprints: a w × h building anchored at `(x, y)` mirrors to the anchor `(48 − w − x, 48 − h − y)` (a 3 × 3 HQ: `(45 − x, 45 − y)`) | Compare anchors with `(47 − x, 47 − y)` | Anchors are top-left cells, so mirroring a multi-cell footprint shifts the anchor |
 | D-23 | 2026-10-15 | `retreat_fraction` stored as an integer percentage (40, 25, 50); the check is `army * 100 < pct * start_army` | Floating-point fraction | The AI is in `scripts/sim/`, which is integer-only |
 | D-24 | 2026-10-15 | A non-soldier given an `attack` order returns `invalid_target` (AC-47) | A new result code | Uses an existing code |
+| D-60 | 2026-10-28 | Online play against a friend (the user asked for a human in place of the AI and chose online with a room code over same-network or same-computer play). Deterministic lockstep (`scripts/net/lockstep.gd`): both machines run the same simulation and exchange only commands; time is cut into turns of 3 ticks (150 ms); a command given in turn T runs at turn T + 2 on both machines, in a fixed order (Blue's first); a machine waits when the other's commands for a turn have not arrived; each turn message carries the sender's state hash, so a drift is detected (desync). A small relay server (`relay/`, Node with the MIT `ws` library) pairs the two players by a 4-character code and forwards their messages; it knows nothing about the game. It runs as a free Render web service at `wss://mini-rts-relay.onrender.com`, so the page now talks to one outside host when (and only when) a player chooses online play; the container's CSP allows that one address (an exception to D5's "no third-party requests"). The host plays Blue on the host's map and seed, the guest Red. No AI, no peace time, no restart and no HQ slow motion in online matches; the auto-economy helper (G) still works, its commands sent through the lockstep like the player's. Both players need the same game version (checked by the relay) | Peer-to-peer WebRTC (still needs a signalling server); host-authoritative state syncing (much more traffic); LAN only by IP (no browser support) | The simulation was built deterministic from the start (D-02, D-16), so lockstep needs no change to any game rule; only commands travel, a few bytes per turn; works in the browser and the desktop app (AC-111 to AC-114) |
 | D-59 | 2026-10-28 | Soldiers help each other (the user saw their soldiers stand still while a teammate was killed nearby: an idle soldier only reacts to enemies inside its own 6-cell vision, and archers shoot from 5 cells). When something of the player's is hit, the player's idle soldiers within 10 cells attack-move to the attacker (or to the victim if the attacker is unseen or a building). A player-side helper like auto-gather (D-56): it issues ordinary commands, so the rules, the AI and the experiment are unchanged | A simulation rule for both factions (would change the AI's matches and need the experiment re-run); every soldier on the map responds | Fixes what the user saw with the smallest change; soldiers the player has given orders are never pulled away (AC-110) |
 | D-58 | 2026-10-28 | New grass texture: the ground's grass is ambientCG Grass007 (clover, weeds and twigs, CC0) instead of Grass004. The user compared eight candidates in in-game screenshots (same map and seed) and chose it. Tall wind-swaying grass tufts were tried and dropped at the user's request. Presentation only | Grass005 (plain lawn); golden tinted grass; tall swaying grass tufts | The user's choice from the side-by-side comparison; a livelier, less uniform field |
 | D-57 | 2026-10-22 | Better fight scenes (the user asked for more impact, real clashes and a cinematic camera). Rule: a cavalry charge, the first hit after moving at least 3 cells since the last hit deals double damage (`Entity.charge`, hashed). Presentation: melee fighters lunge into each swing, a unit hit is knocked back a few pixels, a kill on screen and a charge jolt the camera, charging cavalry raise a dust trail and a "Charge!" label; an HQ falling plays in slow motion (0.3 speed for 1.6 s) with the camera on it; finished battles with at least 3 deaths are summarised ("Battle won: 4 enemies killed, 1 of yours lost"); a battle camera (K, on by default) drifts to the hottest fight after 5 s without camera input | Charge as a visual only; a camera that always follows fights | The charge gives cavalry a real role (striking from a distance) that the visuals can show; the camera only moves when the player has left it alone, so it never fights their control (AC-108, AC-109) |

@@ -127,6 +127,12 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | `F`, then click (or the Attack-move button) | Attack-move: the selected soldiers walk there and fight any enemy they meet on the way |
 | Hold `Shift` while ordering | Queue the order after the current ones (for example Shift-click three points to walk a route); a normal order clears the queue |
 
+### Play online against a friend (D-60)
+
+In the main menu choose **Play online · vs a friend**. One player clicks **Host a match** and reads out the 4-letter code; the other types it and clicks **Join**. The host plays Blue on the map and seed chosen in the menu, the guest plays Red. Both need the same version of the game (browser or Windows app, in any mix). The first connection of the day can take up to a minute while the free game server wakes up.
+
+How it works: both computers run the same deterministic simulation and send each other only their commands (lockstep, `scripts/net/lockstep.gd`), through a tiny relay server (`relay/`). An order runs about 0.3 s after it is given, on both computers at the same tick.
+
 Your soldiers also help each other without being told: when one of your units or buildings is hit, your idle soldiers within 10 cells run to the fight (D-59). Soldiers you have given an order keep it.
 
 Disabled buttons show the reason on hover (for example *Need 60 wood · 20 gold*). Messages fade after 3 seconds.

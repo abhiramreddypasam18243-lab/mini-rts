@@ -444,3 +444,22 @@ When something of the player's is hit, every idle soldier of the player's within
 
 **One thing that could go wrong**
 A weak unit hit far from the main army can pull nearby idle soldiers into a bad fight, for example into range of an enemy tower. The 10-cell radius keeps this local, and the player can always give new orders.
+
+---
+
+## Online play against a friend (decision D-60)
+
+**What was built**
+- **Lockstep** (`scripts/net/lockstep.gd`): both computers run the same simulation and send each other only their commands, cut into turns of 3 ticks (150 ms).
+- **A relay server** (`relay/server.js`): it pairs the two players by a 4-letter room code and forwards their messages.
+- **A menu panel** to host or join a match. The host plays Blue, the guest Red.
+
+**Why it is designed this way**
+- *Determinism made it cheap.* The simulation was integer-only and deterministic from step 1 (D-02, D-16). The same commands at the same ticks always give the same game, so only commands need to travel, a few bytes per turn, never the positions of units.
+- *Commands run 2 turns late.* A command given in turn T is sent as part of turn T + 2, which gives it 300 ms to reach the other computer. Turn T runs only when both players' commands for it are known, so neither computer ever guesses.
+- *Both sides submit identical values.* Commands travel as JSON, where numbers become floats, so the sender also passes its own commands through JSON before running them. That way both computers submit exactly the same data.
+- *Drift is detected, not hoped away.* Every turn message carries the sender's state hash. If the hashes for the same turn differ, the game shows a "went out of step" warning.
+- *The relay is dumb on purpose.* It never looks inside the messages, so it cannot cheat, and the game's rules are tested where they always were.
+
+**One thing that could go wrong**
+Anything that changes the simulation outside the shared commands would make the two games drift. The auto-economy helper used to submit straight to the simulation. In online matches its commands now go through the lockstep like the player's, and the end-to-end test (`tools/net_smoke.gd`) compares the two games' state at every tick.

@@ -164,7 +164,9 @@ func _build_top_bar() -> void:
 		_helper.custom_minimum_size = Vector2(176, 40)
 		_helper.tooltip_text = "G: a helper runs your economy (gathering, workers, farms); you command the army"
 		row2.add_child(_helper)
-	right.add_child(_small_button("Restart", func() -> void: game.restart_requested.emit()))
+	# An online match cannot be restarted by one player alone (D-60).
+	if game.net == null:
+		right.add_child(_small_button("Restart", func() -> void: game.restart_requested.emit()))
 	right.add_child(_small_button("Menu", func() -> void: game.menu_requested.emit()))
 
 
@@ -378,6 +380,7 @@ func _build_overlay() -> void:
 	again.custom_minimum_size = Vector2(160, 46)
 	UiTheme.style_button(again, "gold", 19)
 	again.pressed.connect(func() -> void: game.restart_requested.emit())
+	again.visible = game.net == null
 	buttons.add_child(again)
 	var menu: Button = Button.new()
 	menu.text = "Main menu"
@@ -594,7 +597,7 @@ func _update_card(sim: Simulation, f: String) -> void:
 			_portrait.t = game.time
 			_portrait.queue_redraw()
 			_name.text = d.name
-			var owner: String = {"player": "Your", "ai": "Enemy", "": "Resource"}[d.faction]
+			var owner: String = "Resource" if d.faction == "" else ("Your" if d.faction == f else "Enemy")
 			_sub.text = owner + (" · last seen" if d.ghost else "")
 			_sub.add_theme_color_override("font_color", Palette.TEAM[d.faction] if d.faction != "" else Palette.resource(d.kind))
 			var is_node: bool = d.faction == ""
@@ -674,6 +677,12 @@ func show_result(result: String, stats: Dictionary) -> void:
 		"draw": ["Draw", Palette.WARN, "Both headquarters fell in the same moment."],
 		"timeout": ["Time's up", Palette.WARN, "The match reached its time limit."],
 	}
+	# Online (D-60) this player may be the red side: victory is relative to it.
+	if game.faction != "player":
+		titles["victory_ai"] = titles["victory_player"]
+		titles["victory_player"] = ["Defeat", Palette.BAD, "Your headquarters was destroyed."]
+	titles["left"] = ["Victory", Palette.GOOD, "The other player left the match."]
+	titles["lost"] = ["Connection lost", Palette.WARN, "The connection to the other player was lost."]
 	if game.demo:
 		titles["victory_player"] = ["Blue wins", Palette.TEAM["player"], "%s beat %s in this recorded match." % [_policy_name("player"), _policy_name("ai")]]
 		titles["victory_ai"] = ["Red wins", Palette.TEAM["ai"], "%s beat %s in this recorded match." % [_policy_name("ai"), _policy_name("player")]]

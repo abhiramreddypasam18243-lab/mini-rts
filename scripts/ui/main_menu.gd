@@ -30,6 +30,14 @@ var _cam: Vector2 = Vector2.ZERO
 var _next_clash: float = 0.0
 var _units: Array[Dictionary] = []
 var _credits: Control
+## Online play (D-60): the panel, its status line, the code box, and the
+## connection while hosting or joining.
+var _online: Control
+var _online_status: Label
+var _online_code: Label
+var _join_edit: LineEdit
+var _online_buttons: Array[Button] = []
+var _net: NetClient = null
 ## A bright band that sweeps across the gold title now and then.
 const SHINE_SHADER: String = """
 shader_type canvas_item;
@@ -130,6 +138,9 @@ func _ready() -> void:
 	# New players start on Easy (D-56).
 	_difficulty = _option_row(box, "Difficulty", DIFFICULTIES, 0)
 
+	var online: Button = _button("Play online  ·  vs a friend", "gold")
+	online.pressed.connect(func() -> void: _online.visible = true)
+	box.add_child(online)
 	var demo: Button = _button("Watch demo", "beige")
 	demo.pressed.connect(func() -> void: start_requested.emit({"mode": "demo"}))
 	box.add_child(demo)
@@ -160,6 +171,9 @@ func _ready() -> void:
 	_credits = _build_credits()
 	_credits.visible = false
 	add_child(_credits)
+	_online = _build_online()
+	_online.visible = false
+	add_child(_online)
 
 
 func _row_label(text: String) -> Label:
@@ -266,6 +280,124 @@ func _build_credits() -> Control:
 	return layer
 
 
+## Online play (D-60): host a match and get a code, or join with a code.
+## The host's map and seed (from the menu) are used for both players.
+func _build_online() -> Control:
+	var layer: ColorRect = ColorRect.new()
+	layer.color = Color(0.05, 0.03, 0.01, 0.75)
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center: CenterContainer = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var panel: PanelContainer = PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(26, 22)))
+	center.add_child(panel)
+	var col: VBoxContainer = VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	col.custom_minimum_size = Vector2(460, 0)
+	panel.add_child(col)
+	var title: Label = UiTheme.label("Play online", 40, "title", Palette.ACCENT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(title)
+	var intro: Label = UiTheme.label("Play against a friend on another computer. One of you hosts and reads out the code; the other joins with it. The host plays Blue, the guest Red, on the host's map.", 16, "regular", Palette.TEXT)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.custom_minimum_size = Vector2(460, 0)
+	col.add_child(intro)
+	var host: Button = _button("Host a match", "gold")
+	host.pressed.connect(_host)
+	col.add_child(host)
+	_online_code = UiTheme.label("", 64, "title", Palette.ACCENT)
+	_online_code.add_theme_font_override("font", UiTheme.spaced("title", 12))
+	_online_code.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_online_code.visible = false
+	col.add_child(_online_code)
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	col.add_child(row)
+	_join_edit = LineEdit.new()
+	_join_edit.placeholder_text = "Code, e.g. K7QM"
+	_join_edit.max_length = 4
+	_join_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_join_edit.add_theme_font_size_override("font_size", 22)
+	_join_edit.text_submitted.connect(func(_t: String) -> void: _join())
+	row.add_child(_join_edit)
+	var join: Button = _button("Join", "beige")
+	join.custom_minimum_size = Vector2(120, 0)
+	join.pressed.connect(_join)
+	row.add_child(join)
+	_online_buttons = [host, join]
+	_online_status = UiTheme.label("", 16, "semibold", Palette.TEXT)
+	_online_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_online_status.custom_minimum_size = Vector2(460, 0)
+	col.add_child(_online_status)
+	var back: Button = _button("Back", "brown")
+	back.pressed.connect(func() -> void:
+		_drop_net()
+		_online_status.text = ""
+		_online_code.visible = false
+		layer.visible = false)
+	col.add_child(back)
+	return layer
+
+
+func _new_net() -> NetClient:
+	_drop_net()
+	_net = NetClient.new()
+	add_child(_net)
+	_net.started.connect(_online_started)
+	_net.failed.connect(_online_failed)
+	_net.open()
+	for b: Button in _online_buttons:
+		b.disabled = true
+	_online_status.add_theme_color_override("font_color", Palette.TEXT)
+	_online_status.text = "Connecting to the game server… (a sleeping server can take up to a minute to wake)"
+	return _net
+
+
+func _drop_net() -> void:
+	if _net != null:
+		_net.leave()
+		_net.queue_free()
+		_net = null
+	for b: Button in _online_buttons:
+		b.disabled = false
+
+
+func _host() -> void:
+	var n: NetClient = _new_net()
+	n.hosted.connect(func(code: String) -> void:
+		_online_code.text = code
+		_online_code.visible = true
+		_online_status.text = "Tell the other player this code. The match starts when they join.")
+	n.host({"map": MAP_STYLES[_map_style.selected][0], "seed": _seed()})
+
+
+func _join() -> void:
+	var code: String = _join_edit.text.strip_edges().to_upper()
+	if code.length() != 4:
+		_online_status.add_theme_color_override("font_color", Palette.BAD)
+		_online_status.text = "Type the 4-letter code the host sees."
+		return
+	_online_code.visible = false
+	_new_net().join(code)
+
+
+func _online_started(you: String, setup: Dictionary) -> void:
+	var n: NetClient = _net
+	_net = null  # handed over to the match
+	n.started.disconnect(_online_started)
+	n.failed.disconnect(_online_failed)
+	start_requested.emit({"mode": "online", "net": n, "you": you,
+		"map": str(setup.get("map", "generated")), "seed": int(setup.get("seed", 1))})
+
+
+func _online_failed(text: String) -> void:
+	_drop_net()
+	_online_code.visible = false
+	_online_status.add_theme_color_override("font_color", Palette.BAD)
+	_online_status.text = text
+
+
 ## The credits, as BBCode.
 static func credits_text() -> String:
 	var t: String = "[b]Units[/b]\n"
@@ -273,7 +405,7 @@ static func credits_text() -> String:
 	t += "Cavalry horse: Farm Animals pack by Quaternius (quaternius.com). CC0. "
 	t += "Rendered in 8 directions with Godot's 3D engine (tools/render_3d.gd).\n\n"
 	t += "[b]Buildings, trees and rocks[/b]\nKenney (kenney.nl): Castle Kit, Fantasy Town Kit, Nature Kit (3D, rendered as sprites). CC0.\n\n"
-	t += "[b]Ground[/b]\nambientCG (ambientcg.com): Grass004, Ground037, Ground054. CC0.\n\n"
+	t += "[b]Ground[/b]\nambientCG (ambientcg.com): Grass007, Ground037, Ground054. CC0.\n\n"
 	t += "[b]Scenery, interface and effects[/b]\n"
 	t += "Kenney (kenney.nl): Medieval RTS, UI Pack: RPG Expansion, Particle Pack. CC0.\n\n"
 	t += "[b]Sound and music[/b]\n"
@@ -505,3 +637,9 @@ class Vignette extends Control:
 
 	func _quad(a: Vector2, b: Vector2, c: Vector2, d: Vector2, dark: Color, clear: Color) -> void:
 		draw_polygon(PackedVector2Array([a, b, c, d]), PackedColorArray([dark, dark, clear, clear]))
+
+
+func _exit_tree() -> void:
+	# A connection still hosting or joining closes with the menu (D-60).
+	if _net != null:
+		_net.leave()

@@ -19,7 +19,7 @@ func _initialize() -> void:
 		printerr("no inline <script> found in ", args[0])
 		quit(1)
 		return
-	var policy: String = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' %s; style-src 'self' %s; img-src 'self' data: blob:; connect-src 'self' blob: data:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'" % [
+	var policy: String = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' %s; style-src 'self' %s; img-src 'self' data: blob:; connect-src 'self' blob: data: wss://mini-rts-relay.onrender.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'" % [
 		" ".join(_hashes(scripts)), " ".join(_hashes(styles))]
 	var f: FileAccess = FileAccess.open(args[1], FileAccess.WRITE)
 	f.store_string("add_header Content-Security-Policy \"%s\" always;\n" % policy)
