@@ -288,3 +288,4 @@ These are deliberate v1 simplifications (SPEC section 2 and the decisions log):
 | [`docs/playtest.md`](docs/playtest.md) | The manual play-test checklist |
 | [`docs/learning-log.md`](docs/learning-log.md) | What was built in each step and why |
 | [`ASSETS.md`](ASSETS.md) | Every asset and third-party component with its licence |
+| [`docs/transcript/`](docs/transcript/) | The whole development conversation with Claude Code, turn by turn ([open the page](https://abhiramreddypasam18243-lab.github.io/mini-rts/transcript.html); rebuilt by `make_transcript.py`) |

@@ -65,6 +65,9 @@ jobs:
           "$GODOT" --headless --export-release "Web" build/web/index.html
           test -f build/web/index.wasm && test -f build/web/index.pck
 
+      - name: Publish the development transcript next to the game
+        run: cp docs/transcript/transcript.html build/web/transcript.html
+
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
