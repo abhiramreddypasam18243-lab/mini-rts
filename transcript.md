@@ -269,7 +269,7 @@ In Mini RTS, Nginx hosts the exported Godot HTML5/WebAssembly game inside a Dock
 
 ---
 
-## 12. Turn 12
+## Turn 12
 
 ### User
 How would you scale the game to hundreds or thousands of units?
@@ -285,7 +285,7 @@ To scale from 80 units to 5,000+ units, we would re-architect the game across 5 
 
 ---
 
-## 13. Turn 13
+## Turn 13
 
 ### User
 other than thse what can be possible questions in viva
