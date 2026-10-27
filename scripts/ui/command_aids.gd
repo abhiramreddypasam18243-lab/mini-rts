@@ -8,11 +8,15 @@
 ##   - attack alerts: at most one "under attack" warning every ALERT_GAP s;
 ##   - D-56: new workers and finished builders start gathering by
 ##     themselves; double-click selects every unit of that kind in view;
-##     Ctrl+A selects every soldier.
+##     Ctrl+A selects every soldier;
+##   - D-59: when something of the player's is hit, idle soldiers nearby
+##     come to help (an attack-move to the fight).
 class_name CommandAids
 extends RefCounted
 
 const ALERT_GAP: float = 8.0
+## Idle soldiers within this many cells of a hit come to help (D-59).
+const HELP_RADIUS: int = 10
 
 
 ## Stores a copy of `ids` as group `n` (1 to 9).
@@ -116,3 +120,36 @@ static func all_soldiers(sim: Simulation, faction: String) -> Array[int]:
 static func should_alert(sim: Simulation, faction: String, event: Dictionary, in_view: bool, now: float, last: float) -> bool:
 	var t: Entity = sim.entity(int(event.get("target", 0)))
 	return t != null and t.faction == faction and not in_view and now - last >= ALERT_GAP
+
+
+## Help for a hit (D-59): when something of `faction`'s is attacked, its idle
+## soldiers within HELP_RADIUS cells of it (squared cell distance, the same
+## measure as vision) attack-move to the fight: to the attacker's cell if it
+## is a unit the faction sees, otherwise to the victim's own cell. Soldiers
+## with an order, the victim itself and workers are left alone. Returns {}
+## when nobody is sent. Only idle soldiers, so a soldier already on its way
+## is not ordered again.
+static func help_command(sim: Simulation, faction: String, event: Dictionary) -> Dictionary:
+	var t: Entity = sim.entity(int(event.get("target", 0)))
+	if t == null or t.faction != faction:
+		return {}
+	var a: Entity = sim.entity(int(event.get("attacker", 0)))
+	var where: Vector2i = t.unit_cell() if t.is_unit() else t.cell + t.size / 2
+	var dest: Vector2i
+	if a != null and a.is_unit() and sim.fog.is_visible(faction, a.unit_cell()):
+		dest = a.unit_cell()
+	elif t.is_unit():
+		dest = where
+	else:
+		return {}
+	var ids: Array[int] = []
+	for id: int in sim.entities:
+		var e: Entity = sim.entities[id]
+		if e.faction != faction or not e.is_soldier() or e.order_type != "idle" or id == t.id:
+			continue
+		var d: Vector2i = e.unit_cell() - where
+		if d.x * d.x + d.y * d.y <= HELP_RADIUS * HELP_RADIUS:
+			ids.append(id)
+	if ids.is_empty():
+		return {}
+	return Commands.attack_move(faction, ids, dest)

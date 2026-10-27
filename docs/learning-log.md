@@ -429,3 +429,18 @@ The ground's grass texture is now ambientCG Grass007 (clover, weeds and twigs) i
 
 **One thing that could go wrong**
 A busier texture can hide small things on the ground, such as pebbles and dropped details, and make a large field look repetitive. The shader samples the texture at two scales and blends them, which hides the tiling.
+
+---
+
+## Soldiers help each other (decision D-59)
+
+**What was built**
+When something of the player's is hit, every idle soldier of the player's within 10 cells attack-moves to the fight. They go to the attacker if the player can see it, otherwise to the unit that was hit.
+
+**Why it is designed this way**
+- *The cause was vision, not a bug in combat.* An idle soldier reacts only to enemies inside its own 6-cell vision. An archer shoots from 5 cells, so a teammate standing a few cells away often never saw the attacker and stood still.
+- *It is a player-side helper, like auto-gather.* `CommandAids.help_command` reads the hit event and builds one ordinary attack-move command. The simulation's rules do not change, so the AI, the replays and the experiment are unaffected.
+- *Only idle soldiers are sent.* A soldier the player has given an order keeps it. Once the helpers are on their way they are no longer idle, so the next hit does not order them again.
+
+**One thing that could go wrong**
+A weak unit hit far from the main army can pull nearby idle soldiers into a bad fight, for example into range of an enemy tower. The 10-cell radius keeps this local, and the player can always give new orders.

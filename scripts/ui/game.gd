@@ -326,6 +326,10 @@ func _consume(events: Array[Dictionary]) -> void:
 				var a: Entity = sim.entity(ev.attacker)
 				var t: Entity = sim.entity(ev.target)
 				if t != null and not demo and not spectate:
+					# Idle soldiers nearby come to help (D-59).
+					var help: Dictionary = CommandAids.help_command(sim, faction, ev)
+					if not help.is_empty():
+						issue(help, true)
 					var where: Vector2 = draw_pos(t) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
 					if CommandAids.should_alert(sim, faction, ev, view_rect().has_point(where), time, _last_alert):
 						_last_alert = time

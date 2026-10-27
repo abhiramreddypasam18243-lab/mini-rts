@@ -127,6 +127,8 @@ godot --rendering-driver opengl3 --script res://tools/make_icon.gd -- assets/ico
 | `F`, then click (or the Attack-move button) | Attack-move: the selected soldiers walk there and fight any enemy they meet on the way |
 | Hold `Shift` while ordering | Queue the order after the current ones (for example Shift-click three points to walk a route); a normal order clears the queue |
 
+Your soldiers also help each other without being told: when one of your units or buildings is hit, your idle soldiers within 10 cells run to the fight (D-59). Soldiers you have given an order keep it.
+
 Disabled buttons show the reason on hover (for example *Need 60 wood · 20 gold*). Messages fade after 3 seconds.
 
 ## How it is built
