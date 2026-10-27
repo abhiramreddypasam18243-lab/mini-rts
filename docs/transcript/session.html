@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini RTS — Session Transcript & Viva Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c1017;
+      --card-bg: #141a24;
+      --user-bg: #182234;
+      --border: #232c3d;
+      --border-focus: #3d4f6d;
+      --text: #e2e8f0;
+      --text-muted: #8e9db3;
+      --gold: #d4a359;
+      --gold-soft: rgba(212, 163, 89, 0.15);
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.12);
+      --code-bg: #090d14;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --user-bg: #f0f6ff;
+      --border: #e2e8f0;
+      --border-focus: #94a3b8;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --gold: #b47828;
+      --gold-soft: rgba(180, 120, 40, 0.12);
+      --accent: #0284c7;
+      --accent-soft: rgba(2, 132, 199, 0.1);
+      --code-bg: #f1f5f9;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Sticky Navigation Bar */
+    header.site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      padding: 12px 20px;
+    }
+    .header-inner {
+      max-width: 1040px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 20px;
+      letter-spacing: 0.05em;
+      color: var(--gold);
+    }
+    .status-tag {
+      display: inline-block;
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: var(--text);
+    }
+    .btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+    .btn-primary {
+      background: var(--gold);
+      color: #0c1017;
+      border-color: var(--gold);
+    }
+    .btn-primary:hover {
+      background: #e5b369;
+      color: #0c1017;
+    }
+
+    /* Search & Filter */
+    .search-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .search-input {
+      flex: 1;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Turn Pills */
+    .nav-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 48px;
+      overflow-y: auto;
+      padding-top: 4px;
+    }
+    .turn-pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 6px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .turn-pill:hover {
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+
+    /* Content Container */
+    main.container {
+      max-width: 1040px;
+      margin: 24px auto 80px;
+      padding: 0 16px;
+    }
+
+    /* Turn Cards */
+    .turn-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      scroll-margin-top: 140px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      transition: border-color 0.2s;
+    }
+    .turn-card:hover {
+      border-color: var(--border-focus);
+    }
+    .turn-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 18px;
+      background: rgba(0, 0, 0, 0.15);
+      border-bottom: 1px solid var(--border);
+    }
+    .turn-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .turn-badge {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--gold);
+      background: var(--gold-soft);
+      padding: 2px 10px;
+      border-radius: 6px;
+    }
+    .turn-anchor {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .turn-anchor:hover {
+      color: var(--gold);
+    }
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .copy-btn:hover {
+      color: var(--text);
+      border-color: var(--border-focus);
+    }
+
+    /* Turn Sections */
+    .turn-section {
+      padding: 18px 20px;
+    }
+    .user-section {
+      background: var(--user-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .speaker-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .user-section .speaker-label {
+      color: var(--accent);
+    }
+
+    /* Markdown Styling */
+    .section-content h2,
+    .section-content h3,
+    .section-content h4 {
+      margin: 18px 0 8px;
+      color: var(--gold);
+    }
+    .section-content h3 { font-size: 17px; }
+    .section-content h4 { font-size: 15px; color: var(--text); }
+    .section-content p {
+      margin-bottom: 12px;
+    }
+    .section-content ul,
+    .section-content ol {
+      margin: 8px 0 14px 24px;
+    }
+    .section-content li {
+      margin-bottom: 6px;
+    }
+    .section-content code {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 5px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .section-content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin: 14px 0;
+      font-size: 13.5px;
+    }
+    .section-content pre code {
+      background: none;
+      padding: 0;
+      border: none;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      margin: 16px 0;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: rgba(0, 0, 0, 0.2);
+      color: var(--gold);
+      font-weight: 600;
+    }
+    blockquote {
+      border-left: 3px solid var(--gold);
+      background: var(--gold-soft);
+      padding: 10px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 14px 0;
+      color: var(--text);
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Hidden cards during search */
+    .turn-card.is-hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 768px) {
+      .site-header { padding: 10px 14px; }
+      .brand h1 { font-size: 17px; }
+      .turn-section { padding: 14px 14px; }
+      .nav-pills { max-height: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-top">
+        <div class="brand">
+          <h1>MINI RTS</h1>
+          <span class="status-tag">252/252 Tests Passing</span>
+        </div>
+        <div class="header-actions">
+          <button class="btn" onclick="toggleTheme()" id="theme-btn">☀️ Light</button>
+          <a href="https://abhiramreddypasam18243-lab.github.io/mini-rts/" class="btn btn-primary" target="_blank">🎮 Play Game</a>
+          <a href="https://github.com/abhiramreddypasam18243-lab/mini-rts" class="btn" target="_blank">GitHub Repo ↗</a>
+        </div>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="search-input" class="search-input" placeholder="Search questions, A*, FSM, Nginx, seeding, combat..." oninput="filterTurns()">
+      </div>
+      <div class="nav-pills">
+        <a href="#turn-1" class="turn-pill" title="Jump to Turn 1">Turn 1</a>
+<a href="#turn-2" class="turn-pill" title="Jump to Turn 2">Turn 2</a>
+<a href="#turn-3" class="turn-pill" title="Jump to Turn 3">Turn 3</a>
+<a href="#turn-4" class="turn-pill" title="Jump to Turn 4">Turn 4</a>
+<a href="#turn-5" class="turn-pill" title="Jump to Turn 5">Turn 5</a>
+<a href="#turn-6" class="turn-pill" title="Jump to Turn 6">Turn 6</a>
+<a href="#turn-7" class="turn-pill" title="Jump to Turn 7">Turn 7</a>
+<a href="#turn-8" class="turn-pill" title="Jump to Turn 8">Turn 8</a>
+<a href="#turn-9" class="turn-pill" title="Jump to Turn 9">Turn 9</a>
+<a href="#turn-10" class="turn-pill" title="Jump to Turn 10">Turn 10</a>
+<a href="#turn-11" class="turn-pill" title="Jump to Turn 11">Turn 11</a>
+<a href="#turn-12" class="turn-pill" title="Jump to Turn 12">Turn 12</a>
+<a href="#turn-13" class="turn-pill" title="Jump to Turn 13">Turn 13</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    
+        <article class="turn-card" id="turn-1" data-turn="1">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 1</span>
+              <a href="#turn-1" class="turn-anchor" aria-label="Direct link to Turn 1">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(1)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>once completely go through this project</p>
+<h3>Assistant</h3>
+<p>I have inspected the environment, verified the workspace, and executed the automated test suite headless via Godot 4.7.2 and GUT 9.6.1 in WSL:</p>
+<ul>
+<li><strong>Test Scripts:</strong> 30</li>
+<li><strong>Total Tests:</strong> 252 (covering AC-01 to AC-109)</li>
+<li><strong>Passing Tests:</strong> 252 (100% pass rate)</li>
+<li><strong>Total Assertions Verified:</strong> 29,188</li>
+<li><strong>Working Tree:</strong> Clean (all commits tracked, no untracked diffs)</li>
+</ul>
+<h3>Architecture Summary (Two-Layer Pattern)</h3>
+<p>The codebase strictly separates the deterministic mathematical simulation from visual presentation:</p>
+<ol>
+<li><strong>Simulation Core (<code>scripts/sim/</code>):</strong> Extends <code>RefCounted</code> only (no Nodes, no SceneTree, no Godot clock, no <code>randi()</code> / <code>randf()</code>). Operates in discrete ticks at 20 Hz. Positions are stored as integer milli-cells (1,000 milli-cells = 1 grid cell), distances are compared as squared integers, and time is measured in ticks. Deterministic PRNG via a custom Linear Congruential Generator (<code>SimRng</code>) and custom 64-bit FNV-1a hashing (<code>StateHasher</code>).</li>
+<li><strong>Presentation Layer (<code>scripts/ui/</code>, <code>scenes/</code>):</strong> Inherits Godot UI and 2D nodes. Converts real delta time into integer ticks using <code>TickClock</code>. Interpolates entity positions between simulation ticks using <code>TickClock.fraction()</code> for 60+ FPS visuals. Never mutates simulation state directly; communicates strictly via <code>sim.submit(command)</code>.</li>
+</ol>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-2" data-turn="2">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 2</span>
+              <a href="#turn-2" class="turn-anchor" aria-label="Direct link to Turn 2">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(2)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>once explain me this project</p>
+<h3>Assistant</h3>
+<p>Here is a clear, viva-ready walkthrough of <strong>Mini RTS</strong>: what it is, how it works under the hood, why it was designed this way, and the core concepts you need to know.</p>
+<h3>1. The 30-Second Pitch</h3>
+<p><strong>Mini RTS</strong> is a deterministic, real-time strategy game built in <strong>Godot 4.7.2</strong> (GDScript). You command workers to gather resources (wood, gold, food), construct buildings (barracks, farms, guard towers, stables), train an army (swordsmen, archers, cavalry), research upgrades (forging, armour), scout through fog of war, and destroy the enemy Headquarters (HQ).</p>
+<p>Beyond being a playable game, it is an <strong>algorithmic testbed</strong>:</p>
+<ul>
+<li>The game rules are completely decoupled from graphics in a <strong>pure deterministic mathematical simulation</strong>.</li>
+<li>It runs automated matches <strong>200× faster than real-time</strong> without a display.</li>
+<li>It includes a documented <strong>800-match academic experiment</strong> comparing AI policies using statistical confidence intervals.</li>
+</ul>
+<h3>2. The Core Architecture: The Two-Layer Pattern</h3>
+<ul>
+<li><strong>Simulation Core (<code>scripts/sim/</code>):</strong> Pure RefCounted classes, 20 ticks/sec, integer math only (milli-cells, ticks, squared distances), seeded <code>SimRng</code>, FNV-1a state hashing, invariant checks.</li>
+<li><strong>Presentation (<code>scripts/ui/</code>):</strong> Godot Nodes, floating-point drawing, camera math, interpolation smoothing, input handling.</li>
+</ul>
+<h3>3. Key Algorithms &amp; Systems</h3>
+<ul>
+<li><strong>A\* Pathfinding (<code>pathfinder.gd</code>):</strong> 4-way orthogonal grid using Manhattan distance heuristic (admissible and consistent). Binary min-heap packing $(f, h, \text{seq})$ into a single 64-bit integer for single-comparison ordering and deterministic tie-breaking.</li>
+<li><strong>Resource Manager &amp; Conservation (<code>resource_manager.gd</code>, <code>invariants.gd</code>):</strong> Atomic spend checks; invariant equations verify every tick that resources in stockpiles, nodes, worker carry, and lost items strictly balance.</li>
+<li><strong>Fog of War (<code>fog.gd</code>):</strong> Rows stored as 64-bit integer bitmasks. Recomputed every 5 ticks. Memory ghosts track buildings outside vision until scouted.</li>
+<li><strong>Enemy AI &amp; Firewall (<code>enemy_ai.gd</code>, <code>observation.gd</code>):</strong> FSM evaluating states in priority: DEFEND, RECOVER, ATTACK, BUILD, ECONOMY. Observation firewall guarantees the AI cannot cheat through fog.</li>
+<li><strong>Two-Pass Combat (<code>simulation.gd</code>):</strong> Simultaneous calculation of attackers followed by damage application in ID order, preventing lower ID bias.</li>
+</ul>
+<h3>4. Scientific Experiment</h3>
+<p>800 headless matches showed: Aggressive won 86.4% vs Balanced, Balanced won 70.9% vs EconomyFirst, and Aggressive won 95.9% vs EconomyFirst. On small maps, early rushing beats economic booming.</p>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-3" data-turn="3">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 3</span>
+              <a href="#turn-3" class="turn-anchor" aria-label="Direct link to Turn 3">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(3)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>what are sources from whuich data is taken</p>
+<h3>Assistant</h3>
+<p>All data, assets, and rules come from well-documented, openly licensed sources, strictly allowlisted in <code>ASSETS.md</code> and verified by automated CI tests (<code>test_assets.gd</code>):</p>
+<ol>
+<li><strong>Game Rules, Specifications &amp; Balance Data:</strong></li>
+</ol>
+<ul>
+<li><strong>Project Guide:</strong> <code>docs/Mini_Real_Time_Strategy_Game_Project_Guide.docx</code> codified into <code>SPEC.md</code>.</li>
+<li><strong>Unit &amp; Building Stats:</strong> <code>data/units.json</code> defining costs, HP, speed, vision, damage, range, cooldown, build times, footprints.</li>
+<li><strong>Maps:</strong> <code>data/maps/tutorial.json</code> and algorithmic procedural generation (<code>map_generator.gd</code>).</li>
+<li><strong>Replay Data:</strong> <code>data/replays/demo.replay.jsonl</code>.</li>
+</ul>
+<ol>
+<li><strong>Visual &amp; Audio Assets (<code>assets/</code>):</strong></li>
+</ol>
+<ul>
+<li><strong>3D Character Models:</strong> KayKit Adventurers 1.0 (Barbarian, Knight, Rogue) by Kay Lousberg (CC0 1.0).</li>
+<li><strong>Cavalry Horse:</strong> Lowpoly Animated Farm Animals by Quaternius (CC0 1.0).</li>
+<li><strong>Pre-rendered Sprites:</strong> Rendered into 8 directions with soft shadows via <code>tools/render_3d.gd</code>.</li>
+<li><strong>Buildings &amp; Props:</strong> Kenney 3D Castle Kit, Fantasy Town Kit, Nature Kit (CC0 1.0).</li>
+<li><strong>Terrain Textures:</strong> ambientCG PBR maps (Ground054, Grass004, Ground037) (CC0 1.0).</li>
+<li><strong>UI &amp; Particles:</strong> Kenney UI Pack: RPG Expansion &amp; Particle Pack 1.1 (CC0 1.0).</li>
+<li><strong>Audio &amp; Music:</strong> Kenney Impact, RPG, and Interface Sounds; Music by cynicmusic (&quot;Town Theme RPG&quot;, &quot;Battle Theme A&quot;) (CC0 1.0).</li>
+<li><strong>Fonts:</strong> Cinzel and Alegreya Sans (SIL Open Font License 1.1).</li>
+</ul>
+<ol>
+<li><strong>Experimental Research Data (<code>docs/experiment/</code>):</strong></li>
+</ol>
+<ul>
+<li>800 automated headless simulations across 100 seeds generated by <code>tools/run_matches.gd</code> and analyzed via <code>tools/analyze.gd</code>.</li>
+</ul>
+<ol>
+<li><strong>Software &amp; Dependencies:</strong></li>
+</ol>
+<ul>
+<li>Godot Engine 4.7.2-stable (MIT), GUT 9.6.1 (MIT), Nginx unprivileged container (BSD-2-Clause).</li>
+</ul>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-4" data-turn="4">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 4</span>
+              <a href="#turn-4" class="turn-anchor" aria-label="Direct link to Turn 4">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(4)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>how does this project works</p>
+<h3>Assistant</h3>
+<p>A detailed walkthrough of the game&#x27;s execution lifecycle:</p>
+<ol>
+<li><strong>Initialization:</strong> <code>MainMenu</code> instantiates <code>Game.gd</code>, which constructs <code>Simulation.gd</code>. The map is generated or loaded, starter HQs, workers, and resource nodes are placed, and fog of war is initialized.</li>
+<li><strong>The 20 Hz Heartbeat (<code>TickClock</code>):</strong> In <code>_process(delta)</code>, <code>TickClock.advance(delta)</code> counts microseconds and calculates the integer simulation ticks due. For each tick due, the AI decides (every 10 ticks) and <code>sim.step()</code> runs.</li>
+<li><strong>Inside <code>sim.step()</code>:</strong></li>
+</ol>
+<ul>
+<li>Re-plans blocked paths if terrain changed.</li>
+<li>Executes queued orders and resumes interrupted attack-moves.</li>
+<li>Auto-acquires visible enemies for idle soldiers.</li>
+<li>Resolves two-pass simultaneous combat.</li>
+<li>Ticks units in ID order (movement, harvesting, building, attacking, cavalry charge).</li>
+<li>Resolves unit spacing (<code>step_aside()</code>) every 2 ticks.</li>
+<li>Progresses building construction, countdown queues, and spawns units.</li>
+<li>Removes dead entities and cleans references.</li>
+<li>Checks victory/defeat/timeout conditions.</li>
+<li>Updates fog of war every 5 ticks.</li>
+</ul>
+<ol>
+<li><strong>Input Pipeline:</strong> Mouse click $\to$ Screen-to-world conversion $\to$ Context mapping in <code>Selection.gd</code> $\to$ Command construction in <code>Commands.gd</code> $\to$ <code>sim.submit()</code> $\to$ Simulation validation $\to$ State mutation.</li>
+<li><strong>Smooth 60+ FPS Visuals:</strong> Units are rendered at interpolated positions between the last tick and the current tick using <code>TickClock.fraction()</code> via linear interpolation (<code>lerp</code>).</li>
+</ol>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-5" data-turn="5">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 5</span>
+              <a href="#turn-5" class="turn-anchor" aria-label="Direct link to Turn 5">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(5)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>how the enemy works</p>
+<h3>Assistant</h3>
+<p>The enemy AI in <code>scripts/sim/ai/enemy_ai.gd</code> is a rule-based Finite State Machine (FSM) acting on an isolated <code>Observation</code> every 10 ticks (0.5 s):</p>
+<ol>
+<li><strong>State Machine Hierarchy (Priority Order):</strong></li>
+</ol>
+<ul>
+<li><strong>DEFEND:</strong> Visible enemy soldier near base ($\le 8$ cells from HQ, $\le 6$ from buildings).</li>
+<li><strong>DEFEND Hold:</strong> Remains in DEFEND until 100 ticks pass without threat.</li>
+<li><strong>RECOVER:</strong> In ATTACK, but army dropped below retreat threshold ($&lt;40\%$) or enemy base lost.</li>
+<li><strong>ATTACK:</strong> Army size $\ge$ threshold (e.g. 6 in Balanced, 3 in Aggressive) and enemy building known.</li>
+<li><strong>BUILD:</strong> No barracks yet, worker count met, and barracks affordable.</li>
+<li><strong>ECONOMY:</strong> Default gathering and expansion.</li>
+</ul>
+<ol>
+<li><strong>Underlying Subroutines:</strong></li>
+</ol>
+<ul>
+<li>Farms built when food runs low (1 per 5 workers); 2 workers assigned per farm.</li>
+<li>Remaining workers balanced ~2:1 on wood vs gold.</li>
+<li>Mirror-symmetric building placement via flipped Chebyshev search (<code>_find_site</code>).</li>
+<li>One soldier detached to scout until an enemy building is found.</li>
+<li>Researches Forging (+2 damage) and Armour (-2 damage taken) once it has 3 soldiers.</li>
+</ul>
+<ol>
+<li><strong>Tactics &amp; Difficulty:</strong></li>
+</ol>
+<ul>
+<li>*Normal:* Attacks nearest enemy.</li>
+<li>*Hard:* Focuses fire on the lowest HP enemy in reach, retreats wounded soldiers below 30% HP, raids workers with cavalry, and builds 2 guard towers.</li>
+</ul>
+<ol>
+<li><strong>The Observation Firewall:</strong></li>
+</ol>
+<ul>
+<li>AI receives only an <code>Observation</code> snapshot of visible units and ghosts.</li>
+<li><code>Simulation.submit_observed()</code> checks every command; targeting hidden entities is rejected and logged. In 100 test matches, firewall violations were strictly 0.</li>
+</ul>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-6" data-turn="6">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 6</span>
+              <a href="#turn-6" class="turn-anchor" aria-label="Direct link to Turn 6">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(6)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>what is seeding and how does it work</p>
+<h3>Assistant</h3>
+<p><strong>Seeding</strong> is the technique of giving a single starting integer (the <strong>seed</strong>) to a Pseudo-Random Number Generator (PRNG) so it produces a predictable, 100% repeatable sequence of numbers.</p>
+<ol>
+<li><strong>Why Seeding is Critical in Mini RTS:</strong></li>
+</ol>
+<ul>
+<li><strong>Procedural Map Generation:</strong> A single seed number generates the exact same forest, rock, and gold mine distribution on any machine or browser.</li>
+<li><strong>Deterministic Replay System:</strong> Matches are recorded as small <code>.jsonl</code> command logs containing only the match seed and timed input clicks. Replaying from the same seed reconstructs the identical match tick-by-tick.</li>
+<li><strong>Fair AI Benchmarking:</strong> Matches are played twice per seed, swapping start positions to eliminate positional bias.</li>
+</ul>
+<ol>
+<li><strong>Mathematical Implementation (<code>sim_rng.gd</code>):</strong></li>
+</ol>
+<ul>
+<li><strong>Seed Scrambling (<code>mix32</code>):</strong> Applies a bit-shift hash so neighboring seeds (e.g., 1 and 2) diverge completely on the first roll:</li>
+</ul>
+<p>     $$v = (v \oplus (v \gg 16)) \times \text{0x45d9f3b} \pmod{2^{32}}$$</p>
+<ul>
+<li><strong>Linear Congruential Generator (LCG):</strong></li>
+</ul>
+<p>     $$\text{state}_{\text{next}} = (\text{state} \times 1{,}664{,}525 + 1{,}013{,}904{,}223) \pmod{2^{32}}$$</p>
+<ul>
+<li><strong>Upper-16-Bit Extraction (<code>&gt;&gt; 16</code>):</strong> The lower bits of an LCG repeat in short cycles. The generator discards the bottom 16 bits and keeps only the high 16 bits for maximum randomness.</li>
+</ul>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-7" data-turn="7">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 7</span>
+              <a href="#turn-7" class="turn-anchor" aria-label="Direct link to Turn 7">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(7)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>how are the fighting scenes created</p>
+<h3>Assistant</h3>
+<p>Fighting scenes are created by bridging <strong>deterministic simulation mechanics</strong> with <strong>rich visual and audio choreography</strong>:</p>
+<ol>
+<li><strong>Deterministic Simulation Core:</strong></li>
+</ol>
+<ul>
+<li>Range checking uses squared integer distance ($dx^2 + dy^2 \le \text{range}^2$).</li>
+<li>Cooldowns: Swordsmen (20 ticks / 1.0 s), Archers (24 ticks / 1.2 s), Guard Towers (30 ticks / 1.5 s).</li>
+<li>Two-pass simultaneous damage calculation avoids lower ID bias.</li>
+<li><strong>Cavalry Charge:</strong> Galloping $\ge 3$ cells deals double damage ($2 \times 9 = 18$) on the first strike.</li>
+</ul>
+<ol>
+<li><strong>Visual Choreography (<code>world_layer.gd</code>):</strong></li>
+</ol>
+<ul>
+<li>8-directional pre-rendered KayKit 3D character sprites with animation states (Idle, Walk, Slash, Shoot, Hurt).</li>
+<li><strong>Micro-Separation:</strong> Units close together push apart slightly on screen so battles form clear fighting lines instead of overlapping blobs.</li>
+<li><strong>Physical Lunges &amp; Knock-backs:</strong> Attackers lunge forward 0.42 s; targets stagger backward when taking damage.</li>
+<li><strong>Parabolic Arrows:</strong> Fired arrows curve along quadratic bezier arcs.</li>
+</ul>
+<ol>
+<li><strong>FX, Particles &amp; Audio (<code>effects.gd</code>, <code>sound.gd</code>):</strong></li>
+</ol>
+<ul>
+<li>Kenney particle bursts for metal sparks, sword slashes, and dirt impacts.</li>
+<li>Galloping cavalry raise dust clouds and show floating &quot;Charge!&quot; text.</li>
+<li>Camera micro-jolts on kills.</li>
+<li>Dynamic music transitions from acoustic &quot;Town Theme&quot; to orchestral &quot;Battle Theme A&quot;.</li>
+</ul>
+<ol>
+<li><strong>Cinematic Cameras &amp; Summaries (<code>battle_tracker.gd</code>):</strong></li>
+</ol>
+<ul>
+<li>Clusters combat within 8 cells into ongoing battles.</li>
+<li>Generates tactical summaries after skirmishes (*&quot;Battle won: 4 enemies killed, 1 of yours lost&quot;*).</li>
+<li><strong>Battle Camera (<code>K</code>):</strong> Drifts to the biggest fight when the player leaves the camera idle for 5 seconds.</li>
+<li>Slow-motion HQ collapse when the final blow lands on a base.</li>
+</ul>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-8" data-turn="8">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 8</span>
+              <a href="#turn-8" class="turn-anchor" aria-label="Direct link to Turn 8">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(8)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>What is A pathfinding?*</p>
+<h3>Assistant</h3>
+<p><strong>A\</strong>* is an optimal pathfinding algorithm that finds the shortest path between two points on a grid while avoiding obstacles.</p>
+<ol>
+<li><strong>The Core Formula:</strong></li>
+</ol>
+<p>   $$f(n) = g(n) + h(n)$$</p>
+<ul>
+<li><strong>$g(n)$ (Past Cost):</strong> Exact steps taken from the start to cell $n$.</li>
+<li><strong>$h(n)$ (Heuristic Guess):</strong> Estimated remaining distance from cell $n$ to the goal.</li>
+<li><strong>$f(n)$ (Total Estimated Cost):</strong> Total projected path length through cell $n$.</li>
+</ul>
+<ol>
+<li><strong>Admissibility &amp; Consistency:</strong></li>
+</ol>
+<ul>
+<li>For A\* to guarantee the shortest path, $h(n)$ must be <strong>admissible</strong> (never overestimate true distance) and <strong>consistent</strong> (satisfies triangle inequality).</li>
+</ul>
+<ol>
+<li><strong>Implementation in Mini RTS (<code>pathfinder.gd</code>):</strong></li>
+</ol>
+<ul>
+<li><strong>Manhattan Distance ($|dx| + |dy|$):</strong> On a 4-directional grid where diagonal moves are illegal, Manhattan distance represents the exact minimum step count on an open grid.</li>
+<li><strong>Worked Example (AC-13):</strong> On a $10 \times 10$ grid with a wall at $x=5$ and a gap at $y=9$, navigating from $(0, 0)$ to $(9, 0)$ takes exactly 27 steps (9 down, 9 right, 9 up).</li>
+<li><strong>64-Bit Binary Min-Heap:</strong> Packs $(f, h, \text{seq})$ into a single integer key for deterministic tie-breaking and sub-2 ms execution.</li>
+</ul>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-9" data-turn="9">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 9</span>
+              <a href="#turn-9" class="turn-anchor" aria-label="Direct link to Turn 9">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(9)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>Whyand where did you use a binary heap</p>
+<h3>Assistant</h3>
+<ol>
+<li><strong>WHERE:</strong> Inside <code>scripts/sim/pathfinder.gd</code> (lines 51–86), as the <strong>Open Set (Priority Queue)</strong> for A\* pathfinding.</li>
+<li><strong>WHY:</strong></li>
+</ol>
+<ul>
+<li><strong>$O(\log N)$ vs $O(N)$ Complexity:</strong> Finding the minimum $f$-score in a basic array requires scanning every element ($O(N)$). A binary min-heap retrieves the minimum at index 0 in $O(1)$ and extracts/inserts in $O(\log N)$.</li>
+<li><strong>Contiguous Flat Arrays:</strong> Stored in flat parallel arrays (<code>PackedInt64Array</code> keys, <code>PackedInt32Array</code> cells) using index math ($2i+1$, $2i+2$). This maximizes CPU cache locality and avoids object pointer overhead.</li>
+<li><strong>Deterministic 3-Tier Sorting:</strong> Keys pack <code>(f &lt;&lt; 42) | (h &lt;&lt; 26) | seq</code> into a 64-bit integer, resolving primary cost, heuristic tie-breaking, and FIFO order in a single integer comparison.</li>
+<li><strong>Lazy Deletion:</strong> When a shorter route to a cell is found, a new key is pushed; old keys are discarded in $O(1)$ when popped if <code>closed[ci] == 1</code>.</li>
+</ul>
+<ol>
+<li><strong>Measured Result:</strong> A 1,175-step serpentine maze is solved in <strong>1.0 to 2.0 ms</strong>, well within the 5 ms performance budget.</li>
+</ol>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-10" data-turn="10">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 10</span>
+              <a href="#turn-10" class="turn-anchor" aria-label="Direct link to Turn 10">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(10)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>What happens when no path exist</p>
+<h3>Assistant</h3>
+<ol>
+<li><strong>Algorithm Level (<code>pathfinder.gd</code>):</strong></li>
+</ol>
+<ul>
+<li><strong>Never returns a partial path (AC-14):</strong> Returns an empty array <code>[]</code>.</li>
+<li><strong>Immediate Early Exit:</strong> If start or goal is blocked or out of bounds, returns immediately with 0 cells expanded.</li>
+</ul>
+<ol>
+<li><strong>Unit &amp; Simulation Level (<code>simulation.gd</code>):</strong></li>
+</ol>
+<ul>
+<li><strong>Move Orders:</strong> The unit remains in place, is set to <code>Idle</code>, emits exactly <strong>one</strong> <code>&quot;no_path&quot;</code> HUD notification message (AC-28), and returns <code>&quot;no_path&quot;</code>.</li>
+<li><strong>Dynamic Obstruction (AC-19):</strong> If a building is placed across a moving unit&#x27;s path, the unit attempts to re-plan. If completely blocked, it stops, idles, and raises one <code>&quot;no_path&quot;</code> message.</li>
+<li><strong>Construction Orders:</strong> If a worker cannot path to a designated construction site, the build command is rejected with <code>&quot;no_path_to_site&quot;</code>, and <strong>zero resources are deducted</strong>.</li>
+</ul>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-11" data-turn="11">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 11</span>
+              <a href="#turn-11" class="turn-anchor" aria-label="Direct link to Turn 11">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(11)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>What is Nginx</p>
+<h3>Assistant</h3>
+<p><strong>Nginx</strong> is a high-performance, lightweight web server and reverse proxy.</p>
+<p>In Mini RTS, Nginx hosts the exported Godot HTML5/WebAssembly game inside a Docker container (<code>docker compose up -d</code>) on port 8080:</p>
+<ol>
+<li><strong>WebAssembly MIME Type:</strong> Maps <code>.wasm</code> to <code>Content-Type: application/wasm</code> so browsers compile and execute the engine at native speed.</li>
+<li><strong>Gzip Compression (AC-83):</strong> Compresses <code>.wasm</code> and <code>.pck</code> files from ~20 MB down to <strong>~10 MB</strong>, enabling 2-second load times.</li>
+<li><strong>Hardened Security &amp; CSP (AC-82):</strong> Enforces a strict same-origin Content Security Policy with SHA-256 hashes generated during build time for inline scripts, banning unsafe inline execution.</li>
+<li><strong>Health Monitoring (<code>/healthz</code>):</strong> Exposes an endpoint polled every 15 s by Docker for automatic crash recovery (AC-80).</li>
+<li><strong>Unprivileged Execution:</strong> Runs inside Alpine Linux as non-root user ID 101.</li>
+</ol>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-12" data-turn="12">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 12</span>
+              <a href="#turn-12" class="turn-anchor" aria-label="Direct link to Turn 12">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(12)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>How would you scale the game to hundreds or thousands of units?</p>
+<h3>Assistant</h3>
+<p>To scale from 80 units to 5,000+ units, we would re-architect the game across 5 pillars:</p>
+<ol>
+<li><strong>Pathfinding $\to$ Flow Fields (Vector Fields):</strong> Run a single reverse Dijkstra search from the target cell once; all units in the group read the local directional vector in $O(1)$ time, eliminating individual A\* spikes.</li>
+<li><strong>Spatial Partitioning $\to$ Spatial Hash Grid:</strong> Partition the map into bucket grids, reducing collision, range, and target acquisition checks from $O(N^2)$ to $O(N)$ linear time.</li>
+<li><strong>Simulation Core $\to$ C++ / Rust ECS (GDExtension):</strong> Replace GDScript <code>RefCounted</code> objects with Data-Oriented Design (Struct of Arrays) in C++, utilizing SIMD vector registers and contiguous CPU cache lines.</li>
+<li><strong>Local Avoidance $\to$ ORCA / RVO2:</strong> Implement Optimal Reciprocal Collision Avoidance for continuous velocity-obstacle steering, letting massive armies flow through chokepoints without gridlock.</li>
+<li><strong>Rendering $\to$ GPU Instancing (<code>MultiMeshInstance2D</code>):</strong> Issue a single GPU draw call per unit type using a shared sprite atlas texture, combined with viewport frustum culling and Level of Detail (LOD) downscaling.</li>
+</ol>
+<p>---</p></div>
+          </div>
+        </article>
+        
+
+        <article class="turn-card" id="turn-13" data-turn="13">
+          <header class="turn-header">
+            <div class="turn-title-wrap">
+              <span class="turn-badge">Turn 13</span>
+              <a href="#turn-13" class="turn-anchor" aria-label="Direct link to Turn 13">#</a>
+            </div>
+            <button class="copy-btn" onclick="copyTurn(13)" title="Copy turn link">Copy link</button>
+          </header>
+          
+          <div class="turn-section user-section">
+            <div class="speaker-label">User Prompt</div>
+            <div class="section-content"></div>
+          </div>
+          
+          <div class="turn-section assistant-section">
+            <div class="speaker-label">Assistant Response</div>
+            <div class="section-content"><h3>User</h3>
+<p>other than thse what can be possible questions in viva</p>
+<h3>Assistant</h3>
+<p>Top 11 high-probability viva defense questions and concise answers:</p>
+<ol>
+<li><strong>Determinism &amp; Desync:</strong> A simulation is deterministic when identical seeds and inputs produce identical states. Prevented by integer milli-cells, fixed 20 Hz ticks, seeded <code>SimRng</code>, and sorting entity iteration by ID.</li>
+<li><strong>Lockstep Multiplayer:</strong> Transmit only timestamped player input commands rather than unit coordinates, relying on identical local simulation ticks.</li>
+<li><strong>Procedural Map Fairness:</strong> Point-symmetry ($(x, y) \to (47-x, 47-y)$) combined with automated BFS verifying connected HQs and symmetric starting resource nodes.</li>
+<li><strong>Building Anchor Mirroring Bug (D-22):</strong> Mirroring a $3 \times 3$ HQ&#x27;s top-left anchor to $(47-x, 47-y)$ is wrong because the top-left mirrors to the bottom-right; the correct formula is $(45-x, 45-y)$.</li>
+<li><strong>64-Bit Bitmask Fog Optimization:</strong> Storing rows as 64-bit integers allows line-of-sight marking via bitwise OR, dropping update time from 4.1 ms to 0.8 ms ($5\times$ speedup).</li>
+<li><strong>Building Ghosts:</strong> Memory snapshots of buildings that persist until directly scouted, preventing hidden information leaks.</li>
+<li><strong>Invariant Checker vs. Unit Tests:</strong> Unit tests check individual input/output cases; invariant checkers run after every tick in randomized fuzz runs to verify conservation laws and spatial rules.</li>
+<li><strong>Metamorphic Testing:</strong> Verified that moving hidden player units behind fog does not alter AI command output, proving zero observation leakage.</li>
+<li><strong>Wilson Score Interval vs. Wald:</strong> Inverts the score test to stay bounded in $[0, 1]$ and handle extreme 0% or 100% win rates accurately.</li>
+<li><strong>800-Match Balance Conclusion:</strong> Aggressive beat Balanced (86.4%) and Balanced beat EconomyFirst (70.9%), proving rushing beats booming on compact maps.</li>
+<li><strong>Single-Threaded Web Export:</strong> Avoids browser requirements for <code>SharedArrayBuffer</code> and COOP/COEP isolation headers, enabling cross-origin iframe embedding and universal static hosting.</li>
+</ol></div>
+          </div>
+        </article>
+        
+  </main>
+
+  <script>
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      document.getElementById('theme-btn').textContent = next === 'light' ? '🌙 Dark' : '☀️ Light';
+      localStorage.setItem('theme', next);
+    }
+
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      document.getElementById('theme-btn').textContent = savedTheme === 'light' ? '🌙 Dark' : '☀️ Light';
+    }
+
+    function filterTurns() {
+      const query = document.getElementById('search-input').value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.turn-card');
+      cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        if (!query || text.includes(query)) {
+          card.classList.remove('is-hidden');
+        } else {
+          card.classList.add('is-hidden');
+        }
+      });
+    }
+
+    function copyTurn(num) {
+      const url = window.location.origin + window.location.pathname + '#turn-' + num;
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Copied link for Turn ' + num + ' to clipboard!');
+      }).catch(() => {
+        prompt('Copy link to Turn ' + num + ':', url);
+      });
+    }
+  </script>
+</body>
+</html>
