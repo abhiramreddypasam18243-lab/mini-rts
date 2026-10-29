@@ -133,7 +133,7 @@ In the main menu choose **Play online · vs a friend**. One player clicks **Host
 
 How it works: both computers run the same deterministic simulation and send each other only their commands (lockstep, `scripts/net/lockstep.gd`), through a tiny relay server (`relay/`). An order runs about 0.3 s after it is given, on both computers at the same tick.
 
-Your soldiers also help each other without being told: when one of your units or buildings is hit, your idle soldiers within 10 cells run to the fight (D-59). A soldier walking somewhere that gets hit turns and fights back (D-61); to pull it out of a fight, order it to move again and it retreats without turning back.
+Your soldiers also help each other without being told: when one of your soldiers is hit, all your idle soldiers anywhere on the map march to the fight (D-62); when a worker or building is hit, your idle soldiers within 10 cells come (D-59). A soldier walking somewhere that gets hit turns and fights back (D-61); to pull it out of a fight, order it to move again and it retreats without turning back.
 
 Disabled buttons show the reason on hover (for example *Need 60 wood · 20 gold*). Messages fade after 3 seconds.
 

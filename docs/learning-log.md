@@ -478,3 +478,18 @@ A soldier of yours that is walking somewhere and gets hit now turns and attacks 
 
 **One thing that could go wrong**
 A soldier walking past an enemy tower could be dragged into a hopeless fight. Hits from buildings therefore never turn a soldier; only enemy units do.
+
+---
+
+## The whole battalion answers a hit soldier (decision D-62)
+
+**What was built**
+When one of your soldiers is hit, every idle soldier of yours, anywhere on the map, attack-moves to the fight. A hit worker or building still calls only idle soldiers within 10 cells.
+
+**Why it is designed this way**
+- *It is one condition in the existing helper.* `CommandAids.help_command` already gathered idle soldiers near a hit. It now skips the distance check when the victim is a soldier.
+- *Your orders still win.* Only idle soldiers are sent, so soldiers you have sent elsewhere keep going, and a soldier already on its way is not ordered again by the next hit.
+- *Workers keep the local rule.* An enemy archer picking at a woodcutter should not pull the whole army away from the base.
+
+**One thing that could go wrong**
+Every idle soldier leaving for one skirmish leaves the base empty. A feint at one corner can draw the army away from the real attack. Keep a few defenders busy, for example on a Shift-queued patrol route, if that matters.

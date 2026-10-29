@@ -9,8 +9,9 @@
 ##   - D-56: new workers and finished builders start gathering by
 ##     themselves; double-click selects every unit of that kind in view;
 ##     Ctrl+A selects every soldier;
-##   - D-59: when something of the player's is hit, idle soldiers nearby
-##     come to help (an attack-move to the fight);
+##   - D-59, D-62: when something of the player's is hit, idle soldiers
+##     come to help (an attack-move to the fight): all of them for a hit
+##     soldier, those within 10 cells for a hit worker or building;
 ##   - D-61: a moving soldier that is hit fights back, unless the player
 ##     ordered it away while it was fighting back (a retreat).
 class_name CommandAids
@@ -124,9 +125,11 @@ static func should_alert(sim: Simulation, faction: String, event: Dictionary, in
 	return t != null and t.faction == faction and not in_view and now - last >= ALERT_GAP
 
 
-## Help for a hit (D-59): when something of `faction`'s is attacked, its idle
-## soldiers within HELP_RADIUS cells of it (squared cell distance, the same
-## measure as vision) attack-move to the fight: to the attacker's cell if it
+## Help for a hit (D-59, D-62): when one of `faction`'s soldiers is attacked,
+## every idle soldier of the faction comes, wherever it is (the whole
+## battalion); when a worker or building is attacked, only idle soldiers
+## within HELP_RADIUS cells of it (squared cell distance, the same measure as
+## vision). They attack-move to the fight: to the attacker's cell if it
 ## is a unit the faction sees, otherwise to the victim's own cell. Soldiers
 ## with an order, the victim itself and workers are left alone. Returns {}
 ## when nobody is sent. Only idle soldiers, so a soldier already on its way
@@ -150,7 +153,7 @@ static func help_command(sim: Simulation, faction: String, event: Dictionary) ->
 		if e.faction != faction or not e.is_soldier() or e.order_type != "idle" or id == t.id:
 			continue
 		var d: Vector2i = e.unit_cell() - where
-		if d.x * d.x + d.y * d.y <= HELP_RADIUS * HELP_RADIUS:
+		if t.is_soldier() or d.x * d.x + d.y * d.y <= HELP_RADIUS * HELP_RADIUS:
 			ids.append(id)
 	if ids.is_empty():
 		return {}
