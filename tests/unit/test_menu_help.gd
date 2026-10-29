@@ -21,3 +21,12 @@ func test_ac_75_how_to_play_fits_the_screen_and_lists_the_controls() -> void:
 		keys += str(r[0]) + " | "
 	for k: String in ["B / N / T / V", "Q / W / E", "C", "R / Y", "F, then click", "Shift", "G", "K", "Space", "Mouse wheel", "Ctrl + A", "Esc"]:
 		assert_string_contains(keys, k)
+
+
+func test_the_menu_version_matches_the_windows_build_version() -> void:
+	# The version printed in the menu must be the one the release carries,
+	# so a player can tell whether a cached copy is old.
+	var cfg: String = FileAccess.get_file_as_string("res://export_presets.cfg")
+	var m: RegExMatch = RegEx.create_from_string('application/product_version="([0-9.]+)"').search(cfg)
+	assert_not_null(m)
+	assert_eq(MainMenu.version() + ".0", m.get_string(1))

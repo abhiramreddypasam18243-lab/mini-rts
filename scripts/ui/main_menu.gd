@@ -156,7 +156,7 @@ func _ready() -> void:
 	help_button.pressed.connect(show_help)
 	credits_button.pressed.connect(show_credits)
 
-	var footer: Label = UiTheme.label("Godot 4.7.2  ·  art by Kenney, Kay Lousberg and ambientCG (CC0)  ·  see Credits", 14, "semibold", Palette.TEXT)
+	var footer: Label = UiTheme.label("Mini RTS v%s  ·  Godot 4.7.2  ·  art by Kenney, Kay Lousberg and ambientCG (CC0)  ·  see Credits" % version(), 14, "semibold", Palette.TEXT)
 	footer.add_theme_constant_override("outline_size", 6)
 	footer.add_theme_color_override("font_outline_color", Color(0.12, 0.07, 0.03, 0.9))
 	footer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -344,6 +344,12 @@ func _build_credits() -> Control:
 	close.pressed.connect(func() -> void: layer.visible = false)
 	col.add_child(close)
 	return layer
+
+
+## The game's version (project setting application/config/version), shown
+## in the menu so a player can tell which build they are running.
+static func version() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", "?"))
 
 
 ## Online play (D-60): host a match and get a code, or join with a code.
