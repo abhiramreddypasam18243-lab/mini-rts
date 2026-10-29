@@ -20,7 +20,7 @@ var _seed_edit: LineEdit
 var _policy: OptionButton
 var _map_style: OptionButton
 var _difficulty: OptionButton
-var _help: PanelContainer
+var _help: Control
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _scene: Array[Dictionary] = []
 ## The backdrop's battle effects (drawing only).
@@ -153,10 +153,7 @@ func _ready() -> void:
 	var credits_button: Button = _button("Credits", "brown")
 	credits_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info_row.add_child(credits_button)
-	_help = _build_help()
-	_help.visible = false
-	col.add_child(_help)
-	help_button.pressed.connect(func() -> void: _help.visible = not _help.visible)
+	help_button.pressed.connect(show_help)
 	credits_button.pressed.connect(show_credits)
 
 	var footer: Label = UiTheme.label("Godot 4.7.2  ·  art by Kenney, Kay Lousberg and ambientCG (CC0)  ·  see Credits", 14, "semibold", Palette.TEXT)
@@ -171,6 +168,11 @@ func _ready() -> void:
 	_credits = _build_credits()
 	_credits.visible = false
 	add_child(_credits)
+	# A pop-up over the menu with its own scroll bar: inside the menu column
+	# it was pushed off the bottom of the screen.
+	_help = _build_help()
+	_help.visible = false
+	add_child(_help)
 	_online = _build_online()
 	_online.visible = false
 	add_child(_online)
@@ -193,17 +195,57 @@ func _button(text: String, colour: String) -> Button:
 	return b
 
 
-func _build_help() -> PanelContainer:
-	var p: PanelContainer = PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UiTheme.frame("panel_beigeLight", 18, Vector2(22, 16)))
+func _build_help() -> Control:
+	var layer: ColorRect = ColorRect.new()
+	layer.color = Color(0.05, 0.03, 0.01, 0.75)
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center: CenterContainer = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var panel: PanelContainer = PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UiTheme.panel_box(Vector2(26, 22)))
+	center.add_child(panel)
+	var col: VBoxContainer = VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	panel.add_child(col)
+	var title: Label = UiTheme.label("How to play", 40, "title", Palette.ACCENT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(title)
+	var page: PanelContainer = PanelContainer.new()
+	page.add_theme_stylebox_override("panel", UiTheme.parchment(Vector2(18, 14)))
+	col.add_child(page)
+	var scroll: ScrollContainer = ScrollContainer.new()
+	# Fits the shortest supported screen; longer lists scroll.
+	var h: float = minf(420.0, get_viewport_rect().size.y - 230.0)
+	scroll.custom_minimum_size = Vector2(760, maxf(h, 200.0))
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	page.add_child(scroll)
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 22)
-	grid.add_theme_constant_override("v_separation", 4)
-	p.add_child(grid)
-	var rows: Array = []
-	if TouchInput.enabled():
-		rows = [
+	grid.add_theme_constant_override("v_separation", 6)
+	scroll.add_child(grid)
+	for r: Array in help_rows(TouchInput.enabled()):
+		var key: Label = UiTheme.label(r[0], 16, "bold", Palette.INK)
+		var what: Label = UiTheme.label(r[1], 16, "regular", Palette.INK)
+		if r[1] == "":
+			key.add_theme_color_override("font_color", Palette.ACCENT.darkened(0.45))
+		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		what.custom_minimum_size = Vector2(500, 0)
+		grid.add_child(key)
+		grid.add_child(what)
+	var close: Button = _button("Close", "gold")
+	close.pressed.connect(func() -> void: layer.visible = false)
+	col.add_child(close)
+	return layer
+
+
+## The rows of the How to play page: [key, what it does]; a row with an
+## empty second part is a heading.
+static func help_rows(touch: bool) -> Array:
+	if touch:
+		return [
 			["Tap a unit", "Select it (Box select or All soldiers for groups)"],
 			["Tap ground / tree / gold / enemy", "Move · gather · attack with the selection"],
 			["Drag", "Move the map (or the minimap)"],
@@ -211,24 +253,48 @@ func _build_help() -> PanelContainer:
 			["Queue: on", "Orders line up instead of replacing"],
 			["Cancel", "Stop placing or aiming, or clear the selection"],
 		]
-		for r: Array in rows:
-			grid.add_child(UiTheme.label(r[0], 16, "bold", Palette.INK))
-			grid.add_child(UiTheme.label(r[1], 16, "regular", Palette.INK))
-		return p
-	rows = [
+	return [
+		["Goal", ""],
+		["Win", "Gather wood, gold and food, build an army and destroy the enemy HQ"],
+		["Select and order", ""],
 		["Left click", "Select a unit or building"],
 		["Left drag", "Box-select your units (up to 24)"],
-		["Right click", "Move · gather (workers on wood/gold) · attack (soldiers)"],
-		["B, then click", "Place a barracks (a worker must be selected)"],
-		["Q / W / E", "Train worker / knight / archer at the selected building"],
+		["Double-click a unit", "Select all your units of that kind on screen"],
+		["Ctrl + A", "Select all your soldiers"],
+		["Right click", "Move · gather (workers on wood, gold or a farm) · attack (soldiers)"],
+		["F, then click", "Attack-move: walk there, fighting enemies on the way"],
+		["Hold Shift", "Queue the order after the current ones"],
 		["Esc", "Cancel placement or clear the selection"],
+		["Build (a worker selected)", ""],
+		["B / N / T / V, then click", "Barracks / farm / guard tower / stable"],
+		["Train and research (building selected)", ""],
+		["Q / W / E", "Worker (HQ) · knight · archer (barracks)"],
+		["C", "Cavalry (stable)"],
+		["R / Y", "Research Forging / Armour (barracks)"],
+		["Right click with it selected", "Set the building's rally point"],
+		["Helpers", ""],
+		[".", "Select the next idle worker"],
+		["Ctrl + 1..9, then 1..9", "Save and recall a control group (press twice to look at it)"],
+		["G", "Auto economy: a helper runs gathering, workers and farms"],
+		["Space", "Jump to the last \"Under attack!\" alert"],
+		["K", "Battle camera on / off"],
+		["Camera and sound", ""],
 		["WASD, screen edges", "Pan the camera"],
+		["Mouse wheel", "Zoom in and out"],
+		["Minimap", "Click or drag to move the camera; right click to order"],
 		["M", "Sound and music on / off"],
+		["Online", ""],
+		["Play online · vs a friend", "Host and read out the code, or join with a friend's code"],
 	]
-	for r: Array in rows:
-		grid.add_child(UiTheme.label(r[0], 16, "bold", Palette.INK))
-		grid.add_child(UiTheme.label(r[1], 16, "regular", Palette.INK))
-	return p
+
+
+## Opens the How to play page.
+func show_help() -> void:
+	_help.visible = true
+
+
+func is_help_showing() -> bool:
+	return _help.visible
 
 
 ## Opens the credits.
@@ -643,3 +709,12 @@ func _exit_tree() -> void:
 	# A connection still hosting or joining closes with the menu (D-60).
 	if _net != null:
 		_net.leave()
+
+
+## Esc closes the How to play and Credits pop-ups.
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event.is_pressed() and (event as InputEventKey).keycode == KEY_ESCAPE:
+		if _help.visible or _credits.visible:
+			_help.visible = false
+			_credits.visible = false
+			get_viewport().set_input_as_handled()
