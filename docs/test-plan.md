@@ -118,6 +118,7 @@ Every acceptance criterion of SPEC section 12 and how it is checked. Automated t
 | AC-112 |  | A peer never runs ahead of the other; fixed command order; desync reported… | Automated: `test_d60_lockstep.gd`: `test_ac_112_a_peer_never_runs_ahead_of_the_other`, `test_ac_112_commands_run_in_faction_order_whatever_arrives_first`, `test_ac_112_a_hash_mismatch_is_reported_as_desync` | Pass |
 | AC-113 |  | The relay pairs players by code, relays in order, refuses bad joins, health check… | Automated (Node): `relay/server.test.js` (`npm test` in `relay/`, run in CI) | Pass |
 | AC-114 |  | End to end: two game screens through a running relay stay identical; leaving ends the match… | Automated: `tools/net_smoke.gd` against a local relay (run in CI after the unit tests); 2026-10-28: 371 ticks compared, all equal | Pass |
+| AC-115 |  | A moving soldier that is hit fights back; idle, attack-move, queued, workers, tower hits, the AI and retreats are not turned… | Automated: `test_d61.gd`: `test_ac_115_a_moving_soldier_that_is_hit_attacks_the_attacker`, `test_ac_115_only_a_plain_move_is_interrupted`, `test_ac_115_a_move_given_while_fighting_back_is_a_retreat` | Pass |
 
 Pending items need a person: AC-78 (play-test checklist), AC-84 (second device). AC-86 is optional and done.
 

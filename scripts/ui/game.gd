@@ -123,6 +123,10 @@ var _net_quiet: Array[bool] = []
 var _stalled: float = 0.0
 var _desync_shown: bool = false
 var _halted: bool = false
+## Fighting back (D-61): soldiers turned on their attacker, and soldiers the
+## player then ordered away (they keep walking).
+var _fought_back: Dictionary = {}
+var _retreating: Dictionary = {}
 
 
 func setup(p_settings: Dictionary) -> void:
@@ -257,6 +261,8 @@ func _process(delta: float) -> void:
 				get_tree().quit()
 	if Engine.get_process_frames() % 300 == 0:
 		_forget_dead()
+	if Engine.get_process_frames() % 10 == 0:
+		CommandAids.prune_fight_back(sim, _fought_back, _retreating)
 	for n: FxDraw in _fx_nodes:
 		n.queue_redraw()
 	_world.queue_redraw()
@@ -356,6 +362,11 @@ func _consume(events: Array[Dictionary]) -> void:
 					var help: Dictionary = CommandAids.help_command(sim, faction, ev)
 					if not help.is_empty():
 						issue(help, true)
+					# A soldier on the move that is hit fights back (D-61).
+					var back: Dictionary = CommandAids.fight_back_command(sim, faction, ev, _retreating)
+					if not back.is_empty():
+						CommandAids.note_fight_back(back, _fought_back)
+						issue(back, true)
 					var where: Vector2 = draw_pos(t) if t.is_unit() else (Vector2(t.cell) + Vector2(t.size) / 2.0) * C
 					if CommandAids.should_alert(sim, faction, ev, view_rect().has_point(where), time, _last_alert):
 						_last_alert = time
@@ -520,6 +531,9 @@ func _add_fx(e: Dictionary) -> void:
 func issue(cmd: Dictionary, quiet: bool = false) -> String:
 	if demo:
 		return "demo"
+	# The player's own move for soldiers fighting back is a retreat (D-61).
+	if not quiet:
+		CommandAids.note_retreat(cmd, _fought_back, _retreating)
 	if _halted:
 		return "match_over"
 	if lockstep != null:

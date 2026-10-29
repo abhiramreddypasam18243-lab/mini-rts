@@ -10,7 +10,9 @@
 ##     themselves; double-click selects every unit of that kind in view;
 ##     Ctrl+A selects every soldier;
 ##   - D-59: when something of the player's is hit, idle soldiers nearby
-##     come to help (an attack-move to the fight).
+##     come to help (an attack-move to the fight);
+##   - D-61: a moving soldier that is hit fights back, unless the player
+##     ordered it away while it was fighting back (a retreat).
 class_name CommandAids
 extends RefCounted
 
@@ -153,3 +155,48 @@ static func help_command(sim: Simulation, faction: String, event: Dictionary) ->
 	if ids.is_empty():
 		return {}
 	return Commands.attack_move(faction, ids, dest)
+
+
+## Fighting back (D-61): when a soldier of `faction` walking on a plain move
+## is hit by an enemy unit the faction sees, it attacks that unit. Not for a
+## soldier in `retreating`, one with Shift-queued orders (the route is kept),
+## idle ones (auto-acquire handles them), attack-moves or attacks (already
+## fighting), or a hit from a building (a tower is not worth turning for).
+static func fight_back_command(sim: Simulation, faction: String, event: Dictionary, retreating: Dictionary) -> Dictionary:
+	var t: Entity = sim.entity(int(event.get("target", 0)))
+	var a: Entity = sim.entity(int(event.get("attacker", 0)))
+	if t == null or a == null or t.faction != faction or a.faction == faction:
+		return {}
+	if not t.is_soldier() or t.order_type != "move" or not t.orders.is_empty() or retreating.has(t.id):
+		return {}
+	if not a.is_unit() or not sim.fog.is_visible(faction, a.unit_cell()):
+		return {}
+	return Commands.attack(faction, [t.id], a.id)
+
+
+## Remembers the soldiers a fight-back command turned.
+static func note_fight_back(cmd: Dictionary, fought: Dictionary) -> void:
+	for id: Variant in cmd.args.unit_ids:
+		fought[int(id)] = true
+
+
+## The player's own move: soldiers that were fighting back now retreat.
+static func note_retreat(cmd: Dictionary, fought: Dictionary, retreating: Dictionary) -> void:
+	if cmd.get("command", "") != "move":
+		return
+	for id: Variant in cmd.args.get("unit_ids", []):
+		if fought.has(int(id)):
+			fought.erase(int(id))
+			retreating[int(id)] = true
+
+
+## Forgets soldiers that died, stopped fighting back, or finished retreating.
+static func prune_fight_back(sim: Simulation, fought: Dictionary, retreating: Dictionary) -> void:
+	for id: int in fought.keys():
+		var e: Entity = sim.entity(id)
+		if e == null or e.order_type != "attack":
+			fought.erase(id)
+	for id: int in retreating.keys():
+		var e: Entity = sim.entity(id)
+		if e == null or e.order_type != "move":
+			retreating.erase(id)

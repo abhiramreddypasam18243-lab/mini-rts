@@ -463,3 +463,18 @@ A weak unit hit far from the main army can pull nearby idle soldiers into a bad 
 
 **One thing that could go wrong**
 Anything that changes the simulation outside the shared commands would make the two games drift. The auto-economy helper used to submit straight to the simulation. In online matches its commands now go through the lockstep like the player's, and the end-to-end test (`tools/net_smoke.gd`) compares the two games' state at every tick.
+
+---
+
+## Soldiers fight back on the move (decision D-61)
+
+**What was built**
+A soldier of yours that is walking somewhere and gets hit now turns and attacks the enemy that hit it. If you then order it to move again, it retreats and does not turn back until it arrives.
+
+**Why it is designed this way**
+- *The rule was strict on purpose.* SPEC 5.5 lets only idle soldiers and attack-moves pick fights, so a plain move means "go there, whatever happens". That is predictable, but players expect a soldier being hit to defend itself.
+- *A retreat must stay possible.* If every hit turned a soldier around, you could never pull an army out of a lost fight. So a move given while a soldier is fighting back counts as a retreat (`CommandAids.note_retreat`).
+- *It is a player-side helper, like D-59.* `CommandAids.fight_back_command` turns a hit event into one ordinary attack command. The simulation rules, the AI and the experiment do not change, and in online games the command goes through the lockstep like any click.
+
+**One thing that could go wrong**
+A soldier walking past an enemy tower could be dragged into a hopeless fight. Hits from buildings therefore never turn a soldier; only enemy units do.
